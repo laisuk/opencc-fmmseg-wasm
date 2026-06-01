@@ -1,3 +1,6 @@
+[workspace]
+members = ["vendor/opencc-fmmseg/tools/dict-generate"]
+
 [package]
 name = "opencc-fmmseg-wasm"
 version = "0.1.0"
@@ -10,3 +13,14 @@ crate-type = ["cdylib"]
 [dependencies]
 wasm-bindgen = "0.2"
 opencc-fmmseg = { path = "vendor/opencc-fmmseg", default-features = false }
+
+# Default: heavy optimization for libraries (C API performance)
+
+[profile.release]
+opt-level = 3            # Maximize speed (better suited for C API performance)
+codegen-units = 1          # Optimize across the entire codebase for better performance
+lto = "fat"                # Full Link Time Optimization for improved binary performance
+panic = "abort"            # Prevents Rust panics from unwinding, reducing binary size
+incremental = false        # Disable incremental builds to fully optimize the release binary
+strip = "symbols"          # Strips debug symbols while retaining export symbols needed for the C API
+debug = 0                  # No debug info in the final binary to reduce size
