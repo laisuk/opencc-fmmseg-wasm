@@ -172,9 +172,7 @@ impl OpenCC {
     }
 
     pub fn new_embedded() -> Self {
-        Self::from_dictionary(
-            DictionaryMaxlength::from_embedded_cbor()
-        )
+        Self::from_dictionary(DictionaryMaxlength::from_embedded_cbor())
     }
 
     /// Creates an `OpenCC` instance from an existing [`DictionaryMaxlength`].
@@ -941,7 +939,7 @@ impl OpenCC {
     ///    - Taiwanese variant mappings (`tw_variants`)
     ///
     /// Internally this uses precomputed starter metadata from `union_for`
-    /// (via `UnionKey::S2T` and `UnionKey::TwVariantsOnly`) and runs over
+    /// (via `UnionKey::S2T` and `UnionKey::TwVariantsPair`) and runs over
     /// segmented input using longest-match replacement.
     ///
     /// # Arguments
@@ -958,8 +956,11 @@ impl OpenCC {
         let u1 = self
             .dictionary
             .union_for(UnionKey::S2T { punct: punctuation });
-        let round_2 = [&self.dictionary.tw_variants];
-        let u2 = self.dictionary.union_for(UnionKey::TwVariantsOnly);
+        let round_2 = [
+            &self.dictionary.tw_variants_phrases,
+            &self.dictionary.tw_variants,
+        ];
+        let u2 = self.dictionary.union_for(UnionKey::TwVariantsPair);
 
         self.apply_st_round_2(input, punctuation, u1, &round_2, u2)
     }
@@ -1034,7 +1035,7 @@ impl OpenCC {
     ///
     /// All three rounds share precomputed starter metadata obtained via
     /// `union_for` (`UnionKey::S2T`, `UnionKey::TwPhrasesOnly`,
-    /// `UnionKey::TwVariantsOnly`) and run over segmented input with
+    /// `UnionKey::TwVariantsPair`) and run over segmented input with
     /// longest-match replacement for high throughput.
     ///
     /// # Arguments
@@ -1054,8 +1055,11 @@ impl OpenCC {
         let round_2 = [&self.dictionary.tw_phrases];
         let u2 = self.dictionary.union_for(UnionKey::TwPhrasesOnly);
 
-        let round_3 = [&self.dictionary.tw_variants];
-        let u3 = self.dictionary.union_for(UnionKey::TwVariantsOnly);
+        let round_3 = [
+            &self.dictionary.tw_variants_phrases,
+            &self.dictionary.tw_variants,
+        ];
+        let u3 = self.dictionary.union_for(UnionKey::TwVariantsPair);
 
         if punctuation {
             let round_1 = [
@@ -1133,7 +1137,7 @@ impl OpenCC {
     ///    - Hong Kong variant mappings (`hk_variants`)
     ///
     /// Both rounds reuse precomputed starter metadata obtained from `union_for`
-    /// (`UnionKey::S2T` and `UnionKey::HkVariantsOnly`) and operate on
+    /// (`UnionKey::S2T` and `UnionKey::HkVariantsPair`) and operate on
     /// segmented input with longest-match replacement.
     ///
     /// # Arguments
@@ -1150,8 +1154,11 @@ impl OpenCC {
         let u1 = self
             .dictionary
             .union_for(UnionKey::S2T { punct: punctuation });
-        let round_2 = [&self.dictionary.hk_variants];
-        let u2 = self.dictionary.union_for(UnionKey::HkVariantsOnly);
+        let round_2 = [
+            &self.dictionary.hk_variants_phrases,
+            &self.dictionary.hk_variants,
+        ];
+        let u2 = self.dictionary.union_for(UnionKey::HkVariantsPair);
         self.apply_st_round_2(input, punctuation, u1, &round_2, u2)
     }
 
@@ -1205,7 +1212,7 @@ impl OpenCC {
     ///
     /// - Taiwanese variant mappings (`tw_variants`)
     ///
-    /// Starter metadata is obtained via `union_for(UnionKey::TwVariantsOnly)`
+    /// Starter metadata is obtained via `union_for(UnionKey::TwVariantsPair)`
     /// and applied over segmented input with longest-match replacement.
     ///
     /// # Arguments
@@ -1217,8 +1224,11 @@ impl OpenCC {
     /// Taiwanese Traditional Chinese text with character/word forms adjusted
     /// according to `tw_variants`.
     pub fn t2tw(&self, input: &str) -> String {
-        let round_1 = [&self.dictionary.tw_variants];
-        let u1 = self.dictionary.union_for(UnionKey::TwVariantsOnly);
+        let round_1 = [
+            &self.dictionary.tw_variants_phrases,
+            &self.dictionary.tw_variants,
+        ];
+        let u1 = self.dictionary.union_for(UnionKey::TwVariantsPair);
         self.apply_dicts_1(input, &round_1, u1)
     }
 
@@ -1235,7 +1245,7 @@ impl OpenCC {
     ///    - Taiwanese variant mappings (`tw_variants`)
     ///
     /// Both rounds use precomputed starter metadata from `union_for`
-    /// (`UnionKey::TwPhrasesOnly` and `UnionKey::TwVariantsOnly`) and run
+    /// (`UnionKey::TwPhrasesOnly` and `UnionKey::TwVariantsPair`) and run
     /// over segmented input with longest-match replacement.
     ///
     /// # Arguments
@@ -1249,8 +1259,11 @@ impl OpenCC {
     pub fn t2twp(&self, input: &str) -> String {
         let round_1 = [&self.dictionary.tw_phrases];
         let u1 = self.dictionary.union_for(UnionKey::TwPhrasesOnly);
-        let round_2 = [&self.dictionary.tw_variants];
-        let u2 = self.dictionary.union_for(UnionKey::TwVariantsOnly);
+        let round_2 = [
+            &self.dictionary.tw_variants_phrases,
+            &self.dictionary.tw_variants,
+        ];
+        let u2 = self.dictionary.union_for(UnionKey::TwVariantsPair);
         self.apply_dicts_2(input, &round_1, u1, &round_2, u2)
     }
 
@@ -1329,7 +1342,7 @@ impl OpenCC {
     ///
     /// - Hong Kong variant mappings (`hk_variants`)
     ///
-    /// Starter metadata is obtained via `union_for(UnionKey::HkVariantsOnly)`
+    /// Starter metadata is obtained via `union_for(UnionKey::HkVariantsPair)`
     /// and applied over segmented input with longest-match replacement.
     ///
     /// # Arguments
@@ -1341,8 +1354,11 @@ impl OpenCC {
     /// Hong Kong Traditional Chinese text with character/word forms adjusted
     /// according to `hk_variants`.
     pub fn t2hk(&self, input: &str) -> String {
-        let round_1 = [&self.dictionary.hk_variants];
-        let u1 = self.dictionary.union_for(UnionKey::HkVariantsOnly);
+        let round_1 = [
+            &self.dictionary.hk_variants_phrases,
+            &self.dictionary.hk_variants,
+        ];
+        let u1 = self.dictionary.union_for(UnionKey::HkVariantsPair);
         self.apply_dicts_1(input, &round_1, u1)
     }
 
@@ -1809,8 +1825,15 @@ impl OpenCC {
 #[cfg(test)]
 mod tests {
     use super::OpenCC;
-    use crate::dictionary_lib::{CustomDictMode, CustomDictSpec, DictSlot};
+    use crate::dictionary_lib::{
+        CustomDictMode, CustomDictSpec, DictMaxLen, DictSlot, DictionaryMaxlength,
+    };
     use crate::{dictionary_lib, OpenccConfig};
+    use std::path::PathBuf;
+
+    fn test_dicts_dir() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("dicts")
+    }
 
     #[test]
     fn convert_clears_stale_last_error_on_success() {
@@ -1826,6 +1849,32 @@ mod tests {
         let converted = cc.convert("汉字", "s2t", false);
         assert_eq!(converted, "漢字");
         assert!(OpenCC::get_last_error().is_none());
+    }
+
+    #[test]
+    fn tw_variant_phrases_apply_before_variant_chars() {
+        let mut dictionary = DictionaryMaxlength::default();
+        dictionary.tw_variants_phrases =
+            DictMaxLen::build_from_pairs(vec![("甲乙".to_string(), "TW_PHRASE".to_string())]);
+        dictionary.tw_variants =
+            DictMaxLen::build_from_pairs(vec![("甲乙".to_string(), "TW_CHAR".to_string())]);
+
+        let opencc = OpenCC::from_dictionary(dictionary);
+
+        assert_eq!(opencc.t2tw("甲乙"), "TW_PHRASE");
+    }
+
+    #[test]
+    fn hk_variant_phrases_apply_before_variant_chars() {
+        let mut dictionary = DictionaryMaxlength::default();
+        dictionary.hk_variants_phrases =
+            DictMaxLen::build_from_pairs(vec![("甲乙".to_string(), "HK_PHRASE".to_string())]);
+        dictionary.hk_variants =
+            DictMaxLen::build_from_pairs(vec![("甲乙".to_string(), "HK_CHAR".to_string())]);
+
+        let opencc = OpenCC::from_dictionary(dictionary);
+
+        assert_eq!(opencc.t2hk("甲乙"), "HK_PHRASE");
     }
 
     #[test]
@@ -1870,8 +1919,9 @@ mod tests {
 
     #[test]
     fn test_opencc_from_dictionary_custom_palantir() {
-        let dictionary =
-            dictionary_lib::DictionaryMaxlength::from_dicts_custom(&[CustomDictSpec {
+        let dictionary = dictionary_lib::DictionaryMaxlength::from_dicts_at(test_dicts_dir())
+            .expect("Failed to load test dictionaries")
+            .with_custom_dicts(&[CustomDictSpec {
                 slot: DictSlot::STPhrases,
                 pairs: vec![("帕兰蒂尔".to_string(), "柏蘭蒂爾".to_string())],
                 mode: CustomDictMode::Append,
