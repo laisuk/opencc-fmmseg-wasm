@@ -32,5 +32,7 @@ wasm-pack.log
 
 # Optional local test dictionaries
 /dicts/*.txt
-/dicts/*.cbor
+/dicts/LICENSE
 !/dicts/.gitkeep
+
+vendor/**/Cargo.lock
