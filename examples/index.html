@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Opencc-Fmmseg WASM Demo</title>
+</head>
+<body>
+<script type="module">
+    import init, { OpenccWasm } from "../pkg/opencc_fmmseg_wasm.js";
+
+    try {
+        await init();
+
+        const cc = new OpenccWasm("s2t");
+        console.log(cc.convert("汉字转换测试", false));
+    } catch (e) {
+        console.error(e);
+    }
+</script>
+</body>
+</html>

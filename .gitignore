@@ -1,0 +1,36 @@
+# Rust
+/target
+
+# wasm-pack output
+/pkg
+
+# Cargo lock (library project)
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Python local server cache
+__pycache__/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# wasm-bindgen cache
+wasm-pack.log
+
+# Optional local test dictionaries
+/dicts/*.txt
+/dicts/*.cbor
+!/dicts/.gitkeep

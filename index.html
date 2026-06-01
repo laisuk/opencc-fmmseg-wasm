@@ -1,0 +1,126 @@
+<!-- index.html -->
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>opencc-fmmseg WASM test</title>
+
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 120px;
+            margin-top: 10px;
+        }
+
+        input, select, button {
+            margin-top: 10px;
+            padding: 6px;
+            font-size: 14px;
+        }
+
+        pre {
+            background: #f3f3f3;
+            padding: 12px;
+            white-space: pre-wrap;
+        }
+
+        .row {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>opencc-fmmseg WASM test</h1>
+
+<div class="row">
+    <label for="config">Config:</label>
+
+    <input
+            id="config"
+            type="text"
+            value="s2t"
+            placeholder="s2t"
+    >
+
+    <button id="setConfigBtn">Set Config</button>
+</div>
+
+<div class="row">
+    <strong>Supported configs:</strong>
+    <span id="supported"></span>
+</div>
+
+<label for="input"><h3>Input</h3></label><textarea id="input">汉字转换测试</textarea>
+
+<div class="row">
+    <label>
+        <input type="checkbox" id="punctuation">
+        Enable punctuation conversion
+    </label>
+</div>
+
+<button id="btn">Convert</button>
+
+<h3>Output</h3>
+
+<pre id="out"></pre>
+
+<script type="module">
+    import init, { OpenccWasm } from "./pkg/opencc_fmmseg_wasm.js";
+
+    await init();
+
+    const cc = new OpenccWasm();
+
+    const configInput = document.getElementById("config");
+    const out = document.getElementById("out");
+
+    document.getElementById("supported").textContent =
+        OpenccWasm.get_supported_configs().join(", ");
+
+    document.getElementById("setConfigBtn").onclick = () => {
+        const config = configInput.value.trim();
+
+        if (!OpenccWasm.is_valid_config(config)) {
+            out.textContent =
+                `Invalid config: ${config}`;
+            return;
+        }
+
+        cc.set_config(config);
+
+        out.textContent =
+            `Current config set to: ${cc.get_config()}`;
+    };
+
+    document.getElementById("btn").onclick = () => {
+        const text =
+            document.getElementById("input").value;
+
+        const punctuation =
+            document.getElementById("punctuation").checked;
+
+        const converted =
+            cc.convert(text, punctuation);
+
+        const check =
+            cc.zho_check(converted);
+
+        out.textContent =
+            `Config: ${cc.get_config()}\n\n` +
+            converted +
+            `\n\nzho_check = ${check}`;
+    };
+
+    // console.log(cc.debug_ping());
+</script>
+
+</body>
+</html>
