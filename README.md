@@ -238,9 +238,9 @@ The package includes generated TypeScript definitions from `wasm-bindgen`.
 ## Related Projects
 
 * Rust backend: https://github.com/laisuk/opencc-fmmseg
-* C API: https://github.com/laisuk/opencc-fmmseg-capi
-* .NET: https://github.com/laisuk/OpenccNetLib
-* Python: https://github.com/laisuk/opencc-purepy
+* C API: https://github.com/laisuk/opencc-fmmseg/tree/master/capi/opencc-fmmseg-capi
+* .NET: https://github.com/laisuk/OpenccNet
+* Python: https://github.com/laisuk/opencc_purepy
 
 ---
 
