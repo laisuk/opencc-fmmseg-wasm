@@ -21,6 +21,8 @@ Features:
 * Traditional Chinese regional variants
 * Japanese Shinjitai conversion support
 * Chinese script detection (`zho_check`)
+* In-memory Office / EPUB document conversion
+* Zero-dependency Node.js CLI
 
 ---
 
@@ -195,6 +197,88 @@ Returns:
 
 ---
 
+## Office / EPUB Conversion
+
+Office and EPUB conversion runs fully locally in the browser or Node.js. Files are passed in and returned as bytes;
+nothing is uploaded to a backend server.
+
+This is useful for converting text inside:
+
+```text
+docx, xlsx, pptx, odt, ods, odp, epub
+```
+
+File size is limited by available browser or Node.js memory, but there is no upload or server-side limit. Font
+preservation is supported with the `keepFont` option.
+
+```javascript
+convert_office_bytes(inputBytes, format, config, punctuation, keepFont)
+```
+
+Parameters:
+
+* `inputBytes`: `Uint8Array` document bytes
+* `format`: `docx`, `xlsx`, `pptx`, `odt`, `ods`, `odp`, or `epub`
+* `config`: OpenCC config string, such as `"s2t"`
+* `punctuation`: whether to convert punctuation variants
+* `keepFont`: whether to preserve font declarations where supported
+
+Returns:
+
+* converted output bytes
+
+### Browser Office Example
+
+```javascript
+import init, {convert_office_bytes} from "@laisuk/opencc-fmmseg-wasm";
+
+await init();
+
+const file = document.querySelector("input[type=file]").files[0];
+const inputBytes = new Uint8Array(await file.arrayBuffer());
+
+const outputBytes = convert_office_bytes(
+    inputBytes,
+    "docx",
+    "s2t",
+    true,
+    true
+);
+
+const blob = new Blob([outputBytes], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+});
+
+const a = document.createElement("a");
+a.href = URL.createObjectURL(blob);
+a.download = "converted.docx";
+a.click();
+URL.revokeObjectURL(a.href);
+```
+
+### Node.js Office Example
+
+```javascript
+import fs from "fs";
+import init, {convert_office_bytes} from "@laisuk/opencc-fmmseg-wasm";
+
+await init();
+
+const inputBytes = fs.readFileSync("input.docx");
+
+const outputBytes = convert_office_bytes(
+    inputBytes,
+    "docx",
+    "s2t",
+    true,
+    true
+);
+
+fs.writeFileSync("output.docx", outputBytes);
+```
+
+---
+
 ## Browser Example
 
 ```html
@@ -222,6 +306,52 @@ Returns:
 
 </body>
 </html>
+```
+
+---
+
+## Node.js CLI
+
+The package includes a zero-dependency Node.js CLI:
+
+```bash
+opencc-fmmseg convert -i input.txt -o output.txt -c s2t -p
+```
+
+```bash
+opencc-fmmseg office -i input.docx -o output.docx -c s2t -p --keep-font
+```
+
+### Text Conversion Options
+
+```text
+-i, --input <file>          Input text file
+-o, --output <file>         Output text file
+-c, --config <conversion>   Conversion config
+-p, --punct                 Enable punctuation conversion
+--in-enc <encoding>         Input encoding
+--out-enc <encoding>        Output encoding
+```
+
+### Office / EPUB Options
+
+```text
+-i, --input <file>          Input Office / EPUB file
+-o, --output <file>         Output file
+-c, --config <conversion>   Conversion config
+-p, --punct                 Enable punctuation conversion
+--format <format>           docx | xlsx | pptx | odt | ods | odp | epub
+--auto-ext                  Append extension to output if missing
+--keep-font                 Preserve font-family information
+--no-keep-font              Do not preserve font-family information
+```
+
+For `office`, the format is inferred from the input file extension when `--format` is omitted.
+
+If `-o, --output` is omitted, `office` writes:
+
+```text
+<input-name>_converted.<ext>
 ```
 
 ---
