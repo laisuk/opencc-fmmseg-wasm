@@ -1,0 +1,10 @@
+{
+  "name": "@laisuk/opencc-fmmseg-wasm",
+  "version": "0.1.0",
+  "description": "OpenCC FMM segmentation WASM bindings",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/laisuk/opencc-fmmseg-wasm"
+  }
+}
