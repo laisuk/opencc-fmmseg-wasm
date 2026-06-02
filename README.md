@@ -1,5 +1,10 @@
 # opencc-fmmseg-wasm
 
+[![npm version](https://img.shields.io/npm/v/@laisuk/opencc-fmmseg-wasm)](https://www.npmjs.com/package/@laisuk/opencc-fmmseg-wasm)
+[![npm downloads](https://img.shields.io/npm/dm/@laisuk/opencc-fmmseg-wasm)](https://www.npmjs.com/package/@laisuk/opencc-fmmseg-wasm)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![WebAssembly](https://img.shields.io/badge/WebAssembly-enabled-blue)](https://webassembly.org/)
+
 OpenCC FMM segmentation WebAssembly bindings for browsers and JavaScript runtimes.
 
 This package provides high-quality Simplified Chinese ↔ Traditional Chinese conversion powered by the Rust [
