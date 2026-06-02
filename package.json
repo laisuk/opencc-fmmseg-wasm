@@ -1,6 +1,6 @@
 {
   "name": "@laisuk/opencc-fmmseg-wasm",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "OpenCC FMM segmentation WASM bindings",
   "license": "MIT",
   "repository": {
@@ -19,5 +19,9 @@
     "cjk",
     "zh-hans",
     "zh-hant"
-  ]
+  ],
+  "bin": {
+    "opencc-fmmseg": "./bin/opencc.js"
+  },
+  "type": "module"
 }

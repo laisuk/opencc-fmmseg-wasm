@@ -1,3 +1,6 @@
+mod converter;
+pub use converter::OfficeConverter;
+
 use opencc_fmmseg::{OpenCC, OpenccConfig};
 use wasm_bindgen::prelude::*;
 
@@ -125,6 +128,22 @@ impl OpenccWasm {
     }
 }
 
+#[wasm_bindgen]
+pub fn convert_office_bytes(
+    input: &[u8],
+    format: &str,
+    config: &str,
+    punctuation: bool,
+    keep_font: bool,
+) -> Result<Vec<u8>, JsValue> {
+    let mut opencc = OpenCC::new_embedded();
+    opencc.set_parallel(false);
+
+    OfficeConverter::convert_bytes(input, format, &opencc, config, punctuation, keep_font)
+        .map(|(bytes, _)| bytes)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,5 +188,49 @@ mod tests {
 
         assert_eq!(WasmOpenccConfig::S2t as u32, OpenccConfig::S2t.to_ffi());
         assert_eq!(WasmOpenccConfig::T2jp as u32, OpenccConfig::T2jp.to_ffi());
+    }
+
+    #[test]
+    fn test_convert_bytes_docx_real_file() {
+        use std::fs;
+        use std::io::{Cursor, Read};
+        use zip::ZipArchive;
+
+        let input_path = "tests/OneDay.docx";
+
+        let input_bytes = fs::read(input_path).expect("Failed to read tests/OneDay.docx");
+
+        let mut opencc = OpenCC::new_embedded();
+        opencc.set_parallel(false);
+
+        let (out_bytes, converted_count) =
+            OfficeConverter::convert_bytes(&input_bytes, "docx", &opencc, "s2t", true, true)
+                .expect("convert_bytes failed");
+
+        assert!(
+            converted_count > 0,
+            "Expected at least one converted XML entry"
+        );
+
+        // Optional debug output
+        #[cfg(debug_assertions)]
+        let _ = fs::write("tests/OneDay_s2t.docx", &out_bytes);
+
+        // Verify output is a valid ZIP/docx
+        let cursor = Cursor::new(out_bytes);
+        let mut zip = ZipArchive::new(cursor).expect("Output is not a valid ZIP archive");
+
+        let mut doc = zip
+            .by_name("word/document.xml")
+            .expect("Missing word/document.xml");
+
+        let mut content = String::new();
+        doc.read_to_string(&mut content)
+            .expect("Failed to read document.xml");
+
+        assert!(
+            content.contains("碼頭"),
+            "Expected converted Traditional Chinese phrase"
+        );
     }
 }

@@ -11,7 +11,7 @@ mod opencc_config;
 /// Common helpers for opencc-fmmseg.
 mod utils;
 
-pub use crate::delimiter_set::{DelimiterSet, is_delimiter};
+pub use crate::delimiter_set::{is_delimiter, DelimiterSet};
 pub use crate::dict_refs::DictRefs;
 pub use crate::dictionary_lib::{CustomDictFileSpec, CustomDictMode, CustomDictSpec, DictSlot};
 pub use crate::dictionary_lib::{DictionaryError, DictionaryMaxlength};
