@@ -30,9 +30,4 @@ __pycache__/
 # wasm-bindgen cache
 wasm-pack.log
 
-# Optional local test dictionaries
-/dicts/*.txt
-/dicts/LICENSE
-!/dicts/.gitkeep
-
 vendor/**/Cargo.lock
