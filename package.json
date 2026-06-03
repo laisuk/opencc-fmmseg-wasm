@@ -1,7 +1,7 @@
 {
   "name": "@laisuk/opencc-fmmseg-wasm",
-  "version": "0.2.2",
-  "description": "OpenCC FMM segmentation WASM bindings",
+  "version": "0.2.3",
+  "description": "WebAssembly bindings for opencc-fmmseg, a high-performance OpenCC-compatible Simplified/Traditional Chinese converter.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -16,9 +16,7 @@
     "webassembly",
     "opencc-fmmseg",
     "text-conversion",
-    "cjk",
-    "zh-hans",
-    "zh-hant"
+    "cjk"
   ],
   "bin": {
     "opencc-fmmseg": "./bin/opencc.js"

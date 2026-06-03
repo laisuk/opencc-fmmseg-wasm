@@ -3,11 +3,18 @@ members = ["vendor/opencc-fmmseg/tools/dict-generate"]
 
 [package]
 name = "opencc-fmmseg-wasm"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2024"
 description = "WebAssembly bindings for opencc-fmmseg, a high-performance OpenCC-compatible Simplified/Traditional Chinese converter."
 repository = "https://github.com/laisuk/opencc-fmmseg-wasm"
 license = "MIT"
+keywords = [
+    "opencc",
+    "chinese",
+    "wasm",
+    "webassembly",
+    "conversion",
+]
 
 [lib]
 crate-type = ["cdylib"]
