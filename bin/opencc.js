@@ -7,7 +7,7 @@ import process from "process";
 import init, {
     OpenccWasm,
     convert_office_bytes
-} from "../pkg/opencc_fmmseg_wasm.js";
+} from "../opencc_fmmseg_wasm.js";
 
 const OFFICE_FORMATS = new Set([
     "docx",
@@ -26,7 +26,7 @@ async function ensureWasmInitialized() {
         return;
     }
 
-    const wasmPath = new URL("../pkg/opencc_fmmseg_wasm_bg.wasm", import.meta.url);
+    const wasmPath = new URL("../opencc_fmmseg_wasm_bg.wasm", import.meta.url);
     const wasmBytes = fs.readFileSync(wasmPath);
 
     await init({
@@ -41,8 +41,8 @@ function printHelp() {
 opencc-fmmseg WASM CLI
 
 Usage:
-  opencc.js convert [options]
-  opencc.js office  [options]
+  npx opencc-fmmseg convert [options]
+  npx opencc-fmmseg office  [options]
 
 Commands:
   convert                     Convert plain text
@@ -70,12 +70,12 @@ General options:
   -h, --help                  Show help
 
 Examples:
-  node ./bin/opencc.js convert -i a.txt -o b.txt -c s2t
-  node ./bin/opencc.js convert -i a.txt -o b.txt -c s2tw -p
-  cat a.txt | node ./bin/opencc.js convert -c t2s
+  npx opencc-fmmseg convert -i a.txt -o b.txt -c s2t
+  npx opencc-fmmseg convert -i a.txt -o b.txt -c s2tw -p
+  cat a.txt | npx opencc-fmmseg convert -c t2s
 
-  node ./bin/opencc.js office -i a.docx -o b.docx -c s2t -p
-  node ./bin/opencc.js office -i a.epub -c s2tw --auto-ext
+  npx opencc-fmmseg office -i a.docx -o b.docx -c s2t -p
+  npx opencc-fmmseg office -i a.epub -c s2tw --auto-ext
 `);
 }
 

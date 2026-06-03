@@ -1,0 +1,1 @@
+Copy-Item -Recurse -Force .\bin .\pkg\bin

@@ -1,0 +1,38 @@
+{
+  "name": "@laisuk/opencc-fmmseg-wasm",
+  "type": "module",
+  "description": "WebAssembly bindings for opencc-fmmseg, a high-performance OpenCC-compatible Simplified/Traditional Chinese converter.",
+  "version": "0.2.2",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/laisuk/opencc-fmmseg-wasm.git"
+  },
+  "keywords": [
+    "opencc",
+    "chinese",
+    "simplified-chinese",
+    "traditional-chinese",
+    "wasm",
+    "webassembly",
+    "opencc-fmmseg",
+    "text-conversion",
+    "cjk",
+    "zh-hans",
+    "zh-hant"
+  ],
+  "bin": {
+    "opencc-fmmseg": "bin/opencc.js"
+  },
+  "files": [
+    "bin/",
+    "opencc_fmmseg_wasm_bg.wasm",
+    "opencc_fmmseg_wasm.js",
+    "opencc_fmmseg_wasm.d.ts"
+  ],
+  "main": "opencc_fmmseg_wasm.js",
+  "types": "opencc_fmmseg_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
