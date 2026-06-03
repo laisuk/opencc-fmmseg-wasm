@@ -34,5 +34,21 @@ codegen-units = 1          # Optimize across the entire codebase for better perf
 lto = "fat"                # Full Link Time Optimization for improved binary performance
 panic = "abort"            # Prevents Rust panics from unwinding, reducing binary size
 incremental = false        # Disable incremental builds to fully optimize the release binary
+
+# `strip = "symbols"` is intentionally disabled for the WASM build.
+#
+# wasm-pack already invokes `wasm-opt`, which performs its own aggressive
+# optimization and stripping passes on the generated `.wasm`.
+#
+# Enabling Rust symbol stripping here may conflict with wasm-bindgen /
+# wasm-opt processing and can occasionally lead to:
+#   - missing exported symbols
+#   - broken JS bindings
+#   - invalid or harder-to-debug WASM output
+#
+# Since `wasm-opt` already minimizes the final binary effectively,
+# additional Rust-level symbol stripping provides little benefit.
+#
 #strip = "symbols"          # Strips debug symbols while retaining export symbols needed for the C API
+
 debug = 0                  # No debug info in the final binary to reduce size
