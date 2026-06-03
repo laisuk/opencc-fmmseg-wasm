@@ -6,7 +6,42 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.1.1] - Unreleased
+## [0.2.2] - 2026-06-03
+
+### Fixed
+
+* Fixed npm package CLI layout so:
+
+    * `npx opencc-fmmseg ...`
+    * `node pkg/bin/opencc.js`
+
+  correctly locate and execute the packaged CLI entrypoint.
+
+* Fixed npm publish artifact synchronization between:
+
+    * `bin/opencc.js`
+    * `pkg/bin/opencc.js`
+
+* Refactored npm packaging workflow to use a single-source-of-truth (SSOT) CLI script copied into the generated npm
+  package.
+
+* Added PowerShell packaging helpers for stable npm release preparation.
+
+---
+
+## [0.2.1] - 2026-06-03
+
+### Changed
+
+* Internal npm packaging and CLI layout adjustments.
+
+### Notes
+
+* This version was a short-lived transitional packaging release while stabilizing the npm CLI structure.
+
+---
+
+## [0.2.0] - 2026-06-03
 
 ### Added
 
@@ -62,6 +97,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 * Reduced WASM portability risks by removing unnecessary filesystem coupling from the Office conversion pipeline.
 
 * Updated Node.js WASM initialization to use explicit `.wasm` byte loading compatible with local filesystem execution.
+
+### Notes
+
+* Browser WASM functionality remained operational throughout the 0.2.x transition.
+* Early npm CLI packaging/layout issues were stabilized in later patch releases.
 
 ---
 

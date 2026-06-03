@@ -191,6 +191,11 @@ async function runConvert(args) {
 
     const cc = new OpenccWasm(config);
 
+    // Prompt user if reading from interactive terminal
+    if (!input && process.stdin.isTTY) {
+        console.error("Input text to convert, <Ctrl+Z>/<Ctrl+D> to submit:");
+    }
+
     const inputText = readInputText(input, inEnc);
     const outputText = cc.convert(inputText, punct);
 
