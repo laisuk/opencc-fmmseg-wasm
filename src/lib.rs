@@ -7,7 +7,7 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum WasmOpenccConfig {
+pub enum OpenccConfigWasm {
     S2t = 1,
     S2tw = 2,
     S2twp = 3,
@@ -26,15 +26,15 @@ pub enum WasmOpenccConfig {
     T2jp = 16,
 }
 
-impl WasmOpenccConfig {
+impl OpenccConfigWasm {
     fn into_backend(self) -> OpenccConfig {
         OpenccConfig::from_ffi(self as u32)
-            .expect("WasmOpenccConfig must match backend OpenccConfig")
+            .expect("OpenccConfigWasm must match backend OpenccConfig")
     }
 }
 
-impl From<WasmOpenccConfig> for OpenccConfig {
-    fn from(value: WasmOpenccConfig) -> Self {
+impl From<OpenccConfigWasm> for OpenccConfig {
+    fn from(value: OpenccConfigWasm) -> Self {
         value.into_backend()
     }
 }
@@ -98,7 +98,7 @@ impl OpenccWasm {
     }
 
     #[wasm_bindgen(js_name = newWithEnum)]
-    pub fn new_with_enum(config: Option<WasmOpenccConfig>) -> Result<OpenccWasm, JsValue> {
+    pub fn new_with_enum(config: Option<OpenccConfigWasm>) -> Result<OpenccWasm, JsValue> {
         let config = config.map(OpenccConfig::from).unwrap_or(OpenccConfig::S2t);
 
         let mut inner = OpenCC::new_embedded();
@@ -108,7 +108,7 @@ impl OpenccWasm {
     }
 
     #[wasm_bindgen(js_name = setConfigEnum)]
-    pub fn set_config_enum(&mut self, config: WasmOpenccConfig) {
+    pub fn set_config_enum(&mut self, config: OpenccConfigWasm) {
         self.config = OpenccConfig::from(config);
     }
 
@@ -186,8 +186,8 @@ mod tests {
             assert_eq!(OpenccConfig::from_ffi(id), Some(config));
         }
 
-        assert_eq!(WasmOpenccConfig::S2t as u32, OpenccConfig::S2t.to_ffi());
-        assert_eq!(WasmOpenccConfig::T2jp as u32, OpenccConfig::T2jp.to_ffi());
+        assert_eq!(OpenccConfigWasm::S2t as u32, OpenccConfig::S2t.to_ffi());
+        assert_eq!(OpenccConfigWasm::T2jp as u32, OpenccConfig::T2jp.to_ffi());
     }
 
     #[test]

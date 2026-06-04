@@ -56,13 +56,13 @@ console.log(cc.convert("汉字", false));
 ```javascript
 import init, {
     OpenccWasm,
-    WasmOpenccConfig
+    OpenccConfigWasm
 } from "@laisuk/opencc-fmmseg-wasm";
 
 await init();
 
 const cc = OpenccWasm.newWithEnum(
-    WasmOpenccConfig.S2t
+    OpenccConfigWasm.S2t
 );
 
 console.log(cc.convert("汉字", false));
@@ -359,6 +359,8 @@ If `-o, --output` is omitted, `office` writes:
 ## TypeScript Support
 
 The package includes generated TypeScript definitions from `wasm-bindgen`.
+
+The WASM-facing enum is exported as `OpenccConfigWasm`, alongside `OpenccWasm`.
 
 ---
 

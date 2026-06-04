@@ -11,6 +11,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Update dictionary data
+- Renamed the public WASM-facing config enum to `OpenccConfigWasm` so it appears alongside `OpenccWasm` in IDE
+  autocomplete.
 
 ---
 
