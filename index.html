@@ -60,12 +60,7 @@
 <div class="row">
     <label for="config">Config:</label>
 
-    <input
-            id="config"
-            type="text"
-            value="s2t"
-            placeholder="s2t"
-    >
+    <select id="config"></select>
 
     <button id="setConfigBtn">Set Config</button>
 </div>
@@ -99,7 +94,7 @@
 <button id="btn">Convert</button>
 
 <h3>Status</h3>
-<pre id="out"></pre>
+<pre id="out">Loading engine...</pre>
 
 <script type="module">
     import init, {OpenccWasm} from "https://cdn.jsdelivr.net/npm/@laisuk/opencc-fmmseg-wasm/opencc_fmmseg_wasm.js";
@@ -108,12 +103,57 @@
     import {EditorView, keymap, lineNumbers} from "https://esm.sh/@codemirror/view";
     import {defaultKeymap, history, historyKeymap} from "https://esm.sh/@codemirror/commands";
 
-    await init();
-
-    const cc = new OpenccWasm();
-
     const configInput = document.getElementById("config");
     const out = document.getElementById("out");
+
+    let cc = null;
+
+    const editorLeft = createEditor(
+        document.getElementById("editor-left"),
+        "汉字转换测试",
+        false
+    );
+
+    const editorRight = createEditor(
+        document.getElementById("editor-right"),
+        "",
+        true
+    );
+
+    document.getElementById("setConfigBtn").disabled = true;
+    document.getElementById("btn").disabled = true;
+
+    try {
+        out.textContent = "Loading engine...";
+
+        await init();
+
+        cc = new OpenccWasm();
+
+        const configs = OpenccWasm.getSupportedConfigs();
+
+        for (const config of configs) {
+            const option = document.createElement("option");
+            option.value = config;
+            option.textContent = config;
+
+            if (config === "s2t") {
+                option.selected = true;
+            }
+
+            configInput.appendChild(option);
+        }
+
+        document.getElementById("supported").textContent = configs.join(", ");
+
+        document.getElementById("setConfigBtn").disabled = false;
+        document.getElementById("btn").disabled = false;
+
+        out.textContent = `Engine loaded. (${configs.length} configs available)`;
+    } catch (err) {
+        out.textContent = "Failed to load WASM engine.";
+        console.error(err);
+    }
 
     function createEditor(parent, text, readOnly) {
         return new EditorView({
@@ -149,20 +189,6 @@
         });
     }
 
-    const editorLeft = createEditor(
-        document.getElementById("editor-left"),
-        "汉字转换测试",
-        false
-    );
-
-    const editorRight = createEditor(
-        document.getElementById("editor-right"),
-        "",
-        true
-    );
-
-    document.getElementById("supported").textContent =
-        OpenccWasm.getSupportedConfigs().join(", ");
 
     document.getElementById("setConfigBtn").onclick = () => {
         const config = configInput.value.trim();
@@ -199,6 +225,11 @@
     };
 
     document.getElementById("btn").onclick = () => {
+        if (!cc) {
+            out.textContent = "Engine is not loaded yet.";
+            return;
+        }
+
         const text = getEditorText(editorLeft);
 
         const punctuation =
