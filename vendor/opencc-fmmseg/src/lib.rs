@@ -1,5 +1,6 @@
 /// Delimiters helper for splitting and matching delimiters.
 mod delimiter_set;
+mod detofu;
 /// Bridge helper for conversion plan and core converter functions.
 mod dict_refs;
 /// Dictionary utilities for managing multiple OpenCC lexicons.
@@ -17,4 +18,10 @@ pub use crate::dictionary_lib::{CustomDictFileSpec, CustomDictMode, CustomDictSp
 pub use crate::dictionary_lib::{DictionaryError, DictionaryMaxlength};
 pub use crate::opencc::OpenCC;
 pub use crate::opencc_config::OpenccConfig;
+/// Converts rare non-BMP CJK extension characters to compatibility fallbacks.
+pub use detofu::detofu;
+/// Threshold level used by detofu display-compatibility fallback.
+pub use detofu::DetofuLevel;
+/// Reusable and customizable detofu fallback map.
+pub use detofu::DetofuMap;
 pub use utils::*;
