@@ -6,6 +6,7 @@ import process from "process";
 
 import init, {
     OpenccWasm,
+    DetofuLevelWasm,
     convert_office_bytes
 } from "../opencc_fmmseg_wasm.js";
 
@@ -53,6 +54,9 @@ Convert options:
   -o, --output <file>         Output text file; stdout if omitted
   -c, --config <conversion>   Conversion config (default: s2t)
   -p, --punct                 Enable punctuation conversion
+  --detofu [level]            Replace tofu-risk rare CJK extension chars after conversion
+                              level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
+                              default when omitted value: all
   --in-enc <encoding>         Input encoding (default: utf8)
   --out-enc <encoding>        Output encoding (default: utf8)
 
@@ -73,6 +77,8 @@ Examples:
   npx opencc-fmmseg convert -i a.txt -o b.txt -c s2t
   npx opencc-fmmseg convert -i a.txt -o b.txt -c s2tw -p
   cat a.txt | npx opencc-fmmseg convert -c t2s
+  npx opencc-fmmseg convert -i a.txt -o b.txt -c t2s --detofu
+  npx opencc-fmmseg convert -i a.txt -o b.txt -c t2s --detofu ext-c
 
   npx opencc-fmmseg office -i a.docx -o b.docx -c s2t -p
   npx opencc-fmmseg office -i a.epub -c s2tw --auto-ext
@@ -179,6 +185,56 @@ function applyAutoExt(outputFile, officeFormat, autoExt) {
     return `${outputFile}.${officeFormat}`;
 }
 
+function parseDetofuLevel(value) {
+    if (value === null || value === undefined || value === true) {
+        return DetofuLevelWasm.ExtB; // "all"
+    }
+
+    const normalized = String(value).trim().toLowerCase();
+
+    switch (normalized) {
+        case "":
+        case "all":
+        case "ext-b":
+        case "extb":
+        case "b":
+            return DetofuLevelWasm.ExtB;
+        case "ext-c":
+        case "extc":
+        case "c":
+            return DetofuLevelWasm.ExtC;
+        case "ext-d":
+        case "extd":
+        case "d":
+            return DetofuLevelWasm.ExtD;
+        case "ext-e":
+        case "exte":
+        case "e":
+            return DetofuLevelWasm.ExtE;
+        case "ext-f":
+        case "extf":
+        case "f":
+            return DetofuLevelWasm.ExtF;
+        case "ext-g":
+        case "extg":
+        case "g":
+            return DetofuLevelWasm.ExtG;
+        case "ext-h":
+        case "exth":
+        case "h":
+            return DetofuLevelWasm.ExtH;
+        case "ext-i":
+        case "exti":
+        case "i":
+            return DetofuLevelWasm.ExtI;
+        default:
+            throw new Error(
+                `Invalid detofu level: ${value}. ` +
+                `Valid values: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i`
+            );
+    }
+}
+
 async function runConvert(args) {
     const input = getArg(args, "-i", "--input");
     const output = getArg(args, "-o", "--output");
@@ -186,6 +242,20 @@ async function runConvert(args) {
     const inEnc = getArg(args, null, "--in-enc", "utf8");
     const outEnc = getArg(args, null, "--out-enc", "utf8");
     const punct = hasFlag(args, "-p", "--punct");
+
+    const detofuIndex = args.indexOf("--detofu");
+    const detofuEnabled = detofuIndex !== -1;
+    let detofuLevel = null;
+
+    if (detofuEnabled) {
+        const next = args[detofuIndex + 1];
+
+        if (!next || next.startsWith("-")) {
+            detofuLevel = parseDetofuLevel("all");
+        } else {
+            detofuLevel = parseDetofuLevel(next);
+        }
+    }
 
     await ensureWasmInitialized();
 
@@ -197,7 +267,11 @@ async function runConvert(args) {
     }
 
     const inputText = readInputText(input, inEnc);
-    const outputText = cc.convert(inputText, punct);
+    let outputText = cc.convert(inputText, punct);
+
+    if (detofuEnabled) {
+        outputText = cc.detofu(outputText, detofuLevel);
+    }
 
     writeOutputText(output, outputText, outEnc);
 
@@ -209,7 +283,8 @@ async function runConvert(args) {
             console.error();
         }
 
-        console.error(`Conversion completed (${config}): ${inFrom} -> ${outTo}`);
+        const suffix = detofuEnabled ? ", detofu" : "";
+        console.error(`Conversion completed (${config}${suffix}): ${inFrom} -> ${outTo}`);
     }
 }
 

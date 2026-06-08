@@ -1,7 +1,7 @@
 mod converter;
 pub use converter::OfficeConverter;
 
-use opencc_fmmseg::{OpenCC, OpenccConfig};
+use opencc_fmmseg::{DetofuLevel, OpenCC, OpenccConfig};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -36,6 +36,35 @@ impl OpenccConfigWasm {
 impl From<OpenccConfigWasm> for OpenccConfig {
     fn from(value: OpenccConfigWasm) -> Self {
         value.into_backend()
+    }
+}
+
+#[wasm_bindgen]
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DetofuLevelWasm {
+    ExtB = 2,
+    ExtC = 3,
+    ExtD = 4,
+    ExtE = 5,
+    ExtF = 6,
+    ExtG = 7,
+    ExtH = 8,
+    ExtI = 9,
+}
+
+impl From<DetofuLevelWasm> for DetofuLevel {
+    fn from(value: DetofuLevelWasm) -> Self {
+        match value {
+            DetofuLevelWasm::ExtB => DetofuLevel::ExtB,
+            DetofuLevelWasm::ExtC => DetofuLevel::ExtC,
+            DetofuLevelWasm::ExtD => DetofuLevel::ExtD,
+            DetofuLevelWasm::ExtE => DetofuLevel::ExtE,
+            DetofuLevelWasm::ExtF => DetofuLevel::ExtF,
+            DetofuLevelWasm::ExtG => DetofuLevel::ExtG,
+            DetofuLevelWasm::ExtH => DetofuLevel::ExtH,
+            DetofuLevelWasm::ExtI => DetofuLevel::ExtI,
+        }
     }
 }
 
@@ -120,6 +149,17 @@ impl OpenccWasm {
     #[wasm_bindgen(js_name = zhoCheck)]
     pub fn zho_check(&self, text: &str) -> i32 {
         self.inner.zho_check(text)
+    }
+
+    #[wasm_bindgen(js_name = detofu)]
+    pub fn detofu(&self, text: &str, level: DetofuLevelWasm) -> String {
+        self.inner.detofu(text, level.into())
+    }
+
+    #[wasm_bindgen(js_name = convertDetofu)]
+    pub fn convert_detofu(&self, text: &str, punctuation: bool, level: DetofuLevelWasm) -> String {
+        let converted = self.convert(text, punctuation);
+        self.inner.detofu(&converted, level.into())
     }
 
     #[wasm_bindgen(js_name = debugPing)]
@@ -232,5 +272,16 @@ mod tests {
             content.contains("碼頭"),
             "Expected converted Traditional Chinese phrase"
         );
+    }
+
+    #[test]
+    fn test_detofu() {
+        let cc = OpenccWasm::new(Some("t2s".to_string())).unwrap();
+
+        let converted = cc.convert("儼驂騑於上路，訪風景於崇阿", false);
+        assert_eq!(converted, "俨骖𬴂于上路，访风景于崇阿");
+
+        let safe = cc.detofu(&converted, DetofuLevelWasm::ExtB);
+        assert_eq!(safe, "俨骖騑于上路，访风景于崇阿");
     }
 }

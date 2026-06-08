@@ -22,7 +22,9 @@
 use crate::delimiter_set::is_delimiter;
 use crate::dictionary_lib::dictionary_maxlength::UnionKey;
 use crate::dictionary_lib::{DictMaxLen, DictionaryMaxlength, StarterUnion};
-use crate::{detofu, find_max_utf8_length, for_each_len_dec, DetofuLevel, DetofuMap, DictRefs, OpenccConfig};
+use crate::{
+    detofu, find_max_utf8_length, for_each_len_dec, DetofuLevel, DetofuMap, DictRefs, OpenccConfig,
+};
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
 use regex::Regex;
@@ -1952,7 +1954,7 @@ mod tests {
     use crate::dictionary_lib::{
         CustomDictMode, CustomDictSpec, DictMaxLen, DictSlot, DictionaryMaxlength,
     };
-    use crate::{dictionary_lib, OpenccConfig};
+    use crate::{dictionary_lib, DetofuLevel, DetofuMap, OpenccConfig};
     use std::path::PathBuf;
 
     fn test_dicts_dir() -> PathBuf {
@@ -2058,5 +2060,76 @@ mod tests {
             opencc.convert("帕兰蒂尔是一家人工智能公司", "s2tw", false),
             "柏蘭蒂爾是一家人工智能公司"
         );
+    }
+
+    #[test]
+    fn test_opencc_detofu() {
+        let cc = OpenCC::new();
+        let input = "𠉂𪠟𫝈𫬐";
+
+        assert_eq!(cc.detofu(input, DetofuLevel::ExtE), "𠉂𪠟𫝈㘔");
+        assert_eq!(cc.detofu(input, DetofuLevel::ExtB), "㒓㓄㑮㘔");
+    }
+
+    #[test]
+    fn test_opencc_t2s_detofu() {
+        let cc = OpenCC::new();
+
+        let output = cc.detofu(
+            &cc.convert("儼驂騑於上路，訪風景於崇阿", "t2s", false),
+            DetofuLevel::ExtB,
+        );
+
+        assert_eq!(output, "俨骖騑于上路，访风景于崇阿");
+    }
+
+    #[test]
+    fn test_opencc_t2s_detofu_preserves_unmapped_character() {
+        let cc = OpenCC::new();
+
+        let converted = cc.convert("儼驂騑於上路，訪風景於崇阿，𱁬", "t2s", false);
+
+        let output = cc.detofu(&converted, DetofuLevel::ExtB);
+
+        assert_eq!(output, "俨骖騑于上路，访风景于崇阿，𱁬");
+    }
+
+    #[test]
+    fn test_detofu_custom_pairs_override_builtin_mapping() {
+        let input = "這隻小狗有𣭲毛";
+
+        assert_eq!(
+            DetofuMap::builtin(DetofuLevel::ExtB).detofu(input),
+            "這隻小狗有氄毛"
+        );
+
+        let map = DetofuMap::builtin(DetofuLevel::ExtB).with_custom_pairs(&[('𣭲', '氂')]);
+
+        assert_eq!(map.detofu(input), "這隻小狗有氂毛");
+    }
+
+    #[test]
+    fn detofu_with_custom_file_loads_user_mapping() {
+        use std::fs;
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let mut path = std::env::temp_dir();
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+
+        path.push(format!("opencc_fmmseg_custom_tofu_{unique}.txt"));
+
+        fs::write(&path, "𣭲\t氄\tB\n").unwrap();
+
+        let cc = OpenCC::new();
+        let result = cc
+            .detofu_with_custom_file("𣭲毛", DetofuLevel::ExtB, &path)
+            .unwrap();
+
+        fs::remove_file(&path).ok();
+
+        assert_eq!(result, "氄毛");
     }
 }
