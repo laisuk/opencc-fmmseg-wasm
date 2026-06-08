@@ -38,7 +38,8 @@ npm install @laisuk/opencc-fmmseg-wasm
 
 ```javascript
 import init, {
-    OpenccWasm
+    OpenccWasm,
+    DetofuLevelWasm
 } from "@laisuk/opencc-fmmseg-wasm";
 
 await init();
@@ -47,6 +48,9 @@ const cc = new OpenccWasm("s2t");
 
 console.log(cc.convert("汉字", false));
 // 漢字
+
+console.log(cc.convertDetofu("儼驂騑於上路", false, DetofuLevelWasm.ExtB));
+// 俨骖騑于上路
 ```
 
 ---
@@ -134,6 +138,85 @@ Example:
 
 ```javascript
 cc.convert("汉字", false);
+```
+
+---
+
+### detofu
+
+Replace tofu-risk rare CJK extension characters with display-compatible fallbacks.
+
+```javascript
+cc.detofu(text, level)
+```
+
+Parameters:
+
+* `text`: input string
+* `level`: `DetofuLevelWasm` threshold for the CJK extension ranges to replace
+
+Returns:
+
+* detofu-safe string
+
+Supported levels:
+
+| Enum                   | CLI value |
+|------------------------|-----------|
+| `DetofuLevelWasm.ExtB` | `ext-b`   |
+| `DetofuLevelWasm.ExtC` | `ext-c`   |
+| `DetofuLevelWasm.ExtD` | `ext-d`   |
+| `DetofuLevelWasm.ExtE` | `ext-e`   |
+| `DetofuLevelWasm.ExtF` | `ext-f`   |
+| `DetofuLevelWasm.ExtG` | `ext-g`   |
+| `DetofuLevelWasm.ExtH` | `ext-h`   |
+| `DetofuLevelWasm.ExtI` | `ext-i`   |
+
+Example:
+
+```javascript
+import init, {
+    OpenccWasm,
+    DetofuLevelWasm
+} from "@laisuk/opencc-fmmseg-wasm";
+
+await init();
+
+const cc = new OpenccWasm("t2s");
+const converted = cc.convert("儼驂騑於上路", false);
+
+console.log(converted);
+// 俨骖𬴂于上路
+
+console.log(cc.detofu(converted, DetofuLevelWasm.ExtB));
+// 俨骖騑于上路
+```
+
+---
+
+### convertDetofu
+
+Convert text and apply detofu in one call.
+
+```javascript
+cc.convertDetofu(text, punctuation, level)
+```
+
+Parameters:
+
+* `text`: input string
+* `punctuation`: whether to convert punctuation variants
+* `level`: `DetofuLevelWasm` threshold for the CJK extension ranges to replace
+
+Returns:
+
+* converted detofu-safe string
+
+Example:
+
+```javascript
+cc.convertDetofu("儼驂騑於上路", false, DetofuLevelWasm.ExtB);
+// 俨骖騑于上路
 ```
 
 ---
