@@ -316,6 +316,7 @@ The package includes a zero-dependency Node.js CLI:
 
 ```bash
 opencc-fmmseg convert -i input.txt -o output.txt -c s2t -p
+opencc-fmmseg convert -i input.txt -o output.txt -c t2s -p --detofu all
 ```
 
 ```bash
@@ -329,6 +330,9 @@ opencc-fmmseg office -i input.docx -o output.docx -c s2t -p --keep-font
 -o, --output <file>         Output text file
 -c, --config <conversion>   Conversion config
 -p, --punct                 Enable punctuation conversion
+--detofu [level]            Replace tofu-risk rare CJK extension chars after conversion
+                              level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
+                              default when omitted value: all
 --in-enc <encoding>         Input encoding
 --out-enc <encoding>        Output encoding
 ```
