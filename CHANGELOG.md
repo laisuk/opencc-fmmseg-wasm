@@ -10,16 +10,26 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Added Hong Kong phrase conversion configs:
-    - `s2hkp` / `OpenccConfigWasm.S2hkp` (`17`)
-    - `hk2sp` / `OpenccConfigWasm.Hk2sp` (`18`)
-- Added WASM, TypeScript, and CLI support for the new HK phrase configs.
-- Added vendored `dict-generate` support for `HKPhrases.txt` and `HKPhrasesRev.txt`, including JSON serde output.
+* Added Hong Kong phrase conversion configs:
+
+    * `s2hkp` / `OpenccConfigWasm.S2hkp` (`17`)
+    * `hk2sp` / `OpenccConfigWasm.Hk2sp` (`18`)
+* Added WASM, TypeScript, and CLI support for the new HK phrase configs.
+* Added vendored `dict-generate` support for `HKPhrases.txt` and `HKPhrasesRev.txt`, including JSON serde output.
+* Added WebAssembly custom dictionary support via in-memory custom dictionary pairs.
+* Added `OpenccWasm.newWithCustomDicts(...)` for constructing converters from the embedded CBOR dictionary with
+  post-load custom dictionary injection.
+* Added `WasmCustomDictSpec` support for JavaScript and TypeScript custom dictionary configuration.
+* Added support for all OpenCC dictionary slots through `DictSlot`-compatible slot names.
+* Added tests covering custom dictionary pair injection and slot validation.
 
 ### Changed
 
-- Update dictionary date.
-- Updated embedded dictionary artifacts with HK phrase slots.
+* Updated dictionary date.
+* Updated embedded dictionary artifacts with HK phrase slots.
+* Refactored WASM custom dictionary parsing to reuse core `DictSlot` parsing logic as the single source of truth.
+* Custom dictionaries are now applied to `DictionaryMaxlength` before `OpenCC` construction, matching the core Rust
+  ownership model and immutable conversion pipeline.
 
 ---
 
