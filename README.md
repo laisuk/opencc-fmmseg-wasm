@@ -24,6 +24,13 @@ Features:
 * In-memory Office / EPUB document conversion
 * Zero-dependency Node.js CLI
 
+Package profile:
+
+* 0 runtime dependencies
+* 1 WASM file
+* 18 conversion configs
+* 100% offline
+
 ---
 
 ## Installation
