@@ -1706,7 +1706,7 @@ mod tests {
         };
         let bytes = serde_cbor::to_vec(&legacy).expect("legacy CBOR should serialize");
         let dictionary: DictionaryMaxlength =
-            serde_cbor::from_slice(&bytes).expect("legacy CBOR should deserialize");
+            from_slice(&bytes).expect("legacy CBOR should deserialize");
 
         assert!(dictionary.tw_variants_phrases.map.is_empty());
         assert!(dictionary.hk_variants_phrases.map.is_empty());

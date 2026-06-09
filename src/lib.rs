@@ -1,7 +1,10 @@
 mod converter;
 pub use converter::OfficeConverter;
 
-use opencc_fmmseg::{DetofuLevel, OpenCC, OpenccConfig};
+use opencc_fmmseg::{
+    CustomDictMode, CustomDictSpec, DetofuLevel, DictSlot, DictionaryMaxlength, OpenCC,
+    OpenccConfig,
+};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -70,6 +73,38 @@ impl From<DetofuLevelWasm> for DetofuLevel {
     }
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WasmCustomDictSpec {
+    pub slot: String,
+    pub pairs: Vec<(String, String)>,
+    pub mode: Option<String>,
+}
+
+fn parse_dict_slot(slot: &str) -> Result<DictSlot, String> {
+    DictSlot::try_from(slot).map_err(|_| format!("Invalid DictSlot: {slot}"))
+}
+
+fn parse_custom_dict_mode(mode: Option<&str>) -> Result<CustomDictMode, String> {
+    match mode.unwrap_or("Append") {
+        "Append" | "append" => Ok(CustomDictMode::Append),
+        "Override" | "override" => Ok(CustomDictMode::Override),
+        other => Err(format!("Invalid CustomDictMode: {other}")),
+    }
+}
+
+impl TryFrom<WasmCustomDictSpec> for CustomDictSpec {
+    type Error = String;
+
+    fn try_from(value: WasmCustomDictSpec) -> Result<Self, Self::Error> {
+        Ok(CustomDictSpec {
+            slot: parse_dict_slot(&value.slot)?,
+            pairs: value.pairs,
+            mode: parse_custom_dict_mode(value.mode.as_deref())?,
+        })
+    }
+}
+
 #[wasm_bindgen]
 pub struct OpenccWasm {
     inner: OpenCC,
@@ -90,6 +125,36 @@ impl OpenccWasm {
         let mut inner = OpenCC::new_embedded();
 
         // IMPORTANT for wasm first version
+        inner.set_parallel(false);
+
+        Ok(OpenccWasm { inner, config })
+    }
+
+    #[wasm_bindgen(js_name = newWithCustomDicts)]
+    pub fn new_with_custom_dicts(
+        config: Option<String>,
+        specs: JsValue,
+    ) -> Result<OpenccWasm, JsValue> {
+        let config = match config.as_deref() {
+            Some(s) => {
+                OpenccConfig::parse(s).ok_or_else(|| JsValue::from_str("Invalid OpenCC config"))?
+            }
+            None => OpenccConfig::S2t,
+        };
+
+        let specs: Vec<WasmCustomDictSpec> = serde_wasm_bindgen::from_value(specs)
+            .map_err(|e| JsValue::from_str(&format!("Invalid custom dict specs: {e}")))?;
+
+        let specs: Vec<CustomDictSpec> = specs
+            .into_iter()
+            .map(WasmCustomDictSpec::try_into)
+            .collect::<Result<_, _>>()?;
+
+        let dictionary = DictionaryMaxlength::from_embedded_cbor()
+            .with_custom_dicts(&specs)
+            .map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        let mut inner = OpenCC::from_dictionary(dictionary);
         inner.set_parallel(false);
 
         Ok(OpenccWasm { inner, config })
@@ -302,5 +367,53 @@ mod tests {
 
         let safe = cc.detofu(&converted, DetofuLevelWasm::ExtB);
         assert_eq!(safe, "俨骖騑于上路，访风景于崇阿");
+    }
+
+    #[test]
+    fn test_wasm_custom_dict_spec_to_custom_dict_spec() {
+        let spec = WasmCustomDictSpec {
+            slot: "STPhrases".to_string(),
+            mode: Some("Append".to_string()),
+            pairs: vec![("帕兰蒂尔".to_string(), "柏蘭蒂爾".to_string())],
+        };
+
+        let spec: CustomDictSpec = spec.try_into().unwrap();
+
+        assert_eq!(spec.slot, DictSlot::STPhrases);
+        assert_eq!(spec.mode, CustomDictMode::Append);
+        assert_eq!(
+            spec.pairs,
+            vec![("帕兰蒂尔".to_string(), "柏蘭蒂爾".to_string())]
+        );
+    }
+
+    #[test]
+    fn test_new_with_custom_dicts_append_pairs() {
+        let spec = CustomDictSpec {
+            slot: DictSlot::STPhrases,
+            mode: CustomDictMode::Append,
+            pairs: vec![("帕兰蒂尔".to_string(), "柏蘭蒂爾".to_string())],
+        };
+
+        let dictionary = DictionaryMaxlength::from_embedded_cbor()
+            .with_custom_dicts(&[spec])
+            .unwrap();
+
+        let mut inner = OpenCC::from_dictionary(dictionary);
+        inner.set_parallel(false);
+
+        let output = inner.convert_with_config("帕兰蒂尔", OpenccConfig::S2t, false);
+        assert_eq!(output, "柏蘭蒂爾");
+    }
+
+    #[test]
+    fn test_wasm_custom_dict_spec_invalid_slot() {
+        let spec = WasmCustomDictSpec {
+            slot: "STPhrases.txt".to_string(),
+            mode: Some("Append".to_string()),
+            pairs: vec![],
+        };
+
+        assert!(CustomDictSpec::try_from(spec).is_err());
     }
 }
