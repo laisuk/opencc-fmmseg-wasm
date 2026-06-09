@@ -544,6 +544,26 @@ fs.writeFileSync("output.docx", outputBytes);
 </html>
 ```
 
+> **Note**
+>
+> The npm package automatically loads the bundled WebAssembly module when
+> installed normally via npm.
+>
+> If you are running examples directly from a local repository checkout,
+> you may need to initialize using explicit WASM bytes:
+>
+> ```javascript
+> import fs from "fs";
+> import init from "../pkg/opencc_fmmseg_wasm.js";
+>
+> const wasmBytes = fs.readFileSync(
+>     "../pkg/opencc_fmmseg_wasm_bg.wasm"
+> );
+>
+> await init({ module: wasmBytes });
+> ```
+>
+
 ---
 
 ## Node.js CLI
