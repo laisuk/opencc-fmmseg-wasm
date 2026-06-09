@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OpenCC FMMSEG WASM Custom Dictionaries</title>
+</head>
+<body>
+<pre id="out">Loading...</pre>
+
+<script type="module">
+    import init, { OpenccWasm } from "../pkg/opencc_fmmseg_wasm.js";
+
+    const out = document.getElementById("out");
+
+    try {
+        await init();
+
+        const cc = OpenccWasm.newWithCustomDicts("s2t", [
+            {
+                slot: "STPhrases",
+                mode: "Append",
+                pairs: [
+                    ["帕兰蒂尔", "柏蘭蒂爾"],
+                    ["软件", "軟體"]
+                ]
+            }
+        ]);
+
+        const input = "帕兰蒂尔软件";
+        const output = cc.convert(input, false);
+
+        out.textContent =
+            `Input:  ${input}\n` +
+            `Output: ${output}\n\n` +
+            (output === "柏蘭蒂爾軟體" ? "PASS" : "FAIL");
+    } catch (e) {
+        out.textContent = String(e?.stack ?? e);
+    }
+</script>
+</body>
+</html>
