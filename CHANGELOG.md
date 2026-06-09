@@ -10,10 +10,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Added Hong Kong phrase conversion configs:
+    - `s2hkp` / `OpenccConfigWasm.S2hkp` (`17`)
+    - `hk2sp` / `OpenccConfigWasm.Hk2sp` (`18`)
+- Added WASM, TypeScript, and CLI support for the new HK phrase configs.
+- Added vendored `dict-generate` support for `HKPhrases.txt` and `HKPhrasesRev.txt`, including JSON serde output.
 
 ### Changed
 
 - Update dictionary date.
+- Updated embedded dictionary artifacts with HK phrase slots.
 
 ---
 

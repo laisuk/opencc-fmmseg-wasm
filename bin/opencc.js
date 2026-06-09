@@ -60,6 +60,10 @@ Convert options:
   --in-enc <encoding>         Input encoding (default: utf8)
   --out-enc <encoding>        Output encoding (default: utf8)
 
+Supported configs:
+  s2t, s2tw, s2twp, s2hk, s2hkp, t2s, t2tw, t2twp, t2hk,
+  tw2s, tw2sp, tw2t, tw2tp, hk2s, hk2sp, hk2t, jp2t, t2jp
+
 Office options:
   -i, --input <file>          Input Office / EPUB file
   -o, --output <file>         Output file
@@ -77,6 +81,7 @@ Examples:
   npx opencc-fmmseg convert -i a.txt -o b.txt -c s2t
   npx opencc-fmmseg convert -i a.txt -o b.txt -c s2tw -p
   cat a.txt | npx opencc-fmmseg convert -c t2s
+  echo "别随便录影侵犯个人隐私权" | npx opencc-fmmseg convert -c s2hkp
   npx opencc-fmmseg convert -i a.txt -o b.txt -c t2s --detofu
   npx opencc-fmmseg convert -i a.txt -o b.txt -c t2s --detofu ext-c
 

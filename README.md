@@ -66,35 +66,39 @@ import init, {
 await init();
 
 const cc = OpenccWasm.newWithEnum(
-    OpenccConfigWasm.S2t
+    OpenccConfigWasm.S2hkp
 );
 
-console.log(cc.convert("汉字", false));
-// 漢字
+console.log(cc.convert("别随便录影侵犯个人隐私权", false));
+// 別隨便錄影侵犯個人私隱權
 ```
 
 ---
 
 ## Supported Configs
 
-| Config  | Description                                        |
-|---------|----------------------------------------------------|
-| `s2t`   | Simplified Chinese → Traditional Chinese           |
-| `s2tw`  | Simplified Chinese → Taiwan Traditional            |
-| `s2twp` | Simplified Chinese → Taiwan Traditional (phrases)  |
-| `s2hk`  | Simplified Chinese → Hong Kong Traditional         |
-| `t2s`   | Traditional Chinese → Simplified Chinese           |
-| `t2tw`  | Traditional Chinese → Taiwan Traditional           |
-| `t2twp` | Traditional Chinese → Taiwan Traditional (phrases) |
-| `t2hk`  | Traditional Chinese → Hong Kong Traditional        |
-| `tw2s`  | Taiwan Traditional → Simplified Chinese            |
-| `tw2sp` | Taiwan Traditional → Simplified Chinese (phrases)  |
-| `tw2t`  | Taiwan Traditional → Traditional Chinese           |
-| `tw2tp` | Taiwan Traditional → Traditional Chinese (phrases) |
-| `hk2s`  | Hong Kong Traditional → Simplified Chinese         |
-| `hk2t`  | Hong Kong Traditional → Traditional Chinese        |
-| `jp2t`  | Japanese Shinjitai → Traditional Chinese           |
-| `t2jp`  | Traditional Chinese → Japanese Shinjitai           |
+| Config  | Enum                     | Description                                          |
+|---------|--------------------------|------------------------------------------------------|
+| `s2t`   | `OpenccConfigWasm.S2t`   | Simplified Chinese → Traditional Chinese             |
+| `s2tw`  | `OpenccConfigWasm.S2tw`  | Simplified Chinese → Taiwan Traditional              |
+| `s2twp` | `OpenccConfigWasm.S2twp` | Simplified Chinese → Taiwan Traditional (phrases)    |
+| `s2hk`  | `OpenccConfigWasm.S2hk`  | Simplified Chinese → Hong Kong Traditional           |
+| `s2hkp` | `OpenccConfigWasm.S2hkp` | Simplified Chinese → Hong Kong Traditional (phrases) |
+| `t2s`   | `OpenccConfigWasm.T2s`   | Traditional Chinese → Simplified Chinese             |
+| `t2tw`  | `OpenccConfigWasm.T2tw`  | Traditional Chinese → Taiwan Traditional             |
+| `t2twp` | `OpenccConfigWasm.T2twp` | Traditional Chinese → Taiwan Traditional (phrases)   |
+| `t2hk`  | `OpenccConfigWasm.T2hk`  | Traditional Chinese → Hong Kong Traditional          |
+| `tw2s`  | `OpenccConfigWasm.Tw2s`  | Taiwan Traditional → Simplified Chinese              |
+| `tw2sp` | `OpenccConfigWasm.Tw2sp` | Taiwan Traditional → Simplified Chinese (phrases)    |
+| `tw2t`  | `OpenccConfigWasm.Tw2t`  | Taiwan Traditional → Traditional Chinese             |
+| `tw2tp` | `OpenccConfigWasm.Tw2tp` | Taiwan Traditional → Traditional Chinese (phrases)   |
+| `hk2s`  | `OpenccConfigWasm.Hk2s`  | Hong Kong Traditional → Simplified Chinese           |
+| `hk2sp` | `OpenccConfigWasm.Hk2sp` | Hong Kong Traditional → Simplified Chinese (phrases) |
+| `hk2t`  | `OpenccConfigWasm.Hk2t`  | Hong Kong Traditional → Traditional Chinese          |
+| `jp2t`  | `OpenccConfigWasm.Jp2t`  | Japanese Shinjitai → Traditional Chinese             |
+| `t2jp`  | `OpenccConfigWasm.T2jp`  | Traditional Chinese → Japanese Shinjitai             |
+
+The numeric enum values match the vendored Rust backend. Existing values are unchanged; `S2hkp = 17` and `Hk2sp = 18`.
 
 ---
 
@@ -115,6 +119,15 @@ Example:
 
 ```javascript
 const cc = new OpenccWasm("t2s");
+```
+
+Hong Kong phrase config example:
+
+```javascript
+const cc = new OpenccWasm("s2hkp");
+
+cc.convert("别随便录影侵犯个人隐私权", false);
+// 別隨便錄影侵犯個人私隱權
 ```
 
 ---
@@ -260,6 +273,8 @@ OpenccWasm.getSupportedConfigs();
 
 Returns all supported config strings.
 
+Includes `s2hkp` and `hk2sp`.
+
 ---
 
 ### zhoCheck
@@ -400,6 +415,7 @@ The package includes a zero-dependency Node.js CLI:
 ```bash
 opencc-fmmseg convert -i input.txt -o output.txt -c s2t -p
 opencc-fmmseg convert -i input.txt -o output.txt -c t2s -p --detofu all
+echo "别随便录影侵犯个人隐私权" | opencc-fmmseg convert -c s2hkp
 ```
 
 ```bash
@@ -418,6 +434,13 @@ opencc-fmmseg office -i input.docx -o output.docx -c s2t -p --keep-font
                               default when omitted value: all
 --in-enc <encoding>         Input encoding
 --out-enc <encoding>        Output encoding
+```
+
+Supported conversion configs:
+
+```text
+s2t, s2tw, s2twp, s2hk, s2hkp, t2s, t2tw, t2twp, t2hk,
+tw2s, tw2sp, tw2t, tw2tp, hk2s, hk2sp, hk2t, jp2t, t2jp
 ```
 
 ### Office / EPUB Options
@@ -448,6 +471,9 @@ If `-o, --output` is omitted, `office` writes:
 The package includes generated TypeScript definitions from `wasm-bindgen`.
 
 The WASM-facing enum is exported as `OpenccConfigWasm`, alongside `OpenccWasm`.
+
+`OpenccConfigWasm.S2hkp` and `OpenccConfigWasm.Hk2sp` are available for Hong Kong phrase conversions and map to backend
+config IDs `17` and `18`.
 
 ---
 

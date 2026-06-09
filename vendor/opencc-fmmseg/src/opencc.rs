@@ -758,31 +758,6 @@ impl OpenCC {
             })
     }
 
-    /// Applies a three-round conversion pipeline with shared orchestration.
-    ///
-    /// This is the internal bridge for the multi-stage configurations that need
-    /// three sequential dictionary passes, such as S2T followed by phrase and
-    /// variant normalization.
-    #[inline]
-    fn apply_dicts_3(
-        &self,
-        input: &str,
-        round_1: &[&DictMaxLen],
-        u1: Arc<StarterUnion>,
-        round_2: &[&DictMaxLen],
-        u2: Arc<StarterUnion>,
-        round_3: &[&DictMaxLen],
-        u3: Arc<StarterUnion>,
-    ) -> String {
-        Self::clear_last_error();
-        DictRefs::new(round_1, u1)
-            .with_round_2(round_2, u2)
-            .with_round_3(round_3, u3)
-            .apply_segment_replace(input, |input, refs, max_len, union| {
-                self.segment_replace_with_union(input, refs, max_len, union)
-            })
-    }
-
     /// Applies a shared S2T-style first round with optional punctuation maps.
     ///
     /// This helper selects either the 2-dictionary (`st_phrases`,
@@ -1054,26 +1029,27 @@ impl OpenCC {
             .dictionary
             .union_for(UnionKey::S2T { punct: punctuation });
 
-        let round_2 = [&self.dictionary.tw_phrases];
-        let u2 = self.dictionary.union_for(UnionKey::TwPhrasesOnly);
-
-        let round_3 = [
+        let round_2 = [
+            &self.dictionary.tw_phrases,
             &self.dictionary.tw_variants_phrases,
             &self.dictionary.tw_variants,
         ];
-        let u3 = self.dictionary.union_for(UnionKey::TwVariantsPair);
+        let u2 = self.dictionary.union_for(UnionKey::S2TwpR2TwTriple);
+        self.apply_st_round_2(input, punctuation, u1, &round_2, u2)
+    }
 
-        if punctuation {
-            let round_1 = [
-                &self.dictionary.st_phrases,
-                &self.dictionary.st_characters,
-                &self.dictionary.st_punctuations,
-            ];
-            self.apply_dicts_3(input, &round_1, u1, &round_2, u2, &round_3, u3)
-        } else {
-            let round_1 = [&self.dictionary.st_phrases, &self.dictionary.st_characters];
-            self.apply_dicts_3(input, &round_1, u1, &round_2, u2, &round_3, u3)
-        }
+    /// Converts Simplified Chinese text to Hong Kong Traditional with phrases (S → T → HK-phrases/HK).
+    pub fn s2hkp(&self, input: &str, punctuation: bool) -> String {
+        let u1 = self
+            .dictionary
+            .union_for(UnionKey::S2T { punct: punctuation });
+        let round_2 = [
+            &self.dictionary.hk_phrases,
+            &self.dictionary.hk_variants_phrases,
+            &self.dictionary.hk_variants,
+        ];
+        let u2 = self.dictionary.union_for(UnionKey::S2HkpR2HkTriple);
+        self.apply_st_round_2(input, punctuation, u1, &round_2, u2)
     }
 
     /// Converts Taiwanese Traditional text with idioms to Simplified Chinese (Tw-phrases → T → S).
@@ -1116,6 +1092,21 @@ impl OpenCC {
             &self.dictionary.tw_variants_rev,
         ];
         let u1 = self.dictionary.union_for(UnionKey::Tw2SpR1TwRevTriple);
+        let u2 = self
+            .dictionary
+            .union_for(UnionKey::T2S { punct: punctuation });
+
+        self.apply_ts_round_2(input, punctuation, &round_1, u1, u2)
+    }
+
+    /// Converts Hong Kong Traditional text with phrases to Simplified Chinese (HK-phrases → T → S).
+    pub fn hk2sp(&self, input: &str, punctuation: bool) -> String {
+        let round_1 = [
+            &self.dictionary.hk_phrases_rev,
+            &self.dictionary.hk_variants_rev_phrases,
+            &self.dictionary.hk_variants_rev,
+        ];
+        let u1 = self.dictionary.union_for(UnionKey::Hk2SpR1HkRevTriple);
         let u2 = self
             .dictionary
             .union_for(UnionKey::T2S { punct: punctuation });
@@ -1524,6 +1515,7 @@ impl OpenCC {
             OpenccConfig::S2tw => self.s2tw(input, punctuation),
             OpenccConfig::S2twp => self.s2twp(input, punctuation),
             OpenccConfig::S2hk => self.s2hk(input, punctuation),
+            OpenccConfig::S2hkp => self.s2hkp(input, punctuation),
             OpenccConfig::T2s => self.t2s(input, punctuation),
             OpenccConfig::T2tw => self.t2tw(input),
             OpenccConfig::T2twp => self.t2twp(input),
@@ -1533,6 +1525,7 @@ impl OpenCC {
             OpenccConfig::Tw2t => self.tw2t(input),
             OpenccConfig::Tw2tp => self.tw2tp(input),
             OpenccConfig::Hk2s => self.hk2s(input, punctuation),
+            OpenccConfig::Hk2sp => self.hk2sp(input, punctuation),
             OpenccConfig::Hk2t => self.hk2t(input),
             OpenccConfig::Jp2t => self.jp2t(input),
             OpenccConfig::T2jp => self.t2jp(input),

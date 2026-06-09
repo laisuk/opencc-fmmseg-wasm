@@ -24,6 +24,8 @@ pub enum OpenccConfigWasm {
     Hk2t = 14,
     Jp2t = 15,
     T2jp = 16,
+    S2hkp = 17,
+    Hk2sp = 18,
 }
 
 impl OpenccConfigWasm {
@@ -222,12 +224,29 @@ mod tests {
         for config in OpenccConfig::ALL {
             let id = config.to_ffi();
 
-            assert!(matches!(id, 1..=16));
+            assert!(matches!(id, 1..=18));
             assert_eq!(OpenccConfig::from_ffi(id), Some(config));
         }
 
         assert_eq!(OpenccConfigWasm::S2t as u32, OpenccConfig::S2t.to_ffi());
         assert_eq!(OpenccConfigWasm::T2jp as u32, OpenccConfig::T2jp.to_ffi());
+        assert_eq!(OpenccConfigWasm::S2hkp as u32, OpenccConfig::S2hkp.to_ffi());
+        assert_eq!(OpenccConfigWasm::Hk2sp as u32, OpenccConfig::Hk2sp.to_ffi());
+    }
+
+    #[test]
+    fn test_hk_phrase_configs() {
+        let s2hkp = OpenccWasm::new(Some("s2hkp".to_string())).unwrap();
+        assert_eq!(
+            s2hkp.convert("别随便录影侵犯个人隐私权", false),
+            "別隨便錄影侵犯個人私隱權"
+        );
+
+        let hk2sp = OpenccWasm::new(Some("hk2sp".to_string())).unwrap();
+        assert_eq!(
+            hk2sp.convert("別隨便錄影侵犯個人私隱權", false),
+            "别随便录影侵犯个人隐私权"
+        );
     }
 
     #[test]

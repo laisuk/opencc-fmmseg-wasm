@@ -96,6 +96,10 @@ pub struct DictionaryMaxlength {
     #[serde(default)]
     pub tw_phrases_rev: DictMaxLen,
     #[serde(default)]
+    pub hk_phrases: DictMaxLen,
+    #[serde(default)]
+    pub hk_phrases_rev: DictMaxLen,
+    #[serde(default)]
     pub tw_variants_phrases: DictMaxLen,
     #[serde(default)]
     pub tw_variants: DictMaxLen,
@@ -321,6 +325,8 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     /// ├── TSPhrases.txt
     /// ├── TWPhrases.txt
     /// ├── TWPhrasesRev.txt
+    /// ├── HKPhrases.txt
+    /// ├── HKPhrasesRev.txt
     /// ├── TWVariants.txt
     /// ├── TWVariantsRev.txt
     /// ├── TWVariantsRevPhrases.txt
@@ -410,6 +416,8 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
         self.ts_phrases.populate_starter_indexes();
         self.tw_phrases.populate_starter_indexes();
         self.tw_phrases_rev.populate_starter_indexes();
+        self.hk_phrases.populate_starter_indexes();
+        self.hk_phrases_rev.populate_starter_indexes();
         self.tw_variants_phrases.populate_starter_indexes();
         self.tw_variants.populate_starter_indexes();
         self.tw_variants_rev.populate_starter_indexes();
@@ -464,6 +472,8 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
             &self.ts_phrases,
             &self.tw_phrases,
             &self.tw_phrases_rev,
+            &self.hk_phrases,
+            &self.hk_phrases_rev,
             &self.tw_variants_phrases,
             &self.tw_variants,
             &self.tw_variants_rev,
@@ -536,6 +546,8 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
             ("TSPhrases.txt", &self.ts_phrases.map),
             ("TWPhrases.txt", &self.tw_phrases.map),
             ("TWPhrasesRev.txt", &self.tw_phrases_rev.map),
+            ("HKPhrases.txt", &self.hk_phrases.map),
+            ("HKPhrasesRev.txt", &self.hk_phrases_rev.map),
             ("TWVariantsPhrases.txt", &self.tw_variants_phrases.map),
             ("TWVariants.txt", &self.tw_variants.map),
             ("TWVariantsRev.txt", &self.tw_variants_rev.map),
@@ -859,13 +871,16 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
         fn load_optional_slot(
             base_dir: &Path,
             filename: &str,
+            specs: &[CustomDictSpec],
+            slot: DictSlot,
         ) -> Result<DictMaxLen, DictionaryError> {
             let path = base_dir.join(filename);
-            if !path.exists() {
-                return Ok(DictMaxLen::default());
-            }
-
-            let pairs = DictionaryMaxlength::load_pairs_from_path(path)?;
+            let pairs = if path.exists() {
+                DictionaryMaxlength::load_pairs_from_path(path)?
+            } else {
+                Vec::new()
+            };
+            let pairs = apply_custom_pairs(pairs, specs, slot);
             Ok(DictMaxLen::build_from_pairs(pairs))
         }
 
@@ -877,7 +892,19 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
 
             tw_phrases: load_slot(base_dir, "TWPhrases.txt", specs, DictSlot::TWPhrases)?,
             tw_phrases_rev: load_slot(base_dir, "TWPhrasesRev.txt", specs, DictSlot::TWPhrasesRev)?,
-            tw_variants_phrases: load_optional_slot(base_dir, "TWVariantsPhrases.txt")?,
+            hk_phrases: load_optional_slot(base_dir, "HKPhrases.txt", specs, DictSlot::HKPhrases)?,
+            hk_phrases_rev: load_optional_slot(
+                base_dir,
+                "HKPhrasesRev.txt",
+                specs,
+                DictSlot::HKPhrasesRev,
+            )?,
+            tw_variants_phrases: load_optional_slot(
+                base_dir,
+                "TWVariantsPhrases.txt",
+                specs,
+                DictSlot::TWVariantsPhrases,
+            )?,
             tw_variants: load_slot(base_dir, "TWVariants.txt", specs, DictSlot::TWVariants)?,
             tw_variants_rev: load_slot(
                 base_dir,
@@ -892,7 +919,12 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
                 DictSlot::TWVariantsRevPhrases,
             )?,
 
-            hk_variants_phrases: load_optional_slot(base_dir, "HKVariantsPhrases.txt")?,
+            hk_variants_phrases: load_optional_slot(
+                base_dir,
+                "HKVariantsPhrases.txt",
+                specs,
+                DictSlot::HKVariantsPhrases,
+            )?,
             hk_variants: load_slot(base_dir, "HKVariants.txt", specs, DictSlot::HKVariants)?,
             hk_variants_rev: load_slot(
                 base_dir,
@@ -1278,10 +1310,14 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
 
             DictSlot::TWPhrases => &mut self.tw_phrases,
             DictSlot::TWPhrasesRev => &mut self.tw_phrases_rev,
+            DictSlot::HKPhrases => &mut self.hk_phrases,
+            DictSlot::HKPhrasesRev => &mut self.hk_phrases_rev,
+            DictSlot::TWVariantsPhrases => &mut self.tw_variants_phrases,
             DictSlot::TWVariants => &mut self.tw_variants,
             DictSlot::TWVariantsRev => &mut self.tw_variants_rev,
             DictSlot::TWVariantsRevPhrases => &mut self.tw_variants_rev_phrases,
 
+            DictSlot::HKVariantsPhrases => &mut self.hk_variants_phrases,
             DictSlot::HKVariants => &mut self.hk_variants,
             DictSlot::HKVariantsRev => &mut self.hk_variants_rev,
             DictSlot::HKVariantsRevPhrases => &mut self.hk_variants_rev_phrases,
@@ -1427,6 +1463,8 @@ impl Default for DictionaryMaxlength {
             ts_phrases: DictMaxLen::default(),
             tw_phrases: DictMaxLen::default(),
             tw_phrases_rev: DictMaxLen::default(),
+            hk_phrases: DictMaxLen::default(),
+            hk_phrases_rev: DictMaxLen::default(),
             tw_variants_phrases: DictMaxLen::default(),
             tw_variants: DictMaxLen::default(),
             tw_variants_rev: DictMaxLen::default(),
@@ -1809,6 +1847,8 @@ mod tests {
             ts_phrases: DictMaxLen::default(),
             tw_phrases: DictMaxLen::default(),
             tw_phrases_rev: DictMaxLen::default(),
+            hk_phrases: DictMaxLen::default(),
+            hk_phrases_rev: DictMaxLen::default(),
             tw_variants_phrases: DictMaxLen::default(),
             tw_variants: DictMaxLen::default(),
             tw_variants_rev: DictMaxLen::default(),
