@@ -295,6 +295,137 @@ Returns:
 
 ---
 
+### newWithCustomDicts
+
+Construct a converter with in-memory custom dictionary pairs.
+
+```javascript
+const cc = OpenccWasm.newWithCustomDicts(config, specs);
+```
+
+Parameters:
+
+* `config`: OpenCC config string, such as `"s2t"`
+* `specs`: array of custom dictionary specs
+
+TypeScript-style spec shape:
+
+```typescript
+type WasmCustomDictSpec = {
+    slot: string;
+    mode?: "Append" | "Override";
+    pairs: Array<[string, string]>;
+};
+```
+
+`mode` defaults to `"Append"` when omitted.
+
+Each `pairs` entry is a `[source, target]` string tuple for the selected slot.
+
+TypeScript example:
+
+```typescript
+import init, {OpenccWasm} from "@laisuk/opencc-fmmseg-wasm";
+
+await init();
+
+const specs: WasmCustomDictSpec[] = [
+    {
+        slot: "STPhrases",
+        pairs: [
+            ["云端", "雲端"]
+        ]
+    }
+];
+
+const cc = OpenccWasm.newWithCustomDicts("s2t", specs);
+```
+
+Practical example:
+
+```javascript
+import init, {OpenccWasm} from "@laisuk/opencc-fmmseg-wasm";
+
+await init();
+
+const cc = OpenccWasm.newWithCustomDicts("s2t", [
+    {
+        slot: "STPhrases",
+        mode: "Append",
+        pairs: [
+            ["帕兰蒂尔", "柏蘭蒂爾"],
+            ["软件", "軟體"]
+        ]
+    }
+]);
+
+console.log(cc.convert("帕兰蒂尔软件", false));
+// 柏蘭蒂爾軟體
+```
+
+Override example:
+
+```javascript
+const cc = OpenccWasm.newWithCustomDicts("s2t", [
+    {
+        slot: "STPhrases",
+        mode: "Override",
+        pairs: [
+            ["软件", "軟體"]
+        ]
+    }
+]);
+```
+
+`Override` replaces the selected slot before inserting the provided pairs. It is powerful and should be used only when
+the caller intentionally wants to discard built-in entries for that slot.
+
+Custom dictionary specs use strict canonical `DictSlot` names:
+
+```text
+STPhrases
+TSPhrases
+STCharacters
+TSCharacters
+TWPhrases
+TWPhrasesRev
+HKPhrases
+HKPhrasesRev
+TWVariants
+TWVariantsPhrases
+TWVariantsRev
+TWVariantsRevPhrases
+HKVariants
+HKVariantsPhrases
+HKVariantsRev
+HKVariantsRevPhrases
+JPShinjitaiCharacters
+JPShinjitaiPhrases
+JPVariants
+JPVariantsRev
+STPunctuations
+TSPunctuations
+```
+
+Suffixes such as `.txt` are not accepted. Use `"STPhrases"`, not `"STPhrases.txt"`.
+
+Merge contract:
+
+* Custom dictionaries are loaded from in-memory pairs only; no file I/O is involved.
+* The embedded compressed CBOR dictionary is loaded first.
+* Custom specs are applied to `DictionaryMaxlength` before `OpenCC::from_dictionary(...)`.
+* Conversion hot paths remain immutable after construction.
+* `Append` mode merges into the selected slot.
+* Duplicate or conflicting keys use last-wins semantics.
+* `Override` mode clears the selected slot first, then inserts the provided custom pairs.
+* Multiple specs are applied in array order.
+
+This API is useful for browser apps, user-defined terminology, database-loaded terms, generated dictionaries,
+`localStorage` or `IndexedDB` terms, testing, and embedded WASM environments. Customization happens at construction
+time, not during conversion.
+
+---
+
 ## Office / EPUB Conversion
 
 Office and EPUB conversion runs fully locally in the browser or Node.js. Files are passed in and returned as bytes;
