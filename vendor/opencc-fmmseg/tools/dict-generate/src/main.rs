@@ -190,8 +190,6 @@ fn required_dictionary_files() -> &'static [&'static str] {
         "TSPhrases.txt",
         "TWPhrases.txt",
         "TWPhrasesRev.txt",
-        "HKPhrases.txt",
-        "HKPhrasesRev.txt",
         "TWVariantsPhrases.txt",
         "TWVariants.txt",
         "TWVariantsRev.txt",
@@ -201,9 +199,8 @@ fn required_dictionary_files() -> &'static [&'static str] {
         "HKVariantsRev.txt",
         "HKVariantsRevPhrases.txt",
         "JPShinjitaiCharacters.txt",
+        "JPShinjitaiCharactersRev.txt",
         "JPShinjitaiPhrases.txt",
-        "JPVariants.txt",
-        "JPVariantsRev.txt",
         "STPunctuations.txt",
         "TSPunctuations.txt",
     ]
@@ -218,8 +215,6 @@ mod tests {
         let required = required_dictionary_files();
 
         assert!(required.contains(&"TWVariantsPhrases.txt"));
-        assert!(required.contains(&"HKPhrases.txt"));
-        assert!(required.contains(&"HKPhrasesRev.txt"));
         assert!(required.contains(&"HKVariantsPhrases.txt"));
     }
 }

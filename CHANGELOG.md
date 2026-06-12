@@ -30,6 +30,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 * Refactored WASM custom dictionary parsing to reuse core `DictSlot` parsing logic as the single source of truth.
 * Custom dictionaries are now applied to `DictionaryMaxlength` before `OpenCC` construction, matching the core Rust
   ownership model and immutable conversion pipeline.
+* Sync new config chain for JP slot with opencc-fmmseg upstream.
 
 ---
 
