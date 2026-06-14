@@ -111,16 +111,24 @@ pub struct OpenccWasm {
     config: OpenccConfig,
 }
 
+fn parse_wasm_config(config: Option<String>) -> Result<OpenccConfig, JsValue> {
+    let Some(config) = config.as_deref() else {
+        return Ok(OpenccConfig::S2t);
+    };
+
+    OpenccConfig::parse(config)
+        .ok_or_else(|| JsValue::from_str(&format!("Invalid OpenCC config: {config}")))
+}
+
 #[wasm_bindgen]
 impl OpenccWasm {
+    pub fn version() -> String {
+        env!("CARGO_PKG_VERSION").to_owned()
+    }
+
     #[wasm_bindgen(constructor)]
     pub fn new(config: Option<String>) -> Result<OpenccWasm, JsValue> {
-        let config = match config.as_deref() {
-            Some(s) => {
-                OpenccConfig::parse(s).ok_or_else(|| JsValue::from_str("Invalid OpenCC config"))?
-            }
-            None => OpenccConfig::S2t,
-        };
+        let config = parse_wasm_config(config)?;
 
         let mut inner = OpenCC::new_embedded();
 
@@ -135,12 +143,7 @@ impl OpenccWasm {
         config: Option<String>,
         specs: JsValue,
     ) -> Result<OpenccWasm, JsValue> {
-        let config = match config.as_deref() {
-            Some(s) => {
-                OpenccConfig::parse(s).ok_or_else(|| JsValue::from_str("Invalid OpenCC config"))?
-            }
-            None => OpenccConfig::S2t,
-        };
+        let config = parse_wasm_config(config)?;
 
         let specs: Vec<WasmCustomDictSpec> = serde_wasm_bindgen::from_value(specs)
             .map_err(|e| JsValue::from_str(&format!("Invalid custom dict specs: {e}")))?;

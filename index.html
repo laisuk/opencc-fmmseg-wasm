@@ -97,8 +97,8 @@
 <pre id="out">Loading engine...</pre>
 
 <script type="module">
-    import init, {OpenccWasm} from "https://cdn.jsdelivr.net/npm/@laisuk/opencc-fmmseg-wasm/opencc_fmmseg_wasm.js";
-    // import init, { OpenccWasm } from "./pkg/opencc_fmmseg_wasm.js";
+    // import init, {OpenccWasm} from "https://cdn.jsdelivr.net/npm/@laisuk/opencc-fmmseg-wasm/opencc_fmmseg_wasm.js";
+    import init, { OpenccWasm } from "./pkg/opencc_fmmseg_wasm.js";
 
     import {EditorState} from "https://esm.sh/@codemirror/state";
     import {EditorView, keymap, lineNumbers} from "https://esm.sh/@codemirror/view";
@@ -150,7 +150,7 @@
         document.getElementById("setConfigBtn").disabled = false;
         document.getElementById("btn").disabled = false;
 
-        out.textContent = `Engine loaded. (${configs.length} configs available)`;
+        out.textContent = `Engine v${OpenccWasm.version()} loaded. (${configs.length} configs available)`;
     } catch (err) {
         out.textContent = "Failed to load WASM engine.";
         console.error(err);
