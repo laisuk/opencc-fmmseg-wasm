@@ -10,7 +10,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Added `OpenccWasm.version()`
+- Added `OpenccWasm.version()`.
+
+### Changed
+
+- Update dictionary data.
 
 ---
 

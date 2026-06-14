@@ -1,6 +1,6 @@
 {
   "name": "@laisuk/opencc-fmmseg-wasm",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "WebAssembly bindings for opencc-fmmseg, a high-performance OpenCC-compatible Simplified/Traditional Chinese converter.",
   "license": "MIT",
   "repository": {
