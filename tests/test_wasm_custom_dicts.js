@@ -10,7 +10,9 @@ const __dirname = dirname(__filename);
 const wasmPath = join(__dirname, "../pkg/opencc_fmmseg_wasm_bg.wasm");
 const wasmBytes = readFileSync(wasmPath);
 
-await init(wasmBytes);
+await init({
+    module_or_path: wasmBytes
+});
 
 const cc = OpenccWasm.newWithCustomDicts("s2t", [
     {

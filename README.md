@@ -546,11 +546,10 @@ fs.writeFileSync("output.docx", outputBytes);
 
 > **Note**
 >
-> The npm package automatically loads the bundled WebAssembly module when
-> installed normally via npm.
+> Normally, `await init();` is sufficient when using the published npm package.
 >
-> If you are running examples directly from a local repository checkout,
-> you may need to initialize using explicit WASM bytes:
+> When running directly from a local repository checkout (for example in tests
+> or development scripts), initialize using explicit WASM bytes:
 >
 > ```javascript
 > import fs from "fs";
@@ -560,9 +559,10 @@ fs.writeFileSync("output.docx", outputBytes);
 >     "../pkg/opencc_fmmseg_wasm_bg.wasm"
 > );
 >
-> await init({ module: wasmBytes });
+> await init({
+>     module_or_path: wasmBytes
+> });
 > ```
->
 
 ---
 
