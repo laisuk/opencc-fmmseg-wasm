@@ -5,6 +5,7 @@ mod detofu;
 mod dict_refs;
 /// Dictionary utilities for managing multiple OpenCC lexicons.
 pub mod dictionary_lib;
+mod ids;
 /// Core converter
 mod opencc;
 /// Configurations for conversion.

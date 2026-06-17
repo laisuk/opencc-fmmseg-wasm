@@ -23,7 +23,8 @@ use crate::delimiter_set::is_delimiter;
 use crate::dictionary_lib::dictionary_maxlength::UnionKey;
 use crate::dictionary_lib::{DictMaxLen, DictionaryMaxlength, StarterUnion};
 use crate::{
-    detofu, find_max_utf8_length, for_each_len_dec, DetofuLevel, DetofuMap, DictRefs, OpenccConfig,
+    detofu, find_max_utf8_length, for_each_len_dec, ids, DetofuLevel, DetofuMap, DictRefs,
+    OpenccConfig,
 };
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
@@ -69,14 +70,30 @@ fn strip_regex() -> &'static Regex {
 
 /// Central interface for performing OpenCC-based conversion with segmentation.
 ///
-/// The `OpenCC` struct manages dictionary loading, segmentation, and multi-round text transformation.
-/// It supports conversion types such as `s2t`, `t2s`, `s2tw`, etc., and uses maximum match segmentation
-/// on non-delimiter text regions to ensure accurate replacements.
+/// The `OpenCC` struct manages dictionary loading, segmentation, and multi-round
+/// text transformation. It supports conversion types such as `s2t`, `t2s`,
+/// `s2tw`, etc., and uses maximum-match segmentation on non-delimiter text
+/// regions to ensure accurate replacements.
+///
+/// By default, Unicode Ideographic Description Sequences (IDS) are converted
+/// normally. IDS preservation can be enabled with
+/// [`set_preserve_ids`](Self::set_preserve_ids).
 pub struct OpenCC {
     /// Dictionary storage with length metadata for maximum matching.
     dictionary: DictionaryMaxlength,
-    /// Flag indicator for parallelism
+
+    /// Flag indicating whether parallel conversion is enabled.
     is_parallel: bool,
+
+    /// Flag indicating whether complete Unicode IDS expressions should be
+    /// preserved during conversion.
+    ///
+    /// When enabled, complete IDS sequences such as `⿰氵漢` and
+    /// `⿱⿰口口馬` are emitted unchanged instead of converting their
+    /// component characters.
+    ///
+    /// Default: `false`.
+    is_preserve_ids: bool,
 }
 
 impl OpenCC {
@@ -224,33 +241,81 @@ impl OpenCC {
         Self {
             dictionary,
             is_parallel: true,
+            is_preserve_ids: false,
         }
     }
 
-    /// Splits a slice of characters into a list of index ranges based on delimiter boundaries.
+    /// Splits a slice of characters into a list of index ranges based on
+    /// delimiter boundaries and optional IDS preservation.
     ///
-    /// This function identifies ranges within the character slice where the content is segmented
-    /// by delimiters (e.g., punctuation, spaces). Each range is defined as `start..end` where `end` is exclusive.
+    /// This function identifies ranges within the character slice where the content
+    /// is segmented by delimiters (e.g. punctuation, spaces). Each range is defined
+    /// as `start..end` where `end` is exclusive.
+    ///
+    /// When `preserve_ids` is enabled, complete Unicode Ideographic Description
+    /// Sequences (IDS) are emitted as standalone ranges and are not merged with
+    /// surrounding text. This allows callers to preserve IDS expressions during
+    /// conversion.
     ///
     /// # Parameters
-    /// - `chars`: The input slice of characters to be split.
-    /// - `inclusive`: If `true`, each segment includes the delimiter at the end.
-    ///                If `false`, the delimiter is split into its own range.
+    ///
+    /// - `chars`: Input slice of characters to segment.
+    /// - `inclusive`:
+    ///   - `true`: a delimiter is included at the end of the preceding range.
+    ///   - `false`: delimiters are emitted as separate ranges.
+    /// - `preserve_ids`:
+    ///   - `true`: complete IDS sequences are emitted as standalone ranges.
+    ///   - `false`: IDS characters are treated as ordinary text.
     ///
     /// # Behavior
-    /// - If `inclusive == true`: a delimiter at position `i` causes a range from `start..i+1`.
-    /// - If `inclusive == false`: two ranges are emitted: `start..i` (content) and `i..i+1` (delimiter).
-    /// - If there is trailing content after the last delimiter, it is included as the final range.
+    ///
+    /// Delimiter handling:
+    ///
+    /// - If `inclusive == true`, a delimiter at position `i` produces a range
+    ///   `start..i + 1`.
+    /// - If `inclusive == false`, two ranges are emitted:
+    ///   - `start..i` (content)
+    ///   - `i..i + 1` (delimiter)
+    ///
+    /// IDS handling:
+    ///
+    /// - When `preserve_ids == true`, a complete IDS sequence such as
+    ///   `⿰氵漢` or `⿱⿰口口馬` is emitted as its own range.
+    /// - Incomplete or malformed IDS sequences are treated as normal text.
+    /// - IDS preservation takes precedence over delimiter scanning inside the IDS
+    ///   range.
+    ///
+    /// Trailing content after the last delimiter or IDS range is emitted as the
+    /// final range.
     ///
     /// # Returns
+    ///
     /// A vector of `std::ops::Range<usize>` representing all segment boundaries.
-    #[cfg(feature = "parallel")]
-    fn get_chars_range(&self, chars: &[char], inclusive: bool) -> Vec<std::ops::Range<usize>> {
+    fn get_chars_range(
+        &self,
+        chars: &[char],
+        inclusive: bool,
+        preserve_ids: bool,
+    ) -> Vec<std::ops::Range<usize>> {
         let mut ranges = Vec::new();
         let mut start = 0;
+        let mut i = 0;
 
-        for (i, ch) in chars.iter().enumerate() {
-            if is_delimiter(*ch) {
+        while i < chars.len() {
+            if preserve_ids {
+                if let Some(ids_range) = ids::ids_range_at(chars, i) {
+                    if i > start {
+                        ranges.push(start..i);
+                    }
+
+                    i = ids_range.end;
+                    ranges.push(ids_range);
+                    start = i;
+                    continue;
+                }
+            }
+
+            if is_delimiter(chars[i]) {
                 if inclusive {
                     ranges.push(start..i + 1);
                 } else {
@@ -259,8 +324,11 @@ impl OpenCC {
                     }
                     ranges.push(i..i + 1);
                 }
+
                 start = i + 1;
             }
+
+            i += 1;
         }
 
         if start < chars.len() {
@@ -333,7 +401,7 @@ impl OpenCC {
         #[cfg(feature = "parallel")]
         if self.is_parallel {
             // Build delimiter-safe ranges (no cross-phrase splits)
-            let ranges = self.get_chars_range(&chars, true);
+            let ranges = self.get_chars_range(&chars, true, self.is_preserve_ids);
             let threads = rayon::current_num_threads().max(1);
             let desired_chunks = threads * 6;
             let chunk_ranges = (ranges.len() / desired_chunks).max(128).min(2048);
@@ -384,16 +452,11 @@ impl OpenCC {
         )
     }
 
-    /// Serial delimiter-aware segment conversion without storing intermediate ranges.
+    /// Serial segment conversion using the shared range splitter.
     ///
-    /// This helper is used only when parallel mode is disabled. It scans the
-    /// pre-collected `chars` slice once, emits delimiter-bounded segments as they
-    /// are found, and appends each converted segment directly into the output
-    /// buffer via [`convert_by_union_into`](Self::convert_by_union_into).
-    ///
-    /// Compared with the range-based path, this avoids allocating
-    /// `Vec<Range<usize>>` and removes one layer of orchestration for serial
-    /// workloads while preserving the same delimiter semantics.
+    /// This helper is used only when parallel mode is disabled. It delegates
+    /// delimiter and IDS boundary detection to [`get_chars_range`](Self::get_chars_range),
+    /// keeping serial and parallel conversion on the same segmentation path.
     #[inline]
     fn segment_replace_with_union_serial_streaming(
         &self,
@@ -404,24 +467,11 @@ impl OpenCC {
         union: &StarterUnion,
     ) -> String {
         let mut out = String::with_capacity(text_len + (text_len >> 6));
-        let mut start = 0usize;
+        let ranges = self.get_chars_range(chars, true, self.is_preserve_ids);
 
-        for (i, ch) in chars.iter().enumerate() {
-            if is_delimiter(*ch) {
-                self.convert_by_union_into(
-                    &chars[start..i + 1],
-                    dictionaries,
-                    max_word_length,
-                    union,
-                    &mut out,
-                );
-                start = i + 1;
-            }
-        }
-
-        if start < chars.len() {
+        for range in ranges {
             self.convert_by_union_into(
-                &chars[start..],
+                &chars[range],
                 dictionaries,
                 max_word_length,
                 union,
@@ -514,6 +564,12 @@ impl OpenCC {
         let text_length = text_chars.len();
         if text_length == 1 && is_delimiter(text_chars[0]) {
             result.push(text_chars[0]);
+            return;
+        }
+
+        // New: IDS
+        if self.is_preserve_ids && ids::is_complete_ids(text_chars) {
+            result.extend(text_chars.iter());
             return;
         }
 
@@ -721,6 +777,50 @@ impl OpenCC {
     /// ```
     pub fn set_parallel(&mut self, is_parallel: bool) -> () {
         self.is_parallel = is_parallel;
+    }
+
+    /// Returns whether Unicode Ideographic Description Sequences (IDS) are preserved
+    /// during conversion.
+    ///
+    /// When enabled, complete IDS expressions such as `⿰氵漢` or `⿱⿰口口馬` are
+    /// treated as protected units and are not converted internally.
+    ///
+    /// Default: `false`.
+    ///
+    /// # See also
+    ///
+    /// - [`set_preserve_ids`](Self::set_preserve_ids)
+    pub fn get_preserve_ids(&self) -> bool {
+        self.is_preserve_ids
+    }
+
+    /// Enables or disables preservation of Unicode Ideographic Description
+    /// Sequences (IDS) during conversion.
+    ///
+    /// When enabled, complete IDS expressions are emitted unchanged instead of
+    /// converting their component characters. Incomplete or malformed IDS
+    /// expressions are still processed normally.
+    ///
+    /// Default: `false`.
+    ///
+    /// # Parameters
+    ///
+    /// - `value`:
+    ///   - `true`: preserve complete IDS sequences.
+    ///   - `false`: convert IDS component characters normally.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use opencc_fmmseg::OpenCC;
+    ///
+    /// let mut cc = OpenCC::new();
+    ///
+    /// cc.set_preserve_ids(true);
+    /// assert!(cc.get_preserve_ids());
+    /// ```
+    pub fn set_preserve_ids(&mut self, value: bool) {
+        self.is_preserve_ids = value;
     }
 
     /// Applies a single dictionary round using the shared segment-replace engine.

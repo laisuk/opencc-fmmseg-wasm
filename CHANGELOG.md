@@ -8,9 +8,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.3.3] - Unreleased
 
+### Added
+
+- Added optional IDS (Ideographic Description Sequence) preservation support:
+    - `OpenccWasm.getPreserveIds()`
+    - `OpenccWasm.setPreserveIds(bool)`
+- Added `opencc.js convert --keep-ids` to preserve complete IDS expressions during conversion.
+
 ### Changed
 
 - Update dictionary data.
+- Refactored serial and parallel conversion paths to share the same text segmentation logic.
+- Complete IDS expressions can now be preserved consistently across Rust, WASM, and CLI conversions when IDS
+  preservation is enabled.
 
 ---
 

@@ -57,6 +57,7 @@ Convert options:
   --detofu [level]            Replace tofu-risk rare CJK extension chars after conversion
                               level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
                               default when omitted value: all
+  --keep-ids                  Preserve complete IDS expressions during conversion
   --in-enc <encoding>         Input encoding (default: utf8)
   --out-enc <encoding>        Output encoding (default: utf8)
 
@@ -247,6 +248,7 @@ async function runConvert(args) {
     const inEnc = getArg(args, null, "--in-enc", "utf8");
     const outEnc = getArg(args, null, "--out-enc", "utf8");
     const punct = hasFlag(args, "-p", "--punct");
+    const keepIds = hasFlag(args, null, "--keep-ids");
 
     const detofuIndex = args.indexOf("--detofu");
     const detofuEnabled = detofuIndex !== -1;
@@ -265,6 +267,10 @@ async function runConvert(args) {
     await ensureWasmInitialized();
 
     const cc = new OpenccWasm(config);
+
+    if (keepIds) {
+        cc.setPreserveIds(true);
+    }
 
     // Prompt user if reading from interactive terminal
     if (!input && process.stdin.isTTY) {
@@ -288,7 +294,11 @@ async function runConvert(args) {
             console.error();
         }
 
-        const suffix = detofuEnabled ? ", detofu" : "";
+        const suffixParts = [];
+        if (detofuEnabled) suffixParts.push("detofu");
+        if (keepIds) suffixParts.push("keep-ids");
+
+        const suffix = suffixParts.length ? `, ${suffixParts.join(", ")}` : "";
         console.error(`Conversion completed (${config}${suffix}): ${inFrom} -> ${outTo}`);
     }
 }

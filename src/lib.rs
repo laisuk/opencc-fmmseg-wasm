@@ -216,6 +216,16 @@ impl OpenccWasm {
         self.config.to_ffi()
     }
 
+    #[wasm_bindgen(js_name = getPreserveIds)]
+    pub fn get_preserve_ids(&self) -> bool {
+        self.inner.get_preserve_ids()
+    }
+
+    #[wasm_bindgen(js_name = setPreserveIds)]
+    pub fn set_preserve_ids(&mut self, value: bool) {
+        self.inner.set_preserve_ids(value);
+    }
+
     #[wasm_bindgen(js_name = zhoCheck)]
     pub fn zho_check(&self, text: &str) -> i32 {
         self.inner.zho_check(text)
