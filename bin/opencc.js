@@ -57,7 +57,7 @@ Convert options:
   --detofu [level]            Replace tofu-risk rare CJK extension chars after conversion
                               level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
                               default when omitted value: all
-  --keep-ids                  Preserve complete IDS expressions during conversion
+  --keep-ids                  Preserve complete IDS expressions during conversion (default: false)
   --in-enc <encoding>         Input encoding (default: utf8)
   --out-enc <encoding>        Output encoding (default: utf8)
 
