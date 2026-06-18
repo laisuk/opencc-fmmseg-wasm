@@ -71,7 +71,7 @@ Office options:
   -c, --config <conversion>   Conversion config (default: s2t)
   -p, --punct                 Enable punctuation conversion
   --format <format>           docx | xlsx | pptx | odt | ods | odp | epub
-  --auto-ext                  Append extension to output if missing
+  --convert-filename          Convert generated output filename stem (default: false)
   --keep-font                 Preserve font-family information (default)
   --no-keep-font              Do not preserve font-family information
 
@@ -85,9 +85,12 @@ Examples:
   echo "别随便录影侵犯个人隐私权" | npx opencc-fmmseg convert -c s2hkp
   npx opencc-fmmseg convert -i a.txt -o b.txt -c t2s --detofu
   npx opencc-fmmseg convert -i a.txt -o b.txt -c t2s --detofu ext-c
+  echo "⿰氵漢" | npx opencc-fmmseg convert -c t2s
+  echo "⿰氵漢" | npx opencc-fmmseg convert -c t2s --keep-ids
 
   npx opencc-fmmseg office -i a.docx -o b.docx -c s2t -p
-  npx opencc-fmmseg office -i a.epub -c s2tw --auto-ext
+  npx opencc-fmmseg office -i a.epub -c s2tw
+  npx opencc-fmmseg office -i 软件手册.docx -c s2t --convert-filename
 `);
 }
 
@@ -167,24 +170,20 @@ function inferOfficeFormat(inputFile, explicitFormat) {
     return ext;
 }
 
-function makeDefaultOfficeOutput(inputFile, officeFormat, autoExt) {
+function makeDefaultOfficeOutput(inputFile, officeFormat, convertFilename, cc, config, punct) {
     const parsed = path.parse(inputFile);
-    const ext = autoExt && OFFICE_FORMATS.has(officeFormat)
-        ? `.${officeFormat}`
-        : parsed.ext;
+    const stem = convertFilename
+        ? cc.convert(parsed.name, punct)
+        : parsed.name;
 
     return path.join(
         parsed.dir || process.cwd(),
-        `${parsed.name}_converted${ext}`
+        `${stem}_converted.${officeFormat}`
     );
 }
 
-function applyAutoExt(outputFile, officeFormat, autoExt) {
-    if (!autoExt || path.extname(outputFile)) {
-        return outputFile;
-    }
-
-    if (!OFFICE_FORMATS.has(officeFormat)) {
+function applyOutputExtension(outputFile, officeFormat) {
+    if (path.extname(outputFile)) {
         return outputFile;
     }
 
@@ -309,7 +308,7 @@ async function runOffice(args) {
     const config = getArg(args, "-c", "--config", "s2t");
     const explicitFormat = getArg(args, null, "--format");
     const punct = hasFlag(args, "-p", "--punct");
-    const autoExt = hasFlag(args, null, "--auto-ext");
+    const convertFilename = hasFlag(args, null, "--convert-filename");
     const keepFont = !hasFlag(args, null, "--no-keep-font");
 
     if (!input) {
@@ -322,14 +321,16 @@ async function runOffice(args) {
 
     const officeFormat = inferOfficeFormat(input, explicitFormat);
 
+    await ensureWasmInitialized();
+
+    const cc = new OpenccWasm(config);
+
     if (!output) {
-        output = makeDefaultOfficeOutput(input, officeFormat, autoExt);
+        output = makeDefaultOfficeOutput(input, officeFormat, convertFilename, cc, config, punct);
         console.error(`Output file not specified. Using: ${output}`);
     } else {
-        output = applyAutoExt(output, officeFormat, autoExt);
+        output = applyOutputExtension(output, officeFormat);
     }
-
-    await ensureWasmInitialized();
 
     const inputBytes = fs.readFileSync(input);
 
