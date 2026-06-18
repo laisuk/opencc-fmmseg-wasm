@@ -6,6 +6,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.3.4] - Unreleased
+
+### Changed
+
+- CLI: Optimized `opencc.js office`
+
+---
+
 ## [0.3.3] - Unreleased
 
 ### Added
