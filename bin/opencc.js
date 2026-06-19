@@ -298,7 +298,7 @@ async function runConvert(args) {
         if (keepIds) suffixParts.push("keep-ids");
 
         const suffix = suffixParts.length ? `, ${suffixParts.join(", ")}` : "";
-        console.error(`Conversion completed (${config}${suffix}): ${inFrom} -> ${outTo}`);
+        console.error(`Conversion completed (${cc.getConfig()}${suffix}): ${inFrom} -> ${outTo}`);
     }
 }
 
@@ -344,7 +344,7 @@ async function runOffice(args) {
 
     fs.writeFileSync(output, outputBytes);
 
-    console.error(`Conversion completed (${config}, ${officeFormat}): ${input} -> ${output}`);
+    console.error(`Conversion completed (${cc.getConfig()}, ${officeFormat}): ${input} -> ${output}`);
 }
 
 async function main() {
