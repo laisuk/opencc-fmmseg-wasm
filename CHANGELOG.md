@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - CLI: Optimized `opencc.js office`
+- Update dictionary data.
 
 ---
 
