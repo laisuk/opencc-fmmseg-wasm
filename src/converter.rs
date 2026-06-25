@@ -179,6 +179,8 @@ impl OfficeConverter {
         punctuation: bool,
         keep_font: bool,
     ) -> io::Result<(Vec<u8>, usize)> {
+        Self::validate_input_zip(input_zip)?;
+        let format = Self::normalize_format(format)?;
         let reader = Cursor::new(input_zip);
 
         let out_cursor = Cursor::new(Vec::<u8>::new());
@@ -187,7 +189,7 @@ impl OfficeConverter {
         let converted_count = Self::convert_zip_stream(
             reader,
             &mut z_out,
-            format,
+            &format,
             helper,
             config,
             punctuation,
@@ -195,7 +197,9 @@ impl OfficeConverter {
         )?;
 
         let out_cursor = z_out.finish()?;
-        Ok((out_cursor.into_inner(), converted_count))
+        let out_bytes = out_cursor.into_inner();
+        Self::validate_zip_bytes(&out_bytes)?;
+        Ok((out_bytes, converted_count))
     }
 
     /// Convert an Office / EPUB document from an input file path to an output file path
@@ -210,6 +214,7 @@ impl OfficeConverter {
         punctuation: bool,
         keep_font: bool,
     ) -> io::Result<ConversionResult> {
+        let format = Self::normalize_format(format)?;
         let in_path_abs = Path::new(input_path)
             .canonicalize()
             .unwrap_or_else(|_| PathBuf::from(input_path));
@@ -233,7 +238,7 @@ impl OfficeConverter {
             Self::convert_zip_stream(
                 reader,
                 zip_writer,
-                format,
+                &format,
                 helper,
                 config,
                 punctuation,
@@ -272,6 +277,12 @@ impl OfficeConverter {
         let mut mimetype_index: Option<usize> = None;
         if format.eq_ignore_ascii_case("epub") {
             mimetype_index = Self::find_mimetype_index(&mut zin)?;
+            if mimetype_index.is_none() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "EPUB is missing required mimetype entry",
+                ));
+            }
 
             if let Some(mi) = mimetype_index {
                 let mut entry = zin.by_index(mi)?;
@@ -356,7 +367,64 @@ impl OfficeConverter {
             }
         }
 
+        if converted_count == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("No valid XML/XHTML fragments were converted for format '{format}'."),
+            ));
+        }
+
         Ok(converted_count)
+    }
+
+    fn validate_input_zip(input_zip: &[u8]) -> io::Result<()> {
+        if input_zip.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "input ZIP bytes must not be empty",
+            ));
+        }
+        Ok(())
+    }
+
+    fn normalize_format(format: &str) -> io::Result<String> {
+        let normalized = format.trim().to_ascii_lowercase();
+        if normalized.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "format must not be empty",
+            ));
+        }
+
+        if !Self::is_supported_format(&normalized) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("Unsupported Office/EPUB format: '{format}'."),
+            ));
+        }
+
+        Ok(normalized)
+    }
+
+    fn is_supported_format(format: &str) -> bool {
+        matches!(
+            format,
+            "docx" | "xlsx" | "pptx" | "odt" | "ods" | "odp" | "epub"
+        )
+    }
+
+    fn validate_zip_bytes(bytes: &[u8]) -> io::Result<()> {
+        let cursor = Cursor::new(bytes);
+        let _ = ZipArchive::new(cursor)?;
+        Ok(())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn validate_zip_file(path: &Path) -> io::Result<()> {
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
+        let _ = ZipArchive::new(reader)?;
+        Ok(())
     }
 
     /// Determine if a ZIP entry name should be converted for the given format.
@@ -606,6 +674,8 @@ fn replace_with_temp(
         zw.finish()?;
     }
 
+    OfficeConverter::validate_zip_file(&tmp_out)?;
+
     remove_existing_file(final_out)?;
     fs::rename(&tmp_out, final_out)?;
 
@@ -622,6 +692,81 @@ mod tests {
         CompressionMethod, ZipArchive, ZipWriter,
         write::{ExtendedFileOptions, FileOptions},
     };
+
+    fn make_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut input_cursor = Cursor::new(Vec::<u8>::new());
+        {
+            let mut zip = ZipWriter::new(&mut input_cursor);
+            let opts: FileOptions<'_, ExtendedFileOptions> =
+                FileOptions::default().compression_method(CompressionMethod::Deflated);
+
+            for (name, bytes) in entries {
+                zip.start_file(*name, opts.clone()).unwrap();
+                zip.write_all(bytes).unwrap();
+            }
+
+            zip.finish().unwrap();
+        }
+        input_cursor.into_inner()
+    }
+
+    #[test]
+    fn test_convert_bytes_rejects_empty_input() {
+        let opencc = OpenCC::new_embedded();
+        let err = OfficeConverter::convert_bytes(&[], "docx", &opencc, "s2t", true, true)
+            .expect_err("empty input must be rejected");
+
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(err.to_string().contains("must not be empty"));
+    }
+
+    #[test]
+    fn test_convert_bytes_rejects_invalid_zip() {
+        let opencc = OpenCC::new_embedded();
+        let err = OfficeConverter::convert_bytes(b"not a zip", "docx", &opencc, "s2t", true, true)
+            .expect_err("invalid ZIP input must be rejected");
+
+        assert_ne!(err.kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_convert_bytes_rejects_unsupported_format() {
+        let opencc = OpenCC::new_embedded();
+        let zip = make_zip(&[(
+            "word/document.xml",
+            "<w:document>汉语</w:document>".as_bytes(),
+        )]);
+        let err = OfficeConverter::convert_bytes(&zip, "pdf", &opencc, "s2t", true, true)
+            .expect_err("unsupported format must be rejected");
+
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        assert!(err.to_string().contains("Unsupported Office/EPUB format"));
+    }
+
+    #[test]
+    fn test_convert_bytes_rejects_zip_with_no_target_fragments() {
+        let opencc = OpenCC::new_embedded();
+        let zip = make_zip(&[("docProps/core.xml", "<root>汉语</root>".as_bytes())]);
+        let err = OfficeConverter::convert_bytes(&zip, "docx", &opencc, "s2t", true, true)
+            .expect_err("ZIP without target XML must be rejected");
+
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("No valid XML/XHTML fragments"));
+    }
+
+    #[test]
+    fn test_convert_bytes_rejects_epub_without_mimetype() {
+        let opencc = OpenCC::new_embedded();
+        let zip = make_zip(&[(
+            "OEBPS/content.xhtml",
+            "<html><body>汉语</body></html>".as_bytes(),
+        )]);
+        let err = OfficeConverter::convert_bytes(&zip, "epub", &opencc, "s2t", true, true)
+            .expect_err("EPUB without mimetype must be rejected");
+
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+        assert!(err.to_string().contains("mimetype"));
+    }
 
     #[test]
     fn test_convert_bytes_xlsx_inline_string_cells() {
