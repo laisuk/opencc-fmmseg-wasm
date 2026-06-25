@@ -8,6 +8,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [0.3.4] - Unreleased
 
+### Added
+
+- Added `opencc.js --custom-dict <slot>:<mode>:<file>` feature.
+
 ### Changed
 
 - CLI: Optimized `opencc.js office`

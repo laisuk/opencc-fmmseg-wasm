@@ -574,6 +574,16 @@ The package includes a zero-dependency Node.js CLI:
 opencc-fmmseg convert -i input.txt -o output.txt -c s2t -p
 opencc-fmmseg convert -i input.txt -o output.txt -c t2s -p --detofu all
 echo "别随便录影侵犯个人隐私权" | opencc-fmmseg convert -c s2hkp
+echo "這個細路哥很靈活" | opencc-fmmseg convert -c hk2sp --custom-dict hkphrasesrev:append:my_hk_dict.txt  
+// 这个小男孩很灵活
+```
+
+my_hk_dict.txt:
+
+```
+# Custom Dictionary
+
+細路哥	小男孩
 ```
 
 ```bash
@@ -590,6 +600,12 @@ opencc-fmmseg office -i input.docx -o output.docx -c s2t -p --keep-font
 --detofu [level]            Replace tofu-risk rare CJK extension chars after conversion
                               level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
                               default when omitted value: all
+--custom-dict <slot:mode:file>
+                            Load a custom dictionary.
+                            May be specified multiple times.
+                            Examples:
+                              --custom-dict hkphrasesrev:append:my_hk_dict.txt
+                              --custom-dict stphrases:override:terms.txt
 --in-enc <encoding>         Input encoding
 --out-enc <encoding>        Output encoding
 ```

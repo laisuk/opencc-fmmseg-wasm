@@ -58,6 +58,12 @@ Convert options:
                               level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
                               default when omitted value: all
   --keep-ids                  Preserve complete IDS expressions during conversion (default: false)
+  --custom-dict <slot:mode:file>
+                              Load a custom dictionary.
+                              May be specified multiple times.
+                              Examples:
+                                --custom-dict hkphrasesrev:append:my_hk_dict.txt
+                                --custom-dict stphrases:override:terms.txt
   --in-enc <encoding>         Input encoding (default: utf8)
   --out-enc <encoding>        Output encoding (default: utf8)
 
@@ -113,6 +119,91 @@ function getArg(args, shortName, longName, defaultValue = null) {
     }
 
     return defaultValue;
+}
+
+function getArgs(args, longName) {
+    const values = [];
+
+    for (let i = 0; i < args.length; i++) {
+        if (args[i] === longName && i + 1 < args.length) {
+            values.push(parseCustomDictSpec(args[i + 1]));
+            i++;
+        }
+    }
+
+    return values;
+}
+
+function parseCustomDictSpec(value) {
+    const first = value.indexOf(":");
+    const second = value.indexOf(":", first + 1);
+
+    if (first < 0 || second < 0) {
+        throw new Error(
+            `Invalid custom dictionary specification: ${value}\n` +
+            "Expected: <slot>:<append|override>:<file>"
+        );
+    }
+
+    const slot = value.substring(0, first).trim();
+    const mode = value.substring(first + 1, second).trim();
+    const file = value.substring(second + 1).trim();
+
+    if (!slot) throw new Error("Custom dictionary slot is empty.");
+    if (!mode) throw new Error("Custom dictionary mode is empty.");
+    if (!file) throw new Error("Custom dictionary file is empty.");
+
+    return {
+        slot,
+        mode,
+        pairs: loadCustomDictPairs(file)
+    };
+}
+
+function loadCustomDictPairs(file) {
+    if (!fs.existsSync(file)) {
+        throw new Error(`Custom dictionary file not found: ${file}`);
+    }
+
+    const text = fs.readFileSync(file, "utf8");
+    const lines = text.split(/\r?\n/);
+    const pairs = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        let line = lines[i].replace(/\r$/, "");
+
+        if (i === 0 && line.charCodeAt(0) === 0xfeff) {
+            line = line.slice(1);
+        }
+
+        line = line.trimEnd();
+
+        if (!line || line.startsWith("#")) {
+            continue;
+        }
+
+        const tab = line.indexOf("\t");
+
+        if (tab < 0) {
+            throw new Error(
+                `Invalid custom dictionary file ${file}:${i + 1}: missing TAB separator`
+            );
+        }
+
+        const source = line.substring(0, tab);
+        const values = line.substring(tab + 1).trim().split(/\s+/);
+        const target = values[0] || "";
+
+        if (!source || !target) {
+            throw new Error(
+                `Invalid custom dictionary file ${file}:${i + 1}: empty source or target`
+            );
+        }
+
+        pairs.push([source, target]);
+    }
+
+    return pairs;
 }
 
 function hasFlag(args, shortName, longName) {
@@ -248,6 +339,7 @@ async function runConvert(args) {
     const outEnc = getArg(args, null, "--out-enc", "utf8");
     const punct = hasFlag(args, "-p", "--punct");
     const keepIds = hasFlag(args, null, "--keep-ids");
+    const customDicts = getArgs(args, "--custom-dict");
 
     const detofuIndex = args.indexOf("--detofu");
     const detofuEnabled = detofuIndex !== -1;
@@ -265,7 +357,10 @@ async function runConvert(args) {
 
     await ensureWasmInitialized();
 
-    const cc = new OpenccWasm(config);
+    // const cc = new OpenccWasm(config);
+    const cc = customDicts.length === 0
+        ? new OpenccWasm(config)
+        : OpenccWasm.newWithCustomDicts(config, customDicts);
 
     if (keepIds) {
         cc.setPreserveIds(true);

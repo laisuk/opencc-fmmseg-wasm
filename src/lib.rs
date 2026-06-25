@@ -81,8 +81,43 @@ pub struct WasmCustomDictSpec {
     pub mode: Option<String>,
 }
 
+fn normalize_dict_slot_name(slot: &str) -> String {
+    match slot.trim().to_ascii_lowercase().as_str() {
+        "stcharacters" => "STCharacters",
+        "stphrases" => "STPhrases",
+        "stpunctuations" => "STPunctuations",
+
+        "tscharacters" => "TSCharacters",
+        "tsphrases" => "TSPhrases",
+        "tspunctuations" => "TSPunctuations",
+
+        "twphrases" => "TWPhrases",
+        "twphrasesrev" => "TWPhrasesRev",
+        "twvariants" => "TWVariants",
+        "twvariantsphrases" => "TWVariantsPhrases",
+        "twvariantsrev" => "TWVariantsRev",
+        "twvariantsrevphrases" => "TWVariantsRevPhrases",
+
+        "hkphrases" => "HKPhrases",
+        "hkphrasesrev" => "HKPhrasesRev",
+        "hkvariants" => "HKVariants",
+        "hkvariantsphrases" => "HKVariantsPhrases",
+        "hkvariantsrev" => "HKVariantsRev",
+        "hkvariantsrevphrases" => "HKVariantsRevPhrases",
+
+        "jpscharacters" => "JPSCharacters",
+        "jpscharactersrev" => "JPSCharactersRev",
+        "jpsphrases" => "JPSPhrases",
+
+        _ => slot.trim(),
+    }
+    .to_string()
+}
+
 fn parse_dict_slot(slot: &str) -> Result<DictSlot, String> {
-    DictSlot::try_from(slot).map_err(|_| format!("Invalid DictSlot: {slot}"))
+    let normalized = normalize_dict_slot_name(slot);
+
+    DictSlot::try_from(normalized.as_str()).map_err(|_| format!("Invalid DictSlot: {slot}"))
 }
 
 fn parse_custom_dict_mode(mode: Option<&str>) -> Result<CustomDictMode, String> {
