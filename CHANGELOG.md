@@ -15,6 +15,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - CLI: Optimized `opencc.js office`
+- Custom dictionary slot names are now trimmed and normalized case-insensitively for known slots, while file-style
+  names such as `STPhrases.txt` remain invalid.
 - Update dictionary data.
 
 ---

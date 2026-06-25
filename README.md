@@ -387,7 +387,9 @@ const cc = OpenccWasm.newWithCustomDicts("s2t", [
 `Override` replaces the selected slot before inserting the provided pairs. It is powerful and should be used only when
 the caller intentionally wants to discard built-in entries for that slot.
 
-Custom dictionary specs use strict canonical `DictSlot` names:
+Custom dictionary specs identify the target dictionary slot by `DictSlot` name. Slot names are trimmed and normalized
+case-insensitively for the known slots, so `"stphrases"`, `" STPhrases "`, and `"STPhrases"` all select
+`STPhrases`. Canonical names are recommended in TypeScript code and docs:
 
 ```text
 STPhrases
@@ -406,15 +408,15 @@ HKVariants
 HKVariantsPhrases
 HKVariantsRev
 HKVariantsRevPhrases
-JPShinjitaiCharacters
-JPShinjitaiPhrases
-JPVariants
-JPVariantsRev
+JPSCharacters
+JPSCharactersRev
+JPSPhrases
 STPunctuations
 TSPunctuations
 ```
 
-Suffixes such as `.txt` are not accepted. Use `"STPhrases"`, not `"STPhrases.txt"`.
+Suffixes such as `.txt` are not accepted, even though case and surrounding whitespace are normalized. Use
+`"STPhrases"` or `"stphrases"`, not `"STPhrases.txt"`.
 
 Merge contract:
 
