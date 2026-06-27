@@ -449,15 +449,17 @@ docx, xlsx, pptx, odt, ods, odp, epub
 File size is limited by available browser or Node.js memory, but there is no upload or server-side limit. Font
 preservation is supported with the `keepFont` option.
 
+Use the instance method when possible. It reuses the converter configuration and any custom dictionaries already held by
+the `OpenccWasm` instance.
+
 ```javascript
-convert_office_bytes(inputBytes, format, config, punctuation, keepFont)
+cc.convertOfficeBytes(inputBytes, format, punctuation, keepFont)
 ```
 
 Parameters:
 
 * `inputBytes`: `Uint8Array` document bytes
 * `format`: `docx`, `xlsx`, `pptx`, `odt`, `ods`, `odp`, or `epub`
-* `config`: OpenCC config string, such as `"s2t"`
 * `punctuation`: whether to convert punctuation variants
 * `keepFont`: whether to preserve font declarations where supported
 
@@ -465,20 +467,26 @@ Returns:
 
 * converted output bytes
 
+The older free function remains available for compatibility:
+
+```javascript
+convert_office_bytes(inputBytes, format, config, punctuation, keepFont)
+```
+
 ### Browser Office Example
 
 ```javascript
-import init, {convert_office_bytes} from "@laisuk/opencc-fmmseg-wasm";
+import init, {OpenccWasm} from "@laisuk/opencc-fmmseg-wasm";
 
 await init();
 
+const cc = new OpenccWasm("s2t");
 const file = document.querySelector("input[type=file]").files[0];
 const inputBytes = new Uint8Array(await file.arrayBuffer());
 
-const outputBytes = convert_office_bytes(
+const outputBytes = cc.convertOfficeBytes(
     inputBytes,
     "docx",
-    "s2t",
     true,
     true
 );
@@ -498,16 +506,16 @@ URL.revokeObjectURL(a.href);
 
 ```javascript
 import fs from "fs";
-import init, {convert_office_bytes} from "@laisuk/opencc-fmmseg-wasm";
+import init, {OpenccWasm} from "@laisuk/opencc-fmmseg-wasm";
 
 await init();
 
+const cc = new OpenccWasm("s2t");
 const inputBytes = fs.readFileSync("input.docx");
 
-const outputBytes = convert_office_bytes(
+const outputBytes = cc.convertOfficeBytes(
     inputBytes,
     "docx",
-    "s2t",
     true,
     true
 );

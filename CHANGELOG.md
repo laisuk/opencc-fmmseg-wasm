@@ -11,10 +11,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Added `opencc.js --custom-dict <slot>:<mode>:<file>` feature.
+- Added instance-level `OpenccWasm.convertOfficeBytes(...)` for in-memory Office / EPUB conversion using the
+  converter's current config and custom dictionaries.
 
 ### Changed
 
 - CLI: Optimized `opencc.js office`
+- README Office / EPUB examples now recommend `OpenccWasm.convertOfficeBytes(...)`; the existing
+  `convert_office_bytes(...)` free function remains available for compatibility.
 - Custom dictionary slot names are now trimmed and normalized case-insensitively for known slots, while file-style
   names such as `STPhrases.txt` remain invalid.
 - Update dictionary data.

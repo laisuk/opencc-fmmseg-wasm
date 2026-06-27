@@ -79,6 +79,12 @@ Office options:
   --convert-filename          Convert generated output filename stem (default: false)
   --keep-font                 Preserve font-family information (default)
   --no-keep-font              Do not preserve font-family information
+  --custom-dict <slot:mode:file>
+                              Load a custom dictionary.
+                              May be specified multiple times.
+                              Examples:
+                                --custom-dict hkphrasesrev:append:my_hk_dict.txt
+                                --custom-dict stphrases:override:terms.txt
 
 General options:
   -h, --help                  Show help
