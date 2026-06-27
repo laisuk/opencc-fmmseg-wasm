@@ -277,6 +277,26 @@ impl OpenccWasm {
         self.inner.detofu(&converted, level.into())
     }
 
+    #[wasm_bindgen(js_name = convertOfficeBytes)]
+    pub fn convert_office_bytes(
+        &self,
+        input: &[u8],
+        format: &str,
+        punctuation: bool,
+        keep_font: bool,
+    ) -> Result<Vec<u8>, JsValue> {
+        OfficeConverter::convert_bytes(
+            input,
+            format,
+            &self.inner,
+            self.config.as_str(),
+            punctuation,
+            keep_font,
+        )
+            .map(|(bytes, _)| bytes)
+            .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
+
     #[wasm_bindgen(js_name = debugPing)]
     pub fn debug_ping(&self) -> String {
         self.inner.convert("汉字", "s2t", false)

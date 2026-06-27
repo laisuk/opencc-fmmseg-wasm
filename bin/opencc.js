@@ -6,8 +6,7 @@ import process from "process";
 
 import init, {
     OpenccWasm,
-    DetofuLevelWasm,
-    convert_office_bytes
+    DetofuLevelWasm
 } from "../opencc_fmmseg_wasm.js";
 
 const OFFICE_FORMATS = new Set([
@@ -405,6 +404,7 @@ async function runOffice(args) {
     const punct = hasFlag(args, "-p", "--punct");
     const convertFilename = hasFlag(args, null, "--convert-filename");
     const keepFont = !hasFlag(args, null, "--no-keep-font");
+    const customDicts = getArgs(args, "--custom-dict");
 
     if (!input) {
         throw new Error("Input file is missing.");
@@ -418,7 +418,10 @@ async function runOffice(args) {
 
     await ensureWasmInitialized();
 
-    const cc = new OpenccWasm(config);
+    // const cc = new OpenccWasm(config);
+    const cc = customDicts.length === 0
+        ? new OpenccWasm(config)
+        : OpenccWasm.newWithCustomDicts(config, customDicts);
 
     if (!output) {
         output = makeDefaultOfficeOutput(input, officeFormat, convertFilename, cc, config, punct);
@@ -429,7 +432,7 @@ async function runOffice(args) {
 
     const inputBytes = fs.readFileSync(input);
 
-    const outputBytes = convert_office_bytes(
+    const outputBytes = cc.convertOfficeBytes(
         inputBytes,
         officeFormat,
         config,
