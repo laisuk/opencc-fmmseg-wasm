@@ -6,6 +6,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- Added CJK Compatibility Normalization feature in WASM core and CLI.
+- Documented the public WASM `OpenccWasm.normalizeCompat(...)` API for CJK Compatibility Ideograph normalization.
+- Documented `opencc-fmmseg convert --norm-compat` usage for normalizing compatibility ideographs before conversion.
+
+---
+
 ## [0.3.4] - 2026-06-27
 
 ### Added

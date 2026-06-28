@@ -57,6 +57,7 @@ Convert options:
                               level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
                               default when omitted value: all
   --keep-ids                  Preserve complete IDS expressions during conversion (default: false)
+  --norm-compat               Normalize CJK Compatibility Ideographs before conversion (default: false)
   --custom-dict <slot:mode:file>
                               Load a custom dictionary.
                               May be specified multiple times.
@@ -344,6 +345,7 @@ async function runConvert(args) {
     const outEnc = getArg(args, null, "--out-enc", "utf8");
     const punct = hasFlag(args, "-p", "--punct");
     const keepIds = hasFlag(args, null, "--keep-ids");
+    const normCompat = hasFlag(args, null, "--norm-compat");
     const customDicts = getArgs(args, "--custom-dict");
 
     const detofuIndex = args.indexOf("--detofu");
@@ -376,7 +378,12 @@ async function runConvert(args) {
         console.error("Input text to convert, <Ctrl+Z>/<Ctrl+D> to submit:");
     }
 
-    const inputText = readInputText(input, inEnc);
+    let inputText = readInputText(input, inEnc);
+
+    if (normCompat) {
+        inputText = cc.normalizeCompat(inputText);
+    }
+
     let outputText = cc.convert(inputText, punct);
 
     if (detofuEnabled) {
@@ -394,6 +401,7 @@ async function runConvert(args) {
         }
 
         const suffixParts = [];
+        if (normCompat) suffixParts.push("normalized");
         if (detofuEnabled) suffixParts.push("detofu");
         if (keepIds) suffixParts.push("keep-ids");
 

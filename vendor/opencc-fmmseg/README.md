@@ -1,0 +1,657 @@
+# opencc-fmmseg
+
+[![GitHub release](https://img.shields.io/github/v/release/laisuk/opencc-fmmseg?sort=semver)](https://github.com/laisuk/opencc-fmmseg/releases)
+[![Crates.io](https://img.shields.io/crates/v/opencc-fmmseg)](https://crates.io/crates/opencc-fmmseg)
+[![Docs.rs](https://docs.rs/opencc-fmmseg/badge.svg)](https://docs.rs/opencc-fmmseg)
+![Crates.io](https://img.shields.io/crates/d/opencc-fmmseg)
+[![Latest Downloads](https://img.shields.io/github/downloads/laisuk/opencc-fmmseg/latest/total.svg)](https://github.com/laisuk/opencc-fmmseg/releases/latest)
+[![License](https://img.shields.io/crates/l/opencc-fmmseg)](https://github.com/laisuk/opencc-fmmseg/blob/master/LICENSE)
+![Build Status](https://github.com/laisuk/opencc-fmmseg/actions/workflows/rust.yml/badge.svg)
+
+**opencc-fmmseg** is a high-performance Rust-based engine for Chinese text conversion.    
+It combines [OpenCC](https://github.com/BYVoid/OpenCC)'s lexicons with an
+optimized [Forward Maximum Matching (FMM)](https://en.wikipedia.org/wiki/Maximum_matching) algorithm to deliver fast,
+accurate, and deployment-friendly conversion — with **no runtime I/O required**.
+
+### ✨ Key Capabilities
+
+- 🔁 **Traditional ↔ Simplified Chinese conversion**
+- 🔤 **Lexicon-based word segmentation (FMM)**
+- ⚡ **Zero runtime dictionary loading (embedded Zstd)**
+- 🧩 **Easy integration via Rust, C/C++, and Python bindings**
+
+### 🎯 Ideal For
+
+- NLP preprocessing pipelines
+- OCR and subtitle post-processing
+- Ebook / document conversion (EPUB and Office)
+- Cross-platform CLI tools and system integration
+
+---
+
+## 🦀 Example (Rust)
+
+```rust
+use opencc_fmmseg::OpenCC;
+
+fn main() {
+    let input = "汉字转换测试";
+    let opencc = OpenCC::new();
+    let output = opencc.convert(input, "s2t", false);
+    println!("{}", output);  // 漢字轉換測試
+}
+```
+
+---
+
+## 📦 Download
+
+Grab the latest version for your platform from the [**Releases**](https://github.com/laisuk/opencc-fmmseg/releases)
+page:
+
+| Platform   | Download Link                                                                                        |
+|------------|------------------------------------------------------------------------------------------------------|
+| 🪟 Windows | [opencc-fmmseg-{latest}-windows-x64.zip](https://github.com/laisuk/opencc-fmmseg/releases/latest)    |
+| 🐧 Linux   | [opencc-fmmseg-{latest}-linux-x64.tar.gz](https://github.com/laisuk/opencc-fmmseg/releases/latest)   |
+| 🍎 macOS   | [opencc-fmmseg-{latest}-macos-arm64.tar.gz](https://github.com/laisuk/opencc-fmmseg/releases/latest) |
+
+Each archive contains:
+
+```bash
+README.txt
+version.txt
+bin/ # Command-line tools
+lib/ # Shared library (.dll / .so / .dylib)
+include/ # C API header + C++ helper header
+```
+
+## ✨ Features
+
+- 📦 **Unified CLI & Library** — Convert between Simplified and Traditional Chinese via a single, consistent interface.
+- 🔍 **Lexicon-driven segmentation** — Uses OpenCC dictionaries with maximum-matching (FMM) and phrase-level masking for
+  accurate linguistic conversion.
+- ⚡ **High performance** — Optimized with **Rayon parallelism**, **bit-mask gating** (`key_length_mask`,
+  `starter_len_mask`), and **zero-copy string views** for near-native throughput.
+- 🧠 **Smart gating engine** — Automatically skips impossible probes using global and per-starter length masks, ensuring
+  consistent O(n) scaling.
+- 🧩 **Modular integration** — Usable as a **Rust crate**, **C API (FFI)**, or **Qt/.NET/Python binding** with identical
+  behavior across platforms.
+- 🛠️ **Lightweight runtime** — Pure Rust core with embedded dictionaries and no runtime dictionary I/O.
+- 📄 **Cross-platform ready** — Builds cleanly on **Windows**, **Linux**, and **macOS** (x86_64 / ARM64), with CLI and
+  shared-library distributions.
+
+## Installation
+
+```bash
+git clone https://github.com/laisuk/opencc-fmmseg
+cd opencc-fmmseg
+cargo build --release --workspace
+```
+
+---
+
+## 📚 Library Usage
+
+You can also use `opencc-fmmseg` as a library:  
+To use `opencc-fmmseg` in your project, add this to your `Cargo.toml`:
+
+```toml
+[dependencies]
+opencc-fmmseg = "0.11.1"  # or latest version
+```
+
+Then use it in your code:
+
+```rust
+use opencc_fmmseg::{OpenCC};
+use opencc_fmmseg::OpenccConfig;
+
+fn main() {
+    // ---------------------------------------------------------------------
+    // Sample UTF-8 input (same spirit as C / C++ demos)
+    // ---------------------------------------------------------------------
+    let input_text = "意大利邻国法兰西罗浮宫里收藏的“蒙娜丽莎的微笑”画像是旷世之作。";
+
+    println!("Text:");
+    println!("{}", input_text);
+    println!();
+
+    // ---------------------------------------------------------------------
+    // Create OpenCC instance
+    // ---------------------------------------------------------------------
+    let converter = OpenCC::new();
+
+    // Detect script
+    let input_code = converter.zho_check(input_text);
+    println!("Text Code: {}", input_code);
+
+    // ---------------------------------------------------------------------
+    // Test 1: Legacy string-based config (convert)
+    // ---------------------------------------------------------------------
+    let config_str = "s2twp";
+    let punct = true;
+
+    println!();
+    println!(
+        "== Test 1: convert(config = \"{}\", punctuation = {}) ==",
+        config_str, punct
+    );
+
+    let output1 = converter.convert(input_text, config_str, punct);
+    println!("Converted:");
+    println!("{}", output1);
+    println!("Converted Code: {}", converter.zho_check(&output1));
+    println!(
+        "Last Error: {}",
+        OpenCC::get_last_error().unwrap_or_else(|| "<none>".to_string())
+    );
+
+    // ---------------------------------------------------------------------
+    // Test 2: Strongly typed config (convert_with_config)
+    // ---------------------------------------------------------------------
+    let config_enum = OpenccConfig::S2twp;
+
+    println!();
+    println!(
+        "== Test 2: convert_with_config(config = {:?}, punctuation = {}) ==",
+        config_enum, punct
+    );
+
+    let output2 = converter.convert_with_config(input_text, config_enum, punct);
+    println!("Converted:");
+    println!("{}", output2);
+    println!("Converted Code: {}", converter.zho_check(&output2));
+    println!(
+        "Last Error: {}",
+        OpenCC::get_last_error().unwrap_or_else(|| "<none>".to_string())
+    );
+
+    // ---------------------------------------------------------------------
+    // Test 3: Invalid config (string) — self-protected
+    // ---------------------------------------------------------------------
+    let invalid_config = "what_is_this";
+
+    println!();
+    println!(
+        "== Test 3: invalid string config (\"{}\") ==",
+        invalid_config
+    );
+
+    let output3 = converter.convert(input_text, invalid_config, true);
+    println!("Returned:");
+    println!("{}", output3);
+    println!(
+        "Last Error: {}",
+        OpenCC::get_last_error().unwrap_or_else(|| "<none>".to_string())
+    );
+
+    // ---------------------------------------------------------------------
+    // Test 4: Clear last error and verify state reset
+    // ---------------------------------------------------------------------
+    println!();
+    println!("== Test 4: clear_last_error() ==");
+
+    OpenCC::clear_last_error();
+
+    println!(
+        "Last Error after clear: {}",
+        OpenCC::get_last_error().unwrap_or_else(|| "<none>".to_string())
+    );
+
+    // ---------------------------------------------------------------------
+    // Summary
+    // ---------------------------------------------------------------------
+    println!();
+    println!("All tests completed.");
+}
+
+```
+
+Output:
+
+```
+Text:
+意大利邻国法兰西罗浮宫里收藏的“蒙娜丽莎的微笑”画像是旷世之作。
+
+Text Code: 2
+
+== Test 1: convert(config = "s2twp", punctuation = true) ==
+Converted:
+義大利鄰國法蘭西羅浮宮裡收藏的「蒙娜麗莎的微笑」畫像是曠世之作。
+Converted Code: 1
+Last Error: <none>
+
+== Test 2: convert_with_config(config = S2twp, punctuation = true) ==
+Converted:
+義大利鄰國法蘭西羅浮宮裡收藏的「蒙娜麗莎的微笑」畫像是曠世之作。
+Converted Code: 1
+Last Error: <none>
+
+== Test 3: invalid string config ("what_is_this") ==
+Returned:
+Invalid config: what_is_this
+Last Error: Invalid config: what_is_this
+
+== Test 4: clear_last_error() ==
+Last Error after clear: <none>
+```
+
+---
+
+## CJK Compatibility Ideograph normalization
+
+Some legacy text contains Unicode CJK Compatibility Ideographs such as `金`. These are uncommon in ordinary Chinese
+text, but callers that need upstream OpenCC-compatible behavior can run the optional compatibility pre-pass before
+segmentation and conversion.
+
+```rust
+use opencc_fmmseg::OpenCC;
+
+fn main() {
+    let cc = OpenCC::new();
+    let normalized = cc.normalize_compat("天龍八部書裡的喬峰是契丹人");
+    assert_eq!(normalized, "天龍八部書裡的喬峰是契丹人");
+}
+```
+
+Use it explicitly before conversion when needed:
+
+```rust
+use opencc_fmmseg::{OpenCC, OpenccConfig};
+
+fn main() {
+    let cc = OpenCC::new();
+    let input = "天龍八部書裡的喬峰是契丹人";
+    let normalized = cc.normalize_compat(input);
+    let converted = cc.convert_with_config(&normalized, OpenccConfig::T2s, false);
+
+    assert_eq!(converted, "天龙八部书里的乔峰是契丹人");
+}
+```
+
+This normalization is optional because it changes Unicode code points, compatibility ideographs are rare in normal text,
+and some callers need exact code-point preservation. Compatibility normalization is a pre-processing step; DeToFu is a
+post-processing/display fallback for rare CJK extension characters.
+
+---
+
+## DeToFu: tofu-safe fallback for rare CJK characters
+
+DeTofu is an optional post-conversion display-compatibility pass for rare CJK extension characters that may render as
+tofu boxes on some systems, fonts, browsers, document viewers, mobile devices, or e-book readers.
+
+This is an advanced compatibility feature rather than common OpenCC conversion usage. See the
+[DeTofu User Guide](DETOFU_USER_GUIDE.md) for Rust APIs, threshold behavior, custom fallback pairs, and custom
+fallback files.
+
+---
+
+## 🧩 C/C++ Integration (`opencc_fmmseg_capi`)
+
+You can also use `opencc-fmmseg` via a **C API** for integration with **C/C++ projects**.
+
+The zip includes:
+
+- {lib}`opencc_fmmseg_capi.`{so,dylib,dll}
+- C API: `include/opencc_fmmseg_capi.h`
+- Header-only C++ helper: `include/OpenccFmmsegHelper.hpp`
+
+### C++ RAII Helper (Recommended)
+
+For C++ projects, `OpenccFmmsegHelper.hpp` provides a **header-only RAII wrapper**
+around the C API.
+
+- Owns a native handle created by `opencc_new()`
+- Automatically releases it via `opencc_delete()` in `~OpenccFmmsegHelper()`
+- Move-only (non-copyable), exception-safe, leak-free
+- No manual handle management required
+- Conversion outputs are freed via `opencc_string_free()` (handled internally)
+
+```cpp
+#include "OpenccFmmsegHelper.hpp"
+
+OpenccFmmsegHelper opencc;
+opencc.setConfigId(OPENCC_CONFIG_S2T);
+
+std::string out = opencc.convert_cfg("汉字转换测试");
+```
+
+This helper is a thin, zero-overhead wrapper over the C API and **does not**
+require linking against any additional C++ library.
+
+---
+
+### Example 1 (minimal C usage)
+
+```c
+#include <stdio.h>
+#include "opencc_fmmseg_capi.h"
+
+int main(void) {
+    void *handle = opencc_new();
+
+    const char *config = "s2t";
+    const char *input  = u8"汉字";
+
+    char *result = opencc_convert(handle, input, config, false);
+
+    printf("Input    : %s\n", input);
+    printf("Converted: %s\n", result);
+
+    opencc_string_free(result);
+    opencc_delete(handle);
+    return 0;
+}
+```
+
+### Example 2 (detection + conversion)
+
+```c
+#include <stdio.h>
+#include <stdbool.h>
+#include "opencc_fmmseg_capi.h"
+
+int main(int argc, char **argv) {
+    void *opencc = opencc_new();
+
+    bool is_parallel = opencc_get_parallel(opencc);
+    printf("OpenCC is_parallel: %d\n", is_parallel);
+
+    const char *config = u8"s2twp";
+    const char *text   = u8"意大利邻国法兰西罗浮宫里收藏的“蒙娜丽莎的微笑”画像是旷世之作。";
+
+    printf("Text: %s\n", text);
+
+    int code = opencc_zho_check(opencc, text);
+    printf("Text Code: %d\n", code);
+
+    char *result = opencc_convert(opencc, text, config, true);
+    code = opencc_zho_check(opencc, result);
+
+    char *last_error = opencc_last_error();
+
+    printf("Converted: %s\n", result);
+    printf("Text Code: %d\n", code);
+    printf("Last Error: %s\n", last_error == NULL ? "No error" : last_error);
+
+    if (last_error != NULL) opencc_error_free(last_error);
+    if (result     != NULL) opencc_string_free(result);
+    opencc_delete(opencc);
+
+    return 0;
+}
+
+```
+
+### Output
+
+```
+OpenCC is_parallel: 1
+Text: 意大利邻国法兰西罗浮宫里收藏的“蒙娜丽莎的微笑”画像是旷世之作。
+Text Code: 2
+Converted: 義大利鄰國法蘭西羅浮宮裡收藏的「蒙娜麗莎的微笑」畫像是曠世之作。
+Text Code: 1
+Last Error: No error
+```
+
+### Notes
+
+- `opencc_new()` creates and initializes a new OpenCC-FMMSEG instance.
+
+- `opencc_convert(...)` is the **legacy string-based API**:
+    - Uses a string config such as `"s2t"`, `"t2s"`, `"s2twp"`.
+    - If the config is invalid, the conversion is **blocked** and an error string
+      (`"Invalid config: ..."`) is returned.
+    - On success, any previous error state is automatically cleared.
+
+- `opencc_convert_cfg(...)` is the **recommended API** for new code:
+    - Uses a numeric config (`opencc_config_t`) instead of strings.
+    - Avoids runtime string parsing and is more FFI-friendly.
+    - Invalid configs return a readable error string and set the last error.
+
+- `opencc_convert_cfg_mem(...)` is an **advanced buffer-based API**:
+    - Designed for bindings and performance-sensitive code.
+    - Uses a size-query + caller-allocated buffer pattern.
+    - Output length is **data-dependent and cannot be predicted** without
+      running a first pass of the conversion logic.
+    - The required buffer size (including `'\0'`) is reported via `out_required`.
+    - The output buffer is **owned and freed by the caller**.
+    - For guaranteed success, callers should first perform a **size-query**
+      call with `out_buf = NULL` and `out_cap = 0`.
+    - For one-pass usage, callers may provide a buffer larger than the input
+      (e.g. input length + ~10%), but must be prepared to retry if the buffer
+      is insufficient.
+    - This API does **not** replace the `char*`-returning APIs.
+
+- All input and output strings use **null-terminated UTF-8** encoding.
+
+- `punctuation` accepts standard C Boolean values (`true` / `false`)
+  via `<stdbool.h>`.
+
+- `opencc_string_free(...)` must be used to free strings returned by:
+    - `opencc_convert(...)`
+    - `opencc_convert_cfg(...)`
+
+- `opencc_error_free(...)` frees memory returned by `opencc_last_error()` **only**.
+  It does **not** clear the internal error state.
+
+- `opencc_clear_last_error()` clears the **internal error state**:
+    - After calling this, `opencc_last_error()` will return `"No error"`.
+    - This function **does not free** any previously returned error strings.
+    - It cannot replace `opencc_error_free()`.
+
+- `opencc_last_error()` returns the most recent error message:
+    - Returns a newly allocated string.
+    - Returns `"No error"` if no error is recorded.
+    - The returned string must always be freed with `opencc_error_free()`.
+
+- `opencc_delete(...)` destroys the OpenCC instance and frees its resources.
+
+- `opencc_zho_check(...)` detects the script of the input text:
+    - `1` = Traditional Chinese
+    - `2` = Simplified Chinese
+    - `0` = Other / Undetermined
+
+- Parallel mode can be queried using `opencc_get_parallel()` and modified
+  using `opencc_set_parallel(...)`.
+
+---
+
+## 🚀 CLI Usage
+
+The CLI tool will be located at:
+
+```
+target/release/
+```
+
+```bash
+opencc-rs          # CLI plain text and Office document text converter
+opencc-clip        # Convert from clipboard, auto detect config
+dict-generate      # Generate dictionary ZSTD, CBOR or JSON files
+```
+
+## Usage
+
+### `opencc-rs convert`
+
+```
+Convert plain text using OpenCC
+
+Usage: opencc-rs.exe convert [OPTIONS] --config <config>
+
+Options:
+  -i, --input <file>                  Input file (use stdin if omitted for non-office documents)
+  -o, --output <file>                 Output file (use stdout if omitted for non-office documents)
+  -c, --config <config>               Conversion configuration (s2t | s2tw | s2twp | s2hk | s2hkp | t2s | t2tw | t2twp | t2hk | tw2s | tw2sp | tw2t | tw2tp | hk2s | hk2sp | hk2t | jp2t | t2jp)
+  -p, --punct                         Enable punctuation conversion
+      --detofu [<LEVEL>]              Apply tofu-safe fallback after conversion: all, ext-c, ext-d, ext-e, ext-f, ext-g, ext-h, ext-i
+      --detofu-file <FILE>            Load additional detofu fallback mappings from a UTF-8 text file. Custom mappings override built-in mappings (requires --detofu)
+      --custom-dict <SLOT:MODE:FILE>  Custom dictionary file, e.g. hkphrasesrev:append:my_hk_dict.txt
+      --keep-ids                      Preserve Unicode IDS expressions during conversion
+      --in-enc <in_enc>               Encoding for input [default: UTF-8]
+      --out-enc <out_enc>             Encoding for output [default: UTF-8]
+  -h, --help                          Print help
+```
+
+### `opencc-rs office`
+
+```
+Convert Office or EPUB documents using OpenCC
+
+Usage: opencc-rs.exe office [OPTIONS] --config <config>
+
+Options:
+  -i, --input <file>                  Input file (use stdin if omitted for non-office documents)
+  -o, --output <file>                 Output file (use stdout if omitted for non-office documents)
+  -c, --config <config>               Conversion configuration (s2t | s2tw | s2twp | s2hk | s2hkp | t2s | t2tw | t2twp | t2hk | tw2s | tw2sp | tw2t | tw2tp | hk2s | hk2sp | hk2t | jp2t | t2jp)
+  -p, --punct                         Enable punctuation conversion
+      --detofu [<LEVEL>]              Apply tofu-safe fallback after conversion: all, ext-c, ext-d, ext-e, ext-f, ext-g, ext-h, ext-i
+      --detofu-file <FILE>            Load additional detofu fallback mappings from a UTF-8 text file. Custom mappings override built-in mappings (requires --detofu)
+      --custom-dict <SLOT:MODE:FILE>  Custom dictionary file, e.g. hkphrasesrev:append:my_hk_dict.txt
+  -f, --format <ext>                  Force document format: docx, odt, epub...
+  -k, --keep-font                     Preserve original font styles
+      --convert-filename              Convert the output filename using the selected OpenCC configuration
+  -h, --help                          Print help
+```
+
+### Example
+
+#### Plain Text
+
+```bash
+./opencc-rs convert -c s2t -i text_simplified.txt -o text_traditional.txt
+"俨骖𬴂于上路" | ./opencc-rs convert -c t2s --detofu all
+"𣭲毛" | ./opencc-rs convert -c t2s --detofu ext-b --detofu-file custom_tofu.txt
+"這個細路哥很靈活" | ./opencc-rs convert -c hk2sp --custom-dict hkphrasesrev:append:my_hk_dict.txt
+```
+
+Example `custom_tofu.txt`:
+
+```text
+𣭲	氄	B
+```
+
+Example `my_hk_dict.txt`:
+
+```text
+# Custom Dictionary
+細路哥	小男孩
+```
+
+#### Office Documents or EPUB
+
+- Supported OpenDocument formats: `.docx`, `.xlsx`, `.pptx`, `.odt`, `.ods`, `.odp`, `.epub`
+
+```bash
+./opencc-rs office -c s2t --punct --format docx -i doc_simplified.docx -o doc_traditional.docx
+```
+
+- Supported conversions:
+    - `s2t` – Simplified to Traditional
+    - `s2tw` – Simplified to Traditional Taiwan
+    - `s2hk` – Simplified to Traditional Hong Kong
+    - `s2hkp` – Simplified to Traditional Hong Kong with idioms
+    - `s2twp` – Simplified to Traditional Taiwan with idioms
+    - `t2s` – Traditional to Simplified
+    - `tw2s` – Traditional Taiwan to Simplified
+    - `tw2sp` – Traditional Taiwan to Simplified with idioms
+    - `hk2s` – Traditional Hong Kong to Simplified
+    - `hk2sp` – Traditional Hong Kong to Simplified with idioms
+    - `jp2t`, `t2jp` - Japanese Shinjitai/Kyujitai
+    - etc
+
+### Lexicons
+
+By default, it uses **OpenCC**'s built-in lexicon paths. You can also provide your own lexicon dictionary generated by
+`dict-generate` CLI tool.
+
+For advanced custom dictionaries, `DictionaryMaxlength` supports pair-based and OpenCC plaintext file injection,
+append/override merge modes, alternate dictionary base directories, and direct `OpenCC::from_dictionary()` construction.
+Public `DictSlot` customization includes regional phrase slots such as `HKPhrases` and `HKPhrasesRev`,
+Japanese Shinjitai slots such as `JPSCharacters`, `JPSCharactersRev`, and `JPSPhrases`, plus phrase-variant
+slots such as `TWVariantsPhrases` and `HKVariantsPhrases`, which are applied before variant character fallback.
+Missing plaintext `HKPhrases.txt` / `HKPhrasesRev.txt` files are treated as
+empty slots for backward compatibility.
+See the [Custom Dictionary User Guide](CUSTOM_DICT_USER_GUIDE.md).
+
+---
+
+## Project Structure
+
+- `src/lib.rs` – Main library with segmentation logic.
+- `capi/opencc-fmmseg-capi` C API source and demo.
+- `tools/opencc-rs/src/main.rs` – CLI tool (`opencc-rs`) implementation.
+- `dicts/` – OpenCC text lexicons which converted into Zstd compressed CBOR format.
+
+## 🛠 Built With
+
+- Rust + Cargo Workspaces
+- OpenCC-compatible dictionaries
+- Parallelized FMM segmentation
+- GitHub Actions cross-platform release automation
+
+---
+
+## 🚀 Benchmark Results: `opencc-fmmseg` Conversion Speed
+
+Tested using [Criterion.rs](https://bheisler.github.io/criterion.rs/book/) on up to 1 million
+characters with punctuation disabled (`punctuation = false`), built in **release mode** with
+**Rayon enabled** via `cargo +stable bench --bench opencc_fmmseg_bench`.
+
+Results from **v0.9.2**:
+
+| Input Size | s2t Mean Time | t2s Mean Time |
+|------------|--------------:|--------------:|
+| 100        |       2.51 µs |       1.04 µs |
+| 1,000      |      34.67 µs |      28.45 µs |
+| 10,000     |     164.30 µs |      99.48 µs |
+| 100,000    |      0.982 ms |      0.574 ms |
+| 1,000,000  |     11.294 ms |      7.571 ms |
+
+---
+
+📊 **Throughput Interpretation**
+
+- **t2s:** ≈ 132 million chars/sec
+- **s2t:** ≈ 89 million chars/sec
+- Equivalent to **~265–396 MB/s** UTF-8 Chinese text throughput
+- ≈ **177–264 full-length novels** (500 k chars each) per second
+- ≈ **1 GB of text** converted in under **4 seconds**
+
+At this level, CPU saturation is negligible — **I/O or interop overhead** (file/clipboard/network) now dominates
+runtime.  
+The new **mask-first gating** (`key_length_mask` + `starter_len_mask`) delivers perfect **O(n)** scaling and
+ultra-stable parallel throughput across large text corpora.
+
+![Benchmark Chart](https://raw.githubusercontent.com/laisuk/opencc-fmmseg/master/benches/opencc_fmmseg_benchmark_092.png)
+
+### 🏅 Highlights
+
+![Safe & Parallel](https://img.shields.io/badge/Safe%20%26%20Parallel-Yes-ff69b4)
+
+---
+
+## Project That Use opencc-fmmseg
+
+- [opencc-fmmseg-gui](https://github.com/laisuk/opencc-fmmseg-gui) : A modern cross‑platform Chinese text converter GUI
+  built with `Tauri` + `Vite` and powered by the Rust `opencc-fmmseg` engine.
+
+---
+
+## Credits
+
+- [OpenCC](https://github.com/BYVoid/OpenCC) by [BYVoid](https://github.com/BYVoid) – Lexicon source.
+
+## 📜 License
+
+- MIT License.
+- © Laisuk Lai.
+- See [LICENSE](./LICENSE) for details.
+- See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for bundled OpenCC lexicons (_Apache License 2.0_).
+
+## 💬 Feedback / Contributions
+
+- Issues and pull requests are welcome.
+- If you find this tool useful, please ⭐ star the repo or fork it.
+

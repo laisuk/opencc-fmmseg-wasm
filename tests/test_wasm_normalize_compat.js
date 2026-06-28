@@ -22,26 +22,27 @@ function expectEqual(actual, expected, message) {
     }
 }
 
-const cc = OpenccWasm.newWithCustomDicts("s2t", [
-    {
-        slot: "STPhrases",
-        mode: "Append",
-        pairs: [
-            ["帕兰蒂尔", "柏蘭蒂爾"],
-            ["软件", "軟體"],
-        ],
-    },
-]);
+const cc = new OpenccWasm("t2s");
 
-const input = "帕兰蒂尔软件";
-const output = cc.convert(input, false);
-
-console.log(output);
+const input = "天龍八部書裡的喬峰是契丹人";
+const normalized = cc.normalizeCompat(input);
 
 expectEqual(
-    output,
-    "柏蘭蒂爾軟體",
+    normalized,
+    "天龍八部書裡的喬峰是契丹人",
+    "normalizeCompat() failed"
+);
+
+const converted = cc.convert(normalized);
+
+expectEqual(
+    converted,
+    "天龙八部书里的乔峰是契丹人",
     "convert() failed"
 );
 
-console.log("Custom dict WASM test passed.");
+console.log("Input: " + input);
+console.log("Normalized Input: " + normalized);
+console.log("Converted: " + converted);
+
+console.log("Normalize Compatability Ideographs WASM test passed.");

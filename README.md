@@ -21,6 +21,7 @@ Features:
 * Traditional Chinese regional variants
 * Japanese Shinjitai conversion support
 * Chinese script detection (`zho_check`)
+* Optional CJK Compatibility Ideograph normalization
 * In-memory Office / EPUB document conversion
 * Zero-dependency Node.js CLI
 
@@ -159,6 +160,41 @@ Example:
 ```javascript
 cc.convert("汉字", false);
 ```
+
+---
+
+### normalizeCompat
+
+Normalize Unicode CJK Compatibility Ideographs before conversion.
+
+```javascript
+cc.normalizeCompat(text)
+```
+
+Parameters:
+
+* `text`: input string
+
+Returns:
+
+* normalized string
+
+Example:
+
+```javascript
+const cc = new OpenccWasm("t2s");
+
+const input = "天龍八部書裡的喬峰是契丹人";
+const normalized = cc.normalizeCompat(input);
+
+console.log(normalized);
+// 天龍八部書裡的喬峰是契丹人
+
+console.log(cc.convert(normalized, false));
+// 天龙八部书里的乔峰是契丹人
+```
+
+This is an optional pre-conversion pass for text that contains compatibility ideographs from Unicode compatibility ranges. Unmapped characters are preserved unchanged. Normal OpenCC conversion does not automatically run this pass, so call it explicitly when compatibility normalization is desired.
 
 ---
 
@@ -584,6 +620,8 @@ The package includes a zero-dependency Node.js CLI:
 opencc-fmmseg convert -i input.txt -o output.txt -c s2t -p
 opencc-fmmseg convert -i input.txt -o output.txt -c t2s -p --detofu all
 echo "别随便录影侵犯个人隐私权" | opencc-fmmseg convert -c s2hkp
+echo "天龍八部書裡的喬峰是契丹人" | opencc-fmmseg convert -c t2s --norm-compat
+// 天龙八部书里的乔峰是契丹人
 echo "這個細路哥很靈活" | opencc-fmmseg convert -c hk2sp --custom-dict hkphrasesrev:append:my_hk_dict.txt  
 // 这个小男孩很灵活
 ```
@@ -610,6 +648,7 @@ opencc-fmmseg office -i input.docx -o output.docx -c s2t -p --keep-font
 --detofu [level]            Replace tofu-risk rare CJK extension chars after conversion
                               level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
                               default when omitted value: all
+--norm-compat               Normalize CJK Compatibility Ideographs before conversion
 --custom-dict <slot:mode:file>
                             Load a custom dictionary.
                             May be specified multiple times.

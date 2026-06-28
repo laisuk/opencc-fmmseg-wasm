@@ -1,3 +1,5 @@
+/// Unicode CJK Compatibility Ideograph normalization utilities.
+pub mod compat_ideographs;
 /// Delimiters helper for splitting and matching delimiters.
 mod delimiter_set;
 mod detofu;

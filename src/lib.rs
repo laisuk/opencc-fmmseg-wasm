@@ -266,6 +266,11 @@ impl OpenccWasm {
         self.inner.zho_check(text)
     }
 
+    #[wasm_bindgen(js_name = normalizeCompat)]
+    pub fn normalize_compat(&self, text: &str) -> String {
+        self.inner.normalize_compat(text)
+    }
+
     #[wasm_bindgen(js_name = detofu)]
     pub fn detofu(&self, text: &str, level: DetofuLevelWasm) -> String {
         self.inner.detofu(text, level.into())
@@ -293,8 +298,8 @@ impl OpenccWasm {
             punctuation,
             keep_font,
         )
-            .map(|(bytes, _)| bytes)
-            .map_err(|e| JsValue::from_str(&e.to_string()))
+        .map(|(bytes, _)| bytes)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
     #[wasm_bindgen(js_name = debugPing)]
