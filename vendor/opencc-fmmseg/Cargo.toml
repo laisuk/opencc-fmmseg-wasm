@@ -8,7 +8,7 @@
 
 [package]
 name = "opencc-fmmseg"
-version = "0.11.1"
+version = "0.11.2"
 edition = "2021"
 autobenches = false # Disable auto-bench
 authors = ["Laisuk Lai <laisuk@yahoo.com>"]
@@ -26,6 +26,7 @@ include = [
     # All source code
     "src/**/*.rs",
     "src/dictionary_lib/dicts/*.zstd",
+    "src/data/*.txt",
     # Public text dictionaries
     "dicts/**"
 ]
