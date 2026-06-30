@@ -57,8 +57,8 @@ Convert options:
                               level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
                               default when omitted value: all
   --keep-ids                  Preserve complete IDS expressions during conversion (default: false)
-  --norm-compat               Normalize CJK Compatibility Ideographs before conversion (default: false)
-  --custom-dict <slot:mode:file>
+  -n, --norm-compat           Normalize CJK Compatibility Ideographs before conversion (default: false)
+  -D, --custom-dict <slot:mode:file>
                               Load a custom dictionary.
                               May be specified multiple times.
                               Examples:
@@ -76,8 +76,8 @@ Office options:
   -o, --output <file>         Output file
   -c, --config <conversion>   Conversion config (default: s2t)
   -p, --punct                 Enable punctuation conversion
-  --format <format>           docx | xlsx | pptx | odt | ods | odp | epub
-  --convert-filename          Convert generated output filename stem (default: false)
+  -f, --format <format>       docx | xlsx | pptx | odt | ods | odp | epub
+  -F, --convert-filename      Convert generated output filename stem (default: false)
   --keep-font                 Preserve font-family information (default)
   --no-keep-font              Do not preserve font-family information
   --custom-dict <slot:mode:file>
@@ -127,12 +127,18 @@ function getArg(args, shortName, longName, defaultValue = null) {
     return defaultValue;
 }
 
-function getArgs(args, longName) {
+function getArgs(args, shortName, longName) {
     const values = [];
+    const candidates = [];
+
+    if (shortName) candidates.push(shortName);
+    if (longName) candidates.push(longName);
+
+    if (candidates.length === 0) return values;
 
     for (let i = 0; i < args.length; i++) {
-        if (args[i] === longName && i + 1 < args.length) {
-            values.push(parseCustomDictSpec(args[i + 1]));
+        if (candidates.includes(args[i]) && i + 1 < args.length) {
+            values.push(args[i + 1]);
             i++;
         }
     }
@@ -345,8 +351,9 @@ async function runConvert(args) {
     const outEnc = getArg(args, null, "--out-enc", "utf8");
     const punct = hasFlag(args, "-p", "--punct");
     const keepIds = hasFlag(args, null, "--keep-ids");
-    const normCompat = hasFlag(args, null, "--norm-compat");
-    const customDicts = getArgs(args, "--custom-dict");
+    const normCompat = hasFlag(args, "-n", "--norm-compat");
+    const customDicts = getArgs(args, "-D", "--custom-dict")
+        .map(parseCustomDictSpec);
 
     const detofuIndex = args.indexOf("--detofu");
     const detofuEnabled = detofuIndex !== -1;
@@ -414,11 +421,12 @@ async function runOffice(args) {
     const input = getArg(args, "-i", "--input");
     let output = getArg(args, "-o", "--output");
     const config = getArg(args, "-c", "--config", "s2t");
-    const explicitFormat = getArg(args, null, "--format");
+    const explicitFormat = getArg(args, "-f", "--format");
     const punct = hasFlag(args, "-p", "--punct");
-    const convertFilename = hasFlag(args, null, "--convert-filename");
+    const convertFilename = hasFlag(args, "-F", "--convert-filename");
     const keepFont = !hasFlag(args, null, "--no-keep-font");
-    const customDicts = getArgs(args, "--custom-dict");
+    const customDicts = getArgs(args, "-D", "--custom-dict")
+        .map(parseCustomDictSpec);
 
     if (!input) {
         throw new Error("Input file is missing.");

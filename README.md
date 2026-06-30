@@ -641,22 +641,23 @@ opencc-fmmseg office -i input.docx -o output.docx -c s2t -p --keep-font
 ### Text Conversion Options
 
 ```text
--i, --input <file>          Input text file
--o, --output <file>         Output text file
--c, --config <conversion>   Conversion config
+-i, --input <file>          Input text file; stdin if omitted
+-o, --output <file>         Output text file; stdout if omitted
+-c, --config <conversion>   Conversion config (default: s2t)
 -p, --punct                 Enable punctuation conversion
 --detofu [level]            Replace tofu-risk rare CJK extension chars after conversion
                               level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
                               default when omitted value: all
---norm-compat               Normalize CJK Compatibility Ideographs before conversion
---custom-dict <slot:mode:file>
+--keep-ids                  Preserve complete IDS expressions during conversion (default: false)
+-n, --norm-compat           Normalize CJK Compatibility Ideographs before conversion (default: false)
+-D, --custom-dict <slot:mode:file>
                             Load a custom dictionary.
                             May be specified multiple times.
                             Examples:
                               --custom-dict hkphrasesrev:append:my_hk_dict.txt
                               --custom-dict stphrases:override:terms.txt
---in-enc <encoding>         Input encoding
---out-enc <encoding>        Output encoding
+--in-enc <encoding>         Input encoding (default: utf8)
+--out-enc <encoding>        Output encoding (default: utf8)
 ```
 
 Supported conversion configs:
@@ -671,12 +672,18 @@ tw2s, tw2sp, tw2t, tw2tp, hk2s, hk2sp, hk2t, jp2t, t2jp
 ```text
 -i, --input <file>          Input Office / EPUB file
 -o, --output <file>         Output file
--c, --config <conversion>   Conversion config
+-c, --config <conversion>   Conversion config (default: s2t)
 -p, --punct                 Enable punctuation conversion
---format <format>           docx | xlsx | pptx | odt | ods | odp | epub
---auto-ext                  Append extension to output if missing
---keep-font                 Preserve font-family information
+-f, --format <format>       docx | xlsx | pptx | odt | ods | odp | epub
+-F, --convert-filename      Convert generated output filename stem (default: false)
+--keep-font                 Preserve font-family information (default)
 --no-keep-font              Do not preserve font-family information
+--custom-dict <slot:mode:file>
+                            Load a custom dictionary.
+                            May be specified multiple times.
+                            Examples:
+                              --custom-dict hkphrasesrev:append:my_hk_dict.txt
+                              --custom-dict stphrases:override:terms.txt
 ```
 
 For `office`, the format is inferred from the input file extension when `--format` is omitted.
