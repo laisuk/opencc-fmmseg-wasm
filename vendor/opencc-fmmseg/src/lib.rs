@@ -21,8 +21,12 @@ pub use crate::dictionary_lib::{CustomDictFileSpec, CustomDictMode, CustomDictSp
 pub use crate::dictionary_lib::{DictionaryError, DictionaryMaxlength};
 pub use crate::opencc::OpenCC;
 pub use crate::opencc_config::OpenccConfig;
+#[cfg(feature = "compat-bin")]
+pub use compat_ideographs::write_compat_bin_from_txt_file;
 /// Converts rare non-BMP CJK extension characters to compatibility fallbacks.
 pub use detofu::detofu;
+#[cfg(feature = "tofu-bin")]
+pub use detofu::write_tofu_bin_from_txt_file;
 /// Threshold level used by detofu display-compatibility fallback.
 pub use detofu::DetofuLevel;
 /// Reusable and customizable detofu fallback map.
