@@ -8,7 +8,7 @@
 
 [package]
 name = "opencc-fmmseg"
-version = "0.11.3"
+version = "0.11.4"
 edition = "2021"
 autobenches = false # Disable auto-bench
 authors = ["Laisuk Lai <laisuk@yahoo.com>"]
@@ -39,7 +39,7 @@ include = [
 # rayon@1.10.0, rayon-core@1.12.1, rustc-hash@2.1.1
 rayon = { version = "=1.10", optional = true }
 rayon-core = { version = "=1.12", optional = true }
-regex = "1.12"
+regex = "1.13"
 serde = { version = "1.0", features = ["derive"] }
 serde_cbor = "0.11"
 zstd = { version = "0.13.3", optional = true }
