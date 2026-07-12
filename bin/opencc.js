@@ -68,8 +68,8 @@ Convert options:
   --out-enc <encoding>        Output encoding (default: utf8)
 
 Supported configs:
-  s2t, s2tw, s2twp, s2hk, s2hkp, t2s, t2tw, t2twp, t2hk,
-  tw2s, tw2sp, tw2t, tw2tp, hk2s, hk2sp, hk2t, jp2t, t2jp
+  s2t, s2tw, s2twp, s2hk, s2hkp, t2s, t2tw, t2twp, t2hk, t2hkp,
+  tw2s, tw2sp, tw2t, tw2tp, hk2s, hk2sp, hk2t, hk2tp, jp2t, t2jp
 
 Office options:
   -i, --input <file>          Input Office / EPUB file

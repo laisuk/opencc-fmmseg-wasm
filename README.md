@@ -96,6 +96,7 @@ console.log(cc.convert("别随便录影侵犯个人隐私权", false));
 | `t2tw`  | `OpenccConfigWasm.T2tw`  | Traditional Chinese → Taiwan Traditional             |
 | `t2twp` | `OpenccConfigWasm.T2twp` | Traditional Chinese → Taiwan Traditional (phrases)   |
 | `t2hk`  | `OpenccConfigWasm.T2hk`  | Traditional Chinese → Hong Kong Traditional          |
+| `t2hkp` | `OpenccConfigWasm.T2hkp` | Traditional Chinese → Hong Kong Traditional (phrases)|
 | `tw2s`  | `OpenccConfigWasm.Tw2s`  | Taiwan Traditional → Simplified Chinese              |
 | `tw2sp` | `OpenccConfigWasm.Tw2sp` | Taiwan Traditional → Simplified Chinese (phrases)    |
 | `tw2t`  | `OpenccConfigWasm.Tw2t`  | Taiwan Traditional → Traditional Chinese             |
@@ -103,10 +104,11 @@ console.log(cc.convert("别随便录影侵犯个人隐私权", false));
 | `hk2s`  | `OpenccConfigWasm.Hk2s`  | Hong Kong Traditional → Simplified Chinese           |
 | `hk2sp` | `OpenccConfigWasm.Hk2sp` | Hong Kong Traditional → Simplified Chinese (phrases) |
 | `hk2t`  | `OpenccConfigWasm.Hk2t`  | Hong Kong Traditional → Traditional Chinese          |
+| `hk2tp` | `OpenccConfigWasm.Hk2tp` | Hong Kong Traditional → Traditional Chinese (phrases)|
 | `jp2t`  | `OpenccConfigWasm.Jp2t`  | Japanese Shinjitai → Traditional Chinese             |
 | `t2jp`  | `OpenccConfigWasm.T2jp`  | Traditional Chinese → Japanese Shinjitai             |
 
-The numeric enum values match the vendored Rust backend. Existing values are unchanged; `S2hkp = 17` and `Hk2sp = 18`.
+The numeric enum values match the vendored Rust backend. Existing values are unchanged; `S2hkp = 17`, `Hk2sp = 18`, `T2hkp = 19`, and `Hk2tp = 20`.
 
 ---
 
@@ -316,7 +318,7 @@ OpenccWasm.getSupportedConfigs();
 
 Returns all supported config strings.
 
-Includes `s2hkp` and `hk2sp`.
+Includes `s2hkp`, `hk2sp`, `t2hkp`, and `hk2tp`.
 
 ---
 
@@ -663,8 +665,8 @@ opencc-fmmseg office -i input.docx -o output.docx -c s2t -p --keep-font
 Supported conversion configs:
 
 ```text
-s2t, s2tw, s2twp, s2hk, s2hkp, t2s, t2tw, t2twp, t2hk,
-tw2s, tw2sp, tw2t, tw2tp, hk2s, hk2sp, hk2t, jp2t, t2jp
+s2t, s2tw, s2twp, s2hk, s2hkp, t2s, t2tw, t2twp, t2hk, t2hkp,
+tw2s, tw2sp, tw2t, tw2tp, hk2s, hk2sp, hk2t, hk2tp, jp2t, t2jp
 ```
 
 ### Office / EPUB Options
@@ -702,8 +704,8 @@ The package includes generated TypeScript definitions from `wasm-bindgen`.
 
 The WASM-facing enum is exported as `OpenccConfigWasm`, alongside `OpenccWasm`.
 
-`OpenccConfigWasm.S2hkp` and `OpenccConfigWasm.Hk2sp` are available for Hong Kong phrase conversions and map to backend
-config IDs `17` and `18`.
+`OpenccConfigWasm.S2hkp`, `OpenccConfigWasm.Hk2sp`, `OpenccConfigWasm.T2hkp`, and
+`OpenccConfigWasm.Hk2tp` are available for Hong Kong phrase conversions and map to backend config IDs `17` through `20`.
 
 ---
 

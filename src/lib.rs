@@ -29,6 +29,8 @@ pub enum OpenccConfigWasm {
     T2jp = 16,
     S2hkp = 17,
     Hk2sp = 18,
+    T2hkp = 19,
+    Hk2tp = 20,
 }
 
 impl OpenccConfigWasm {
@@ -362,7 +364,7 @@ mod tests {
         for config in OpenccConfig::ALL {
             let id = config.to_ffi();
 
-            assert!(matches!(id, 1..=18));
+            assert!(matches!(id, 1..=20));
             assert_eq!(OpenccConfig::from_ffi(id), Some(config));
         }
 
@@ -370,6 +372,8 @@ mod tests {
         assert_eq!(OpenccConfigWasm::T2jp as u32, OpenccConfig::T2jp.to_ffi());
         assert_eq!(OpenccConfigWasm::S2hkp as u32, OpenccConfig::S2hkp.to_ffi());
         assert_eq!(OpenccConfigWasm::Hk2sp as u32, OpenccConfig::Hk2sp.to_ffi());
+        assert_eq!(OpenccConfigWasm::T2hkp as u32, OpenccConfig::T2hkp.to_ffi());
+        assert_eq!(OpenccConfigWasm::Hk2tp as u32, OpenccConfig::Hk2tp.to_ffi());
     }
 
     #[test]

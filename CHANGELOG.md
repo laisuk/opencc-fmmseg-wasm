@@ -6,24 +6,47 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.3.7] - Unreleased
+
+### Added
+
+- Added WASM-facing `OpenccConfigWasm.T2hkp` and `OpenccConfigWasm.Hk2tp` configs, mapped to the stable backend IDs `19`
+  and `20`.
+- Added direct vendored backend conversions `OpenCC::t2hkp()` and `OpenCC::hk2tp()` for phrase-aware Traditional ↔ Hong
+  Kong Traditional conversion without a punctuation parameter.
+- Added `t2hkp` and `hk2tp` to the Node.js CLI supported-config help and public WASM documentation.
+
+### Changed
+
+- Updated conversion dictionary data.
+- Refactored the vendored direct Taiwan phrase conversions `t2twp` and `tw2tp` from two dictionary rounds to one using
+  the combined `TwTriple` and `TwRevTriple` unions.
+- Generalized the vendored Hong Kong phrase union caches to `HkTriple` and `HkRevTriple`; phrase dictionaries remain
+  first in every forward and reverse triple-union lookup order.
+- Expanded WASM/backend config parity validation from IDs `1..=18` to `1..=20`.
+
+---
+
 ## [0.3.6] -2026-0/-08
 
 ### Added
 
-- Added optional `tofu-bin` feature for loading the built-in DeToFu dictionary from compact `TSCharactersTofu.bin` data via `include_bytes!()`.
+- Added optional `tofu-bin` feature for loading the built-in DeToFu dictionary from compact `TSCharactersTofu.bin` data
+  via `include_bytes!()`.
 - Added binary serialization helpers for the built-in DeToFu dictionary.
 - Added regression test verifying `TSCharactersTofu.bin` produces identical entries to canonical `TSCharactersTofu.txt`.
 - Added `dict-generate --tofu` to generate `TSCharactersTofu.bin` from `TSCharactersTofu.txt`.
-- Added internal optional `compat-bin` runtime feature for loading CJK Compatibility Ideograph mappings from generated `CJK_Compatibility_Ideographs.bin` data.
+- Added internal optional `compat-bin` runtime feature for loading CJK Compatibility Ideograph mappings from generated
+  `CJK_Compatibility_Ideographs.bin` data.
 
 ### Changed
 
 - Built-in DeToFu dictionary loading now uses:
-  - embedded `TSCharactersTofu.txt` by default;
-  - embedded `TSCharactersTofu.bin` when `tofu-bin` is enabled.
+    - embedded `TSCharactersTofu.txt` by default;
+    - embedded `TSCharactersTofu.bin` when `tofu-bin` is enabled.
 - Built-in CJK Compatibility Ideograph mapping loading now mirrors DeToFu runtime packaging:
-  - embedded canonical `CJK_Compatibility_Ideographs.txt` by default;
-  - embedded generated `CJK_Compatibility_Ideographs.bin` when internal `compat-bin` is enabled.
+    - embedded canonical `CJK_Compatibility_Ideographs.txt` by default;
+    - embedded generated `CJK_Compatibility_Ideographs.bin` when internal `compat-bin` is enabled.
 - Update dictionary data.
 
 ---
@@ -33,10 +56,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Added CJK Compatibility Normalization feature in WASM core and CLI.
-- - Added `opencc.js --norm-compat` feature.
+-
+    - Added `opencc.js --norm-compat` feature.
 - Documented the public WASM `OpenccWasm.normalizeCompat(...)` API for CJK Compatibility Ideograph normalization.
 - Documented `opencc-fmmseg convert --norm-compat` usage for normalizing compatibility ideographs before conversion.
 - Update dictionary data.
+
 ---
 
 ## [0.3.4] - 2026-06-27
