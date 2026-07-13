@@ -75,12 +75,14 @@
     <div>
         <h3>Input</h3>
         <button id="pasteBtn">Paste</button>
+        <button id="clearInputBtn">Clear</button>
         <div id="editor-left" class="editor-box"></div>
     </div>
 
     <div>
         <h3>Output</h3>
         <button id="copyBtn">Copy</button>
+        <button id="clearOutputBtn">Clear</button>
         <div id="editor-right" class="editor-box"></div>
     </div>
 </div>
@@ -227,6 +229,17 @@
             out.textContent = "Copy failed. Browser may have blocked clipboard access.";
             console.error(err);
         }
+    };
+
+    document.getElementById("clearInputBtn").onclick = () => {
+        setEditorText(editorLeft, "");
+        editorLeft.focus();
+        out.textContent = "Input cleared.";
+    };
+
+    document.getElementById("clearOutputBtn").onclick = () => {
+        setEditorText(editorRight, "");
+        out.textContent = "Output cleared.";
     };
 
     document.getElementById("btn").onclick = () => {
