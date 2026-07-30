@@ -325,6 +325,24 @@ Includes `s2hkp`, `hk2sp`, `t2hkp`, and `hk2tp`.
 
 ---
 
+### getAvailableSlots
+
+```javascript
+const slots = OpenccWasm.getAvailableSlots();
+```
+
+Returns all canonical dictionary slot names accepted by `newWithCustomDicts` as a string array. The list is sourced from
+the core `DictSlot` definitions, so callers can use it to populate selectors or validate custom dictionary input without
+maintaining their own slot list.
+
+```javascript
+if (!OpenccWasm.getAvailableSlots().includes(slot)) {
+    throw new Error(`Unsupported dictionary slot: ${slot}`);
+}
+```
+
+---
+
 ### zhoCheck
 
 Detect Chinese script type.
@@ -428,33 +446,9 @@ const cc = OpenccWasm.newWithCustomDicts("s2t", [
 `Override` replaces the selected slot before inserting the provided pairs. It is powerful and should be used only when
 the caller intentionally wants to discard built-in entries for that slot.
 
-Custom dictionary specs identify the target dictionary slot by `DictSlot` name. Slot names are trimmed and normalized
-case-insensitively for the known slots, so `"stphrases"`, `" STPhrases "`, and `"STPhrases"` all select
-`STPhrases`. Canonical names are recommended in TypeScript code and docs:
-
-```text
-STPhrases
-TSPhrases
-STCharacters
-TSCharacters
-TWPhrases
-TWPhrasesRev
-HKPhrases
-HKPhrasesRev
-TWVariants
-TWVariantsPhrases
-TWVariantsRev
-TWVariantsRevPhrases
-HKVariants
-HKVariantsPhrases
-HKVariantsRev
-HKVariantsRevPhrases
-JPSCharacters
-JPSCharactersRev
-JPSPhrases
-STPunctuations
-TSPunctuations
-```
+Custom dictionary specs identify the target dictionary slot by `DictSlot` name. Slot names are trimmed and matched
+case-insensitively, so `"stphrases"`, `" STPhrases "`, and `"STPhrases"` all select `STPhrases`. Canonical names are
+recommended in TypeScript code and docs; use `OpenccWasm.getAvailableSlots()` to retrieve the current list.
 
 Suffixes such as `.txt` are not accepted, even though case and surrounding whitespace are normalized. Use
 `"STPhrases"` or `"stphrases"`, not `"STPhrases.txt"`.

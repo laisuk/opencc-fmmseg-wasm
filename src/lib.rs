@@ -194,7 +194,15 @@ impl OpenccWasm {
     pub fn get_supported_configs() -> Vec<String> {
         OpenccConfig::ALL
             .iter()
-            .map(|c| c.as_str().to_string())
+            .map(|config| config.as_str().to_string())
+            .collect()
+    }
+
+    #[wasm_bindgen(js_name = getAvailableSlots)]
+    pub fn get_available_slots() -> Vec<String> {
+        DictSlot::ALL
+            .iter()
+            .map(|slot| slot.canonical_name().to_string())
             .collect()
     }
 

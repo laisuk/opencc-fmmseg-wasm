@@ -6,6 +6,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.3.9] - Unreleased
+
+### Added
+
+- Added `OpenccWasm.getAvailableSlots()` to return the canonical dictionary slot names accepted by
+  `newWithCustomDicts(...)`.
+
+### Changed
+
+- Updated dictionary data.
+
+---
+
 ## [0.3.8] -Unreleased
 
 ### Changed
@@ -77,16 +90,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Added `opencc.js --custom-dict <slot>:<mode>:<file>` feature.
-- Added instance-level `OpenccWasm.convertOfficeBytes(...)` for in-memory Office / EPUB conversion using the
-  converter's current config and custom dictionaries.
+- Added instance-level `OpenccWasm.convertOfficeBytes(...)` for in-memory Office / EPUB conversion using the converter's
+  current config and custom dictionaries.
 
 ### Changed
 
 - CLI: Optimized `opencc.js office`
 - README Office / EPUB examples now recommend `OpenccWasm.convertOfficeBytes(...)`; the existing
   `convert_office_bytes(...)` free function remains available for compatibility.
-- Custom dictionary slot names are now trimmed and normalized case-insensitively for known slots, while file-style
-  names such as `STPhrases.txt` remain invalid.
+- Custom dictionary slot names are now trimmed and normalized case-insensitively for known slots, while file-style names
+  such as `STPhrases.txt` remain invalid.
 - Update dictionary data.
 
 ---
