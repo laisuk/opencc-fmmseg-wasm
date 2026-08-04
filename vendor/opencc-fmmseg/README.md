@@ -270,12 +270,12 @@ fn main() {
 ```
 
 This normalization is optional because it changes Unicode code points, compatibility ideographs are rare in normal text,
-and some callers need exact code-point preservation. Compatibility normalization is a pre-processing step; DeToFu is a
+and some callers need exact code-point preservation. Compatibility normalization is a pre-processing step; DeTofu is a
 post-processing/display fallback for rare CJK extension characters.
 
 ---
 
-## DeToFu: tofu-safe fallback for rare CJK characters
+## DeTofu: tofu-safe fallback for rare CJK characters
 
 DeTofu is an optional post-conversion display-compatibility pass for rare CJK extension characters that may render as
 tofu boxes on some systems, fonts, browsers, document viewers, mobile devices, or e-book readers.

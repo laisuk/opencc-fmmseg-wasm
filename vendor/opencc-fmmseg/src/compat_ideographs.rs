@@ -25,7 +25,7 @@
 //!
 //! This pass is intentionally separate from [`detofu`](crate::detofu). Compatibility
 //! ideograph normalization runs before segmentation/conversion when callers
-//! want Unicode compatibility behavior; DeToFu is an optional post-processing
+//! want Unicode compatibility behavior; DeTofu is an optional post-processing
 //! display fallback for rare characters after conversion.
 //!
 //! # Examples

@@ -12,9 +12,16 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 - Added `OpenccWasm.getAvailableSlots()` to return the canonical dictionary slot names accepted by
   `newWithCustomDicts(...)`.
+- Added allocation-reuse DeTofu APIs: `detofu_into(...)` and `OpenCC::detofu_into(...)`, allowing callers to append
+  results into an existing `String` buffer while reusing allocations across multiple conversions.
 
 ### Changed
 
+- Optimized DeTofu by replacing per-call built-in fallback table construction with a shared, lazily initialized
+  `FxHashMap` reused by all conversions. `DetofuMap` now stores only custom override mappings, substantially reducing
+  initialization overhead and memory usage while preserving the existing public API and behavior.
+- Optimized `OpenccWasm.convertDetofu()` to use the new allocation-reuse backend API, avoiding an additional
+  intermediate DeTofu result allocation.
 - Updated dictionary data.
 
 ---
@@ -52,9 +59,9 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Added optional `tofu-bin` feature for loading the built-in DeToFu dictionary from compact `TSCharactersTofu.bin` data
+- Added optional `tofu-bin` feature for loading the built-in DeTofu dictionary from compact `TSCharactersTofu.bin` data
   via `include_bytes!()`.
-- Added binary serialization helpers for the built-in DeToFu dictionary.
+- Added binary serialization helpers for the built-in DeTofu dictionary.
 - Added regression test verifying `TSCharactersTofu.bin` produces identical entries to canonical `TSCharactersTofu.txt`.
 - Added `dict-generate --tofu` to generate `TSCharactersTofu.bin` from `TSCharactersTofu.txt`.
 - Added internal optional `compat-bin` runtime feature for loading CJK Compatibility Ideograph mappings from generated
@@ -62,10 +69,10 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Built-in DeToFu dictionary loading now uses:
+- Built-in DeTofu dictionary loading now uses:
     - embedded `TSCharactersTofu.txt` by default;
     - embedded `TSCharactersTofu.bin` when `tofu-bin` is enabled.
-- Built-in CJK Compatibility Ideograph mapping loading now mirrors DeToFu runtime packaging:
+- Built-in CJK Compatibility Ideograph mapping loading now mirrors DeTofu runtime packaging:
     - embedded canonical `CJK_Compatibility_Ideographs.txt` by default;
     - embedded generated `CJK_Compatibility_Ideographs.bin` when internal `compat-bin` is enabled.
 - Update dictionary data.

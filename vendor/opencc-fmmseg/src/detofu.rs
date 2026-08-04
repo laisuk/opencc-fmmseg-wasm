@@ -4,7 +4,7 @@
 //! CJK extension characters that may not render correctly on some
 //! systems, fonts, browsers, or e-book readers.
 //!
-//! DeToFu data is built from `src/data/TSCharactersTofu.txt`. That text file is
+//! DeTofu data is built from `src/data/TSCharactersTofu.txt`. That text file is
 //! the canonical source of the built-in fallback table and is embedded by
 //! default with `include_str!()`.
 //!
@@ -21,7 +21,7 @@
 //! - without `tofu-bin`, the runtime loads embedded TXT data;
 //! - with `tofu-bin`, the runtime loads embedded BIN data.
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 #[cfg(not(feature = "tofu-bin"))]
 use std::io;
 #[cfg(feature = "tofu-bin")]
@@ -132,9 +132,9 @@ impl DetofuLevel {
     }
 }
 
-static TOFU_ENTRIES: OnceLock<Vec<(char, char, DetofuLevel)>> = OnceLock::new();
+static TOFU_MAP: OnceLock<FxHashMap<char, (char, DetofuLevel)>> = OnceLock::new();
 
-/// Parses canonical tab-separated DeToFu text entries.
+/// Parses canonical tab-separated DeTofu text entries.
 ///
 /// `TSCharactersTofu.txt` uses one mapping per non-comment line:
 /// `tofu_char<TAB>fallback_char<TAB>extension`.
@@ -178,9 +178,9 @@ pub(crate) fn parse_tofu_entries(text: &str) -> Result<Vec<(char, char, DetofuLe
     Ok(entries)
 }
 
-/// Parses built-in DeToFu binary data.
+/// Parses built-in DeTofu binary data.
 ///
-/// The binary format is intentionally DeToFu-specific and stable:
+/// The binary format is intentionally DeTofu-specific and stable:
 ///
 /// - magic: `OCTFTOFU`
 /// - version: `1`
@@ -289,7 +289,7 @@ pub fn parse_tofu_bin(bytes: &[u8]) -> io::Result<Vec<(char, char, DetofuLevel)>
     Ok(entries)
 }
 
-/// Writes DeToFu entries in the compact built-in binary format.
+/// Writes DeTofu entries in the compact built-in binary format.
 ///
 /// This helper writes the generated representation consumed when the optional
 /// `tofu-bin` feature is enabled. The output should be derived from canonical
@@ -319,7 +319,7 @@ pub fn write_tofu_bin<W: Write>(
     Ok(())
 }
 
-/// Writes DeToFu entries to a `TSCharactersTofu.bin`-style binary file.
+/// Writes DeTofu entries to a `TSCharactersTofu.bin`-style binary file.
 ///
 /// Prefer [`write_tofu_bin_from_txt_file`] when regenerating the checked-in
 /// runtime artifact from canonical text data.
@@ -334,7 +334,7 @@ pub fn write_tofu_bin_file<P: AsRef<Path>>(
     writer.flush()
 }
 
-/// Generates a DeToFu binary file from canonical `TSCharactersTofu.txt` data.
+/// Generates a DeTofu binary file from canonical `TSCharactersTofu.txt` data.
 ///
 /// This is the public helper used by `dict-generate --tofu`. The input text is
 /// the canonical source of truth; the output binary is only the generated
@@ -362,8 +362,13 @@ fn load_builtin_tofu_entries() -> Vec<(char, char, DetofuLevel)> {
         .unwrap_or_else(|err| panic!("invalid built-in TSCharactersTofu.txt: {err}"))
 }
 
-fn tofu_entries() -> &'static [(char, char, DetofuLevel)] {
-    TOFU_ENTRIES.get_or_init(load_builtin_tofu_entries)
+fn tofu_map() -> &'static FxHashMap<char, (char, DetofuLevel)> {
+    TOFU_MAP.get_or_init(|| {
+        load_builtin_tofu_entries()
+            .into_iter()
+            .map(|(tofu, fallback, level)| (tofu, (fallback, level)))
+            .collect()
+    })
 }
 
 /// A reusable map for detofu display-compatibility fallback.
@@ -395,44 +400,58 @@ fn tofu_entries() -> &'static [(char, char, DetofuLevel)] {
 #[derive(Debug, Clone)]
 pub struct DetofuMap {
     level: DetofuLevel,
-    map: HashMap<char, char>,
+    custom: FxHashMap<char, char>,
 }
 
 impl DetofuMap {
-    /// Builds a detofu map from the crate's built-in compatibility data.
+    /// Creates a reusable DeTofu map backed by the shared built-in table.
     ///
     /// The selected [`DetofuLevel`] is threshold-based. For example,
-    /// [`DetofuLevel::ExtB`] loads all supported non-BMP mappings, while
-    /// [`DetofuLevel::ExtE`] loads only ExtE and later supported mappings.
+    /// [`DetofuLevel::ExtB`] enables all supported non-BMP mappings, while
+    /// [`DetofuLevel::ExtE`] enables only ExtE and later mappings.
     ///
-    /// The built-in detofu map is independent of the OpenCC conversion
-    /// dictionaries bundled with this crate.
+    /// The built-in fallback table is lazily initialized once and shared by all
+    /// `DetofuMap` instances. This constructor does not clone or filter the
+    /// built-in table; it stores only the selected level and an initially empty
+    /// custom override map.
+    ///
+    /// Custom entries added with [`DetofuMap::with_custom_pairs`] or
+    /// [`DetofuMap::with_custom_file`] take precedence over eligible built-in
+    /// mappings.
+    ///
+    /// DeTofu remains independent of the OpenCC conversion dictionaries bundled
+    /// with this crate.
     pub fn builtin(level: DetofuLevel) -> Self {
-        let map = tofu_entries()
-            .iter()
-            .filter(|(_, _, ext)| *ext >= level)
-            .map(|(tofu, fallback, _)| (*tofu, *fallback))
-            .collect();
-
-        Self { level, map }
+        Self {
+            level,
+            custom: FxHashMap::default(),
+        }
     }
 
     /// Adds or overrides compatibility fallback entries from a tofu mapping file.
     ///
-    /// The file uses the same tab-separated format as the built-in generated
-    /// data: `tofu_char<TAB>fallback_char<TAB>extension`.
+    /// The file uses the same tab-separated format as the built-in generated data:
+    ///
+    /// `tofu_char<TAB>fallback_char<TAB>extension`
     ///
     /// The extension field may use either the compact form (`B`, `C`, `D`, ...)
-    /// or the full form (`ExtB`, `ExtC`, `ExtD`, ...). Extension parsing is
+    /// or the full form (`ExtB`, `ExtC`, `ExtD`, ...). Extension parsing is ASCII
     /// case-insensitive, so `b`, `ext-b`, and `ExtB` are accepted.
     ///
     /// Blank lines and lines starting with `#` are ignored. Malformed entries,
     /// missing fields, or unsupported extension values return
     /// [`io::ErrorKind::InvalidData`] with the source line number.
     ///
-    /// File entries are applied post-load. If a file entry already exists in
-    /// the built-in detofu map, the file fallback wins. Entries below this
-    /// map's threshold level are ignored, matching [`DetofuMap::builtin`].
+    /// File entries below this map's [`DetofuLevel`] threshold are ignored.
+    /// Eligible entries are stored only in this map's custom override table and
+    /// take precedence over matching entries in the shared built-in table.
+    ///
+    /// The shared built-in table is not cloned or modified.
+    ///
+    /// # Errors
+    ///
+    /// Returns an I/O error when the file cannot be read. Invalid file contents
+    /// return [`io::ErrorKind::InvalidData`].
     pub fn with_custom_file<P: AsRef<Path>>(mut self, path: P) -> io::Result<Self> {
         let text = std::fs::read_to_string(path)?;
 
@@ -440,17 +459,24 @@ impl DetofuMap {
             .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?
         {
             if ext >= self.level {
-                self.map.insert(tofu, fallback);
+                self.custom.insert(tofu, fallback);
             }
         }
 
         Ok(self)
     }
 
-    /// Adds or overrides compatibility fallback pairs after loading the map.
+    /// Adds or overrides application-specific fallback pairs.
     ///
-    /// Custom pairs are applied post-load. If a custom key already exists in
-    /// the built-in detofu map, the custom fallback wins.
+    /// Custom pairs take precedence over the shared built-in fallback table.
+    /// Unlike entries loaded with [`DetofuMap::with_custom_file`], direct pairs do
+    /// not include extension metadata and are therefore always active, regardless
+    /// of this map's [`DetofuLevel`].
+    ///
+    /// Only the supplied custom pairs are stored in this `DetofuMap`; the built-in
+    /// table remains immutable and shared across all instances.
+    ///
+    /// When the same key appears more than once, the later pair wins.
     ///
     /// # Examples
     ///
@@ -462,43 +488,131 @@ impl DetofuMap {
     ///
     /// assert_eq!(map.detofu("𣭲"), "氄");
     /// ```
+    ///
+    /// A custom pair may also override a built-in mapping:
+    ///
+    /// ```rust
+    /// use opencc_fmmseg::{DetofuLevel, DetofuMap};
+    ///
+    /// let map = DetofuMap::builtin(DetofuLevel::ExtB)
+    ///     .with_custom_pairs(&[('𬴂', '馬')]);
+    ///
+    /// assert_eq!(map.detofu("𬴂"), "馬");
+    /// ```
     pub fn with_custom_pairs(mut self, pairs: &[(char, char)]) -> Self {
-        for &(tofu, fallback) in pairs {
-            self.map.insert(tofu, fallback);
-        }
+        self.custom.extend(pairs.iter().copied());
         self
     }
 
-    /// Replaces mapped non-BMP CJK extension characters with compatibility fallbacks.
+    /// Applies this reusable DeTofu map and returns a newly allocated result.
     ///
-    /// Characters not present in this map are copied unchanged. This is a
-    /// display compatibility operation only; it does not modify OpenCC
-    /// conversion dictionaries or conversion behavior.
+    /// Custom entries take precedence over the shared built-in fallback table.
+    /// Characters without an eligible mapping are copied unchanged.
+    ///
+    /// This is a convenience wrapper around [`DetofuMap::detofu_into`]. Use
+    /// `detofu_into` when processing multiple inputs and reusing an output buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use opencc_fmmseg::{DetofuLevel, DetofuMap};
+    ///
+    /// let map = DetofuMap::builtin(DetofuLevel::ExtB)
+    ///     .with_custom_pairs(&[('𣭲', '氄')]);
+    ///
+    /// assert_eq!(map.detofu("這隻小狗有𣭲毛"), "這隻小狗有氄毛");
+    /// ```
     pub fn detofu(&self, input: &str) -> String {
         let mut output = String::with_capacity(input.len());
+        self.detofu_into(input, &mut output);
+        output
+    }
 
-        for ch in input.chars() {
-            if let Some(fallback) = self.map.get(&ch) {
-                output.push(*fallback);
-            } else {
-                output.push(ch);
-            }
+    /// Applies this reusable DeTofu map and appends the result to `output`.
+    ///
+    /// Custom mappings are checked first. If no custom mapping exists, the shared
+    /// built-in table is consulted and this map's [`DetofuLevel`] threshold is
+    /// applied. Characters without an eligible mapping are copied unchanged.
+    ///
+    /// This function appends to `output`; it does not clear existing contents.
+    /// Call [`String::clear`] first when reusing a buffer for an independent result.
+    ///
+    /// When this map has no custom entries, the optimized built-in-only path is
+    /// used. That path skips hash lookups for characters below U+20000.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use opencc_fmmseg::{DetofuLevel, DetofuMap};
+    ///
+    /// let map = DetofuMap::builtin(DetofuLevel::ExtB)
+    ///     .with_custom_pairs(&[('𣭲', '氄')]);
+    ///
+    /// let mut output = String::from("結果：");
+    /// map.detofu_into("𣭲毛", &mut output);
+    ///
+    /// assert_eq!(output, "結果：氄毛");
+    /// ```
+    pub fn detofu_into(&self, input: &str, output: &mut String) {
+        if self.custom.is_empty() {
+            detofu_builtin_into(input, self.level, output);
+            return;
         }
 
-        output
+        output.reserve(input.len());
+
+        let builtin = tofu_map();
+
+        for ch in input.chars() {
+            if let Some(&fallback) = self.custom.get(&ch) {
+                output.push(fallback);
+                continue;
+            }
+
+            match builtin.get(&ch) {
+                Some(&(fallback, entry_level)) if entry_level >= self.level => {
+                    output.push(fallback);
+                }
+                _ => output.push(ch),
+            }
+        }
+    }
+}
+
+#[inline]
+fn detofu_builtin_into(input: &str, level: DetofuLevel, output: &mut String) {
+    let builtin = tofu_map();
+
+    output.reserve(input.len());
+
+    for ch in input.chars() {
+        if ch < '\u{20000}' {
+            output.push(ch);
+            continue;
+        }
+
+        match builtin.get(&ch) {
+            Some(&(fallback, entry_level)) if entry_level >= level => {
+                output.push(fallback);
+            }
+            _ => output.push(ch),
+        }
     }
 }
 
 /// Converts non-BMP CJK extension characters to compatibility fallbacks.
 ///
-/// This convenience function builds the built-in [`DetofuMap`] for `level` and
-/// applies it to `input`. It is intended for environments with incomplete font
-/// coverage where rare CJK extension characters may render as tofu boxes on
-/// some systems, fonts, browsers, or e-book readers.
+/// This convenience function creates a lightweight [`DetofuMap`] view for
+/// `level` and applies the shared built-in fallback table to `input`. The table
+/// is lazily initialized once and reused by all calls.
 ///
-/// Detofu is independent of OpenCC conversion dictionaries and does not
-/// modify OpenCC conversion logic. In a typical workflow, run OpenCC
-/// conversion first and then apply detofu to the converted text.
+/// It is intended for environments with incomplete font coverage where rare
+/// CJK extension characters may render as tofu boxes on some systems, fonts,
+/// browsers, or e-book readers.
+///
+/// Detofu is independent of OpenCC conversion dictionaries and does not modify
+/// OpenCC conversion logic. In a typical workflow, run OpenCC conversion first
+/// and then apply detofu to the converted text.
 ///
 /// # Examples
 ///
@@ -511,6 +625,34 @@ impl DetofuMap {
 /// ```
 pub fn detofu(input: &str, level: DetofuLevel) -> String {
     DetofuMap::builtin(level).detofu(input)
+}
+
+/// Converts non-BMP CJK extension characters to compatibility fallbacks and
+/// appends the result to `output`.
+///
+/// This convenience function creates a lightweight [`DetofuMap`] view for
+/// `level` and applies the shared built-in fallback table to `input`. The table
+/// is lazily initialized once and reused by all calls.
+///
+/// The result is appended to `output`; existing contents are preserved. Call
+/// [`String::clear`] first when reusing a buffer for an independent result.
+///
+/// Detofu is independent of OpenCC conversion dictionaries and does not modify
+/// OpenCC conversion logic. In a typical workflow, run OpenCC conversion first
+/// and then apply detofu to the converted text.
+///
+/// # Examples
+///
+/// ```rust
+/// use opencc_fmmseg::{detofu_into, DetofuLevel};
+///
+/// let mut output = String::new();
+/// detofu_into("骖𬴂", DetofuLevel::ExtB, &mut output);
+///
+/// assert_eq!(output, "骖騑");
+/// ```
+pub fn detofu_into(input: &str, level: DetofuLevel, output: &mut String) {
+    DetofuMap::builtin(level).detofu_into(input, output)
 }
 
 // Tests

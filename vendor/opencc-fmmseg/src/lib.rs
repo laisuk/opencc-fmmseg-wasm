@@ -25,6 +25,7 @@ pub use crate::opencc_config::OpenccConfig;
 pub use compat_ideographs::write_compat_bin_from_txt_file;
 /// Converts rare non-BMP CJK extension characters to compatibility fallbacks.
 pub use detofu::detofu;
+pub use detofu::detofu_into;
 #[cfg(feature = "tofu-bin")]
 pub use detofu::write_tofu_bin_from_txt_file;
 /// Threshold level used by detofu display-compatibility fallback.

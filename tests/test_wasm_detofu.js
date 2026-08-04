@@ -51,6 +51,6 @@ expectEqual(
 
 console.log("Input: " + input);
 console.log("Converted: " + converted);
-console.log("DeToFu: " + safe);
+console.log("DeTofu: " + safe);
 
-console.log("DeToFu WASM test passed.");
+console.log("DeTofu WASM test passed.");

@@ -23,7 +23,7 @@ use crate::delimiter_set::is_delimiter;
 use crate::dictionary_lib::dictionary_maxlength::UnionKey;
 use crate::dictionary_lib::{DictMaxLen, DictionaryMaxlength, StarterUnion};
 use crate::{
-    compat_ideographs, detofu, find_max_utf8_length, for_each_len_dec, ids, DetofuLevel, DetofuMap,
+    compat_ideographs, find_max_utf8_length, for_each_len_dec, ids, DetofuLevel, DetofuMap,
     DictRefs, OpenccConfig,
 };
 #[cfg(feature = "parallel")]
@@ -1804,7 +1804,7 @@ impl OpenCC {
     /// want upstream OpenCC-compatible behavior. Unmapped compatibility
     /// ideographs remain unchanged.
     ///
-    /// DeToFu is the opposite side of the pipeline: compatibility ideograph
+    /// DeTofu is the opposite side of the pipeline: compatibility ideograph
     /// normalization is a pre-processing step, while [`OpenCC::detofu`] is an
     /// optional post-processing display fallback.
     ///
@@ -1817,7 +1817,7 @@ impl OpenCC {
     /// assert_eq!(cc.normalize_compat("金庸"), "金庸");
     /// ```
     ///
-    /// Normalize, convert, then optionally apply DeToFu for display fallback:
+    /// Normalize, convert, then optionally apply DeTofu for display fallback:
     ///
     /// ```rust
     /// use opencc_fmmseg::{DetofuLevel, OpenCC};
@@ -1904,7 +1904,43 @@ impl OpenCC {
     /// assert_eq!(safe, "俨骖騑于上路，访风景于崇阿");
     /// ```
     pub fn detofu(&self, text: &str, level: DetofuLevel) -> String {
-        detofu::detofu(text, level)
+        crate::detofu(text, level)
+    }
+
+    /// Converts built-in non-BMP CJK extension characters into
+    /// display-compatible fallback characters and appends the result to
+    /// `output`.
+    ///
+    /// This is the allocation-reuse counterpart of [`OpenCC::detofu`].
+    /// The built-in DeTofu table is initialized once and shared across calls.
+    ///
+    /// The function appends to `output`; it does not clear existing contents.
+    /// Call [`String::clear`] first when reusing a buffer for an independent
+    /// result.
+    ///
+    /// DeTofu is independent of this `OpenCC` instance's conversion
+    /// dictionaries. The method is provided as a convenient high-level entry
+    /// point for callers that already use `OpenCC`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use opencc_fmmseg::{DetofuLevel, OpenCC};
+    ///
+    /// let cc = OpenCC::new();
+    /// let mut output = String::new();
+    ///
+    /// cc.detofu_into("骖𬴂", DetofuLevel::ExtB, &mut output);
+    ///
+    /// assert_eq!(output, "骖騑");
+    /// ```
+    pub fn detofu_into(
+        &self,
+        input: &str,
+        level: DetofuLevel,
+        output: &mut String,
+    ) {
+        crate::detofu_into(input, level, output);
     }
 
     /// Converts non-BMP CJK extension characters using the built-in detofu
