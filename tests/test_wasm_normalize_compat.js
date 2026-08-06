@@ -45,4 +45,4 @@ console.log("Input: " + input);
 console.log("Normalized Input: " + normalized);
 console.log("Converted: " + converted);
 
-console.log("Normalize Compatability Ideographs WASM test passed.");
+console.log("Normalize Compatibility Ideographs WASM test passed.");

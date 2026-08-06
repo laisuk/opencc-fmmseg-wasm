@@ -66,6 +66,14 @@ Convert options:
                                 --custom-dict stphrases:override:terms.txt
   --in-enc <encoding>         Input encoding (default: utf8)
   --out-enc <encoding>        Output encoding (default: utf8)
+  
+Supported encodings:
+  utf8
+  utf16le
+  latin1
+  ascii
+  
+  Note: utf8 and utf16le are recommended for CJK text.
 
 Supported configs:
   s2t, s2tw, s2twp, s2hk, s2hkp, t2s, t2tw, t2twp, t2hk, t2hkp,
@@ -107,21 +115,20 @@ Examples:
 }
 
 function getArg(args, shortName, longName, defaultValue = null) {
-    const candidates = [];
+    const candidates = [shortName, longName].filter(Boolean);
 
-    if (shortName) {
-        candidates.push(shortName);
-    }
-    if (longName) {
-        candidates.push(longName);
-    }
-
-    for (const name of candidates) {
-        const index = args.indexOf(name);
-
-        if (index !== -1 && index + 1 < args.length) {
-            return args[index + 1];
+    for (let i = 0; i < args.length; i++) {
+        if (!candidates.includes(args[i])) {
+            continue;
         }
+
+        const value = args[i + 1];
+
+        if (value === undefined || value.startsWith("-")) {
+            throw new Error(`Missing value for option: ${args[i]}`);
+        }
+
+        return value;
     }
 
     return defaultValue;
@@ -129,21 +136,57 @@ function getArg(args, shortName, longName, defaultValue = null) {
 
 function getArgs(args, shortName, longName) {
     const values = [];
-    const candidates = [];
-
-    if (shortName) candidates.push(shortName);
-    if (longName) candidates.push(longName);
-
-    if (candidates.length === 0) return values;
+    const candidates = [shortName, longName].filter(Boolean);
 
     for (let i = 0; i < args.length; i++) {
-        if (candidates.includes(args[i]) && i + 1 < args.length) {
-            values.push(args[i + 1]);
-            i++;
+        if (!candidates.includes(args[i])) {
+            continue;
         }
+
+        const value = args[i + 1];
+
+        if (value === undefined || value.startsWith("-")) {
+            throw new Error(`Missing value for option: ${args[i]}`);
+        }
+
+        values.push(value);
+        i++;
     }
 
     return values;
+}
+
+function validateEncoding(value, optionName) {
+    const encoding = String(value).trim().toLowerCase();
+
+    if (!Buffer.isEncoding(encoding)) {
+        throw new Error(
+            `Unsupported encoding for ${optionName}: ${value}. ` +
+            "Supported values: utf8, utf16le, latin1, ascii"
+        );
+    }
+
+    return encoding;
+}
+
+function validateInputFile(filePath) {
+    let stats;
+
+    try {
+        stats = fs.statSync(filePath);
+    } catch (err) {
+        if (err?.code === "ENOENT") {
+            throw new Error(`Input file not found: ${filePath}`);
+        }
+
+        throw new Error(
+            `Cannot access input file ${filePath}: ${err?.message || err}`
+        );
+    }
+
+    if (!stats.isFile()) {
+        throw new Error(`Input path is not a file: ${filePath}`);
+    }
 }
 
 function parseCustomDictSpec(value) {
@@ -158,12 +201,28 @@ function parseCustomDictSpec(value) {
     }
 
     const slot = value.substring(0, first).trim();
-    const mode = value.substring(first + 1, second).trim();
+    const rawMode = value.substring(first + 1, second).trim();
+    const mode = rawMode.toLowerCase();
     const file = value.substring(second + 1).trim();
 
-    if (!slot) throw new Error("Custom dictionary slot is empty.");
-    if (!mode) throw new Error("Custom dictionary mode is empty.");
-    if (!file) throw new Error("Custom dictionary file is empty.");
+    if (!slot) {
+        throw new Error("Custom dictionary slot is empty.");
+    }
+
+    if (!rawMode) {
+        throw new Error("Custom dictionary mode is empty.");
+    }
+
+    if (mode !== "append" && mode !== "override") {
+        throw new Error(
+            `Invalid custom dictionary mode: ${rawMode}. ` +
+            "Expected: append or override"
+        );
+    }
+
+    if (!file) {
+        throw new Error("Custom dictionary file is empty.");
+    }
 
     return {
         slot,
@@ -172,17 +231,45 @@ function parseCustomDictSpec(value) {
     };
 }
 
-function loadCustomDictPairs(file) {
-    if (!fs.existsSync(file)) {
-        throw new Error(`Custom dictionary file not found: ${file}`);
+function readUtf8File(file, description) {
+    let bytes;
+
+    try {
+        bytes = fs.readFileSync(file);
+    } catch (err) {
+        if (err?.code === "ENOENT") {
+            throw new Error(`${description} not found: ${file}`);
+        }
+
+        if (err?.code === "EISDIR") {
+            throw new Error(`${description} path is not a file: ${file}`);
+        }
+
+        throw new Error(
+            `Cannot read ${description.toLowerCase()} ${file}: ` +
+            `${err?.message || err}`
+        );
     }
 
-    const text = fs.readFileSync(file, "utf8");
+    // Reject invalid UTF-8.
+    const decoder = new TextDecoder("utf-8", {fatal: true});
+
+    try {
+        return decoder.decode(bytes);
+    } catch {
+        throw new Error(
+            `${description} must be encoded as UTF-8: ${file}`
+        );
+    }
+}
+
+function loadCustomDictPairs(file) {
+    const text = readUtf8File(file, "Custom dictionary file");
     const lines = text.split(/\r?\n/);
     const pairs = [];
 
     for (let i = 0; i < lines.length; i++) {
-        let line = lines[i].replace(/\r$/, "");
+        let line = lines[i];
 
         if (i === 0 && line.charCodeAt(0) === 0xfeff) {
             line = line.slice(1);
@@ -190,7 +277,7 @@ function loadCustomDictPairs(file) {
 
         line = line.trimEnd();
 
-        if (!line || line.startsWith("#")) {
+        if (!line || line.trimStart().startsWith("#")) {
             continue;
         }
 
@@ -198,21 +285,29 @@ function loadCustomDictPairs(file) {
 
         if (tab < 0) {
             throw new Error(
-                `Invalid custom dictionary file ${file}:${i + 1}: missing TAB separator`
+                `Invalid custom dictionary file ${file}:${i + 1}: ` +
+                "missing TAB separator"
             );
         }
 
-        const source = line.substring(0, tab);
+        const source = line.substring(0, tab).trim();
         const values = line.substring(tab + 1).trim().split(/\s+/);
         const target = values[0] || "";
 
         if (!source || !target) {
             throw new Error(
-                `Invalid custom dictionary file ${file}:${i + 1}: empty source or target`
+                `Invalid custom dictionary file ${file}:${i + 1}: ` +
+                "empty source or target"
             );
         }
 
         pairs.push([source, target]);
+    }
+
+    if (pairs.length === 0) {
+        throw new Error(
+            `Custom dictionary file contains no usable entries: ${file}`
+        );
     }
 
     return pairs;
@@ -230,12 +325,21 @@ function readInputText(filePath, encoding) {
         return fs.readFileSync(0, encoding);
     }
 
-    if (!fs.existsSync(filePath)) {
-        console.error(`Error: Input file not found: ${filePath}`);
-        process.exit(1);
-    }
+    try {
+        return fs.readFileSync(filePath, encoding);
+    } catch (err) {
+        if (err?.code === "ENOENT") {
+            throw new Error(`Input file not found: ${filePath}`);
+        }
 
-    return fs.readFileSync(filePath, encoding);
+        if (err?.code === "EISDIR") {
+            throw new Error(`Input path is not a file: ${filePath}`);
+        }
+
+        throw new Error(
+            `Cannot read input file ${filePath}: ${err?.message || err}`
+        );
+    }
 }
 
 function writeOutputText(filePath, text, encoding) {
@@ -347,8 +451,15 @@ async function runConvert(args) {
     const input = getArg(args, "-i", "--input");
     const output = getArg(args, "-o", "--output");
     const config = getArg(args, "-c", "--config", "s2t");
-    const inEnc = getArg(args, null, "--in-enc", "utf8");
-    const outEnc = getArg(args, null, "--out-enc", "utf8");
+    const inEnc = validateEncoding(
+        getArg(args, null, "--in-enc", "utf8"),
+        "--in-enc"
+    );
+
+    const outEnc = validateEncoding(
+        getArg(args, null, "--out-enc", "utf8"),
+        "--out-enc"
+    );
     const punct = hasFlag(args, "-p", "--punct");
     const keepIds = hasFlag(args, null, "--keep-ids");
     const normCompat = hasFlag(args, "-n", "--norm-compat");
@@ -432,9 +543,7 @@ async function runOffice(args) {
         throw new Error("Input file is missing.");
     }
 
-    if (!fs.existsSync(input) || !fs.statSync(input).isFile()) {
-        throw new Error(`Input file not found: ${input}`);
-    }
+    validateInputFile(input);
 
     const officeFormat = inferOfficeFormat(input, explicitFormat);
 
@@ -457,7 +566,6 @@ async function runOffice(args) {
     const outputBytes = cc.convertOfficeBytes(
         inputBytes,
         officeFormat,
-        config,
         punct,
         keepFont
     );
@@ -502,6 +610,6 @@ async function main() {
 }
 
 main().catch(err => {
-    console.error(err && err.message ? err.message : err);
-    process.exit(1);
+    console.error(`Error: ${err && err.message ? err.message : err}`);
+    process.exitCode = 1;
 });

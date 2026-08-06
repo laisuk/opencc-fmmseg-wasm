@@ -12,17 +12,28 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 - Added `OpenccWasm.getAvailableSlots()` to return the canonical dictionary slot names accepted by
   `newWithCustomDicts(...)`.
-- Added allocation-reuse DeTofu APIs: `detofu_into(...)` and `OpenCC::detofu_into(...)`, allowing callers to append
-  results into an existing `String` buffer while reusing allocations across multiple conversions.
+- Added the backend allocation-reuse API `OpenCC::detofu_into(...)`, allowing callers to append DeTofu results into an
+  existing `String` buffer and reuse allocations across multiple conversions.
 
 ### Changed
 
 - Optimized DeTofu by replacing per-call built-in fallback table construction with a shared, lazily initialized
   `FxHashMap` reused by all conversions. `DetofuMap` now stores only custom override mappings, substantially reducing
   initialization overhead and memory usage while preserving the existing public API and behavior.
-- Optimized `OpenccWasm.convertDetofu()` to use the new allocation-reuse backend API, avoiding an additional
-  intermediate DeTofu result allocation.
+- Optimized `OpenccWasm.convertDetofu()` to use the backend `OpenCC::detofu_into(...)` API internally, avoiding an
+  additional intermediate DeTofu result allocation without changing the JavaScript API.
 - Updated dictionary data.
+- Improved Node.js CLI argument parsing and validation with clearer diagnostics for missing option values, invalid
+  option values, and malformed custom dictionary specifications.
+
+### Fixed
+
+- Fixed the Node.js CLI `office` command incorrectly forwarding arguments to the WASM API. The `-p` (`--punct`) and
+  `--no-keep-font` options now behave as documented during Office document conversion.
+- Fixed custom dictionary loading to reject non-UTF-8 dictionary files with a clear error message, matching the
+  documented UTF-8 requirement.
+- Improved custom dictionary file validation with clearer diagnostics for missing files, invalid specifications, empty
+  dictionaries, and malformed dictionary entries.
 
 ---
 

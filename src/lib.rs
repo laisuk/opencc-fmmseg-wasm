@@ -252,12 +252,7 @@ impl OpenccWasm {
     }
 
     #[wasm_bindgen(js_name = convertDetofu)]
-    pub fn convert_detofu(
-        &self,
-        text: &str,
-        punctuation: bool,
-        level: DetofuLevelWasm,
-    ) -> String {
+    pub fn convert_detofu(&self, text: &str, punctuation: bool, level: DetofuLevelWasm) -> String {
         let converted = self.convert(text, punctuation);
         let mut output = String::with_capacity(converted.len());
 
