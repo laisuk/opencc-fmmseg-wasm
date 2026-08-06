@@ -256,14 +256,24 @@
         const converted =
             cc.convert(text, punctuation);
 
+        const inputCharCount = Array.from(text).length;
+        const outputCharCount = Array.from(converted).length;
+
         const check =
             cc.zhoCheck(converted);
+
+        const language =
+            check === 1 ? "Traditional Chinese" :
+                check === 2 ? "Simplified Chinese" :
+                    "Other";
 
         setEditorText(editorRight, converted);
 
         out.textContent =
-            `Config: ${cc.getConfig()}\n\n` +
-            `zho_check = ${check}`;
+            `Config: ${cc.getConfig()}\n` +
+            `Characters processed: ${inputCharCount.toLocaleString()}\n` +
+            `Output characters: ${outputCharCount.toLocaleString()}\n` +
+            `Output language detected: ${language}`;
     };
 </script>
 
