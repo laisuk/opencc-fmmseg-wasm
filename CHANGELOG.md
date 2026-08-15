@@ -70,19 +70,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Added optional `tofu-bin` feature for loading the built-in DeTofu dictionary from compact `TSCharactersTofu.bin` data
+- Added optional `tofu-bin` feature for loading the built-in DeTofu dictionary from compact `CharactersTofu.bin` data
   via `include_bytes!()`.
 - Added binary serialization helpers for the built-in DeTofu dictionary.
-- Added regression test verifying `TSCharactersTofu.bin` produces identical entries to canonical `TSCharactersTofu.txt`.
-- Added `dict-generate --tofu` to generate `TSCharactersTofu.bin` from `TSCharactersTofu.txt`.
+- Added regression test verifying `CharactersTofu.bin` produces identical entries to canonical `CharactersTofu.txt`.
+- Added `dict-generate --tofu` to generate `CharactersTofu.bin` from `CharactersTofu.txt`.
 - Added internal optional `compat-bin` runtime feature for loading CJK Compatibility Ideograph mappings from generated
   `CJK_Compatibility_Ideographs.bin` data.
 
 ### Changed
 
 - Built-in DeTofu dictionary loading now uses:
-    - embedded `TSCharactersTofu.txt` by default;
-    - embedded `TSCharactersTofu.bin` when `tofu-bin` is enabled.
+    - embedded `CharactersTofu.txt` by default;
+    - embedded `CharactersTofu.bin` when `tofu-bin` is enabled.
 - Built-in CJK Compatibility Ideograph mapping loading now mirrors DeTofu runtime packaging:
     - embedded canonical `CJK_Compatibility_Ideographs.txt` by default;
     - embedded generated `CJK_Compatibility_Ideographs.bin` when internal `compat-bin` is enabled.

@@ -4,16 +4,16 @@
 //! CJK extension characters that may not render correctly on some
 //! systems, fonts, browsers, or e-book readers.
 //!
-//! DeTofu data is built from `src/data/TSCharactersTofu.txt`. That text file is
+//! DeTofu data is built from `src/data/CharactersTofu.txt`. That text file is
 //! the canonical source of the built-in fallback table and is embedded by
 //! default with `include_str!()`.
 //!
 //! # Cargo feature
 //!
 //! Enabling the optional `tofu-bin` feature switches the built-in runtime loader
-//! from the canonical text file to `src/data/TSCharactersTofu.bin`, a compact
+//! from the canonical text file to `src/data/CharactersTofu.bin`, a compact
 //! generated artifact committed for size-sensitive builds such as WebAssembly.
-//! The binary file must be regenerated from `TSCharactersTofu.txt` with
+//! The binary file must be regenerated from `CharactersTofu.txt` with
 //! `dict-generate --tofu` whenever the canonical text data changes.
 //!
 //! The feature model is intentionally binary:
@@ -30,10 +30,10 @@ use std::path::Path;
 use std::sync::OnceLock;
 
 #[cfg(feature = "tofu-bin")]
-static TOFU_DATA: &[u8] = include_bytes!("data/TSCharactersTofu.bin");
+static TOFU_DATA: &[u8] = include_bytes!("data/CharactersTofu.bin");
 
 #[cfg(not(feature = "tofu-bin"))]
-static TOFU_DATA: &str = include_str!("data/TSCharactersTofu.txt");
+static TOFU_DATA: &str = include_str!("data/CharactersTofu.txt");
 
 #[cfg(feature = "tofu-bin")]
 const TOFU_BIN_MAGIC: &[u8; 8] = b"OCTFTOFU";
@@ -136,7 +136,7 @@ static TOFU_MAP: OnceLock<FxHashMap<char, (char, DetofuLevel)>> = OnceLock::new(
 
 /// Parses canonical tab-separated DeTofu text entries.
 ///
-/// `TSCharactersTofu.txt` uses one mapping per non-comment line:
+/// `CharactersTofu.txt` uses one mapping per non-comment line:
 /// `tofu_char<TAB>fallback_char<TAB>extension`.
 ///
 /// This parser remains crate-visible because both the default TXT runtime
@@ -188,8 +188,8 @@ pub(crate) fn parse_tofu_entries(text: &str) -> Result<Vec<(char, char, DetofuLe
 /// - records: `tofu: u32`, `fallback: u32`, `level: u8`
 ///
 /// This parser is used by the optional `tofu-bin` runtime loader. The
-/// `TSCharactersTofu.bin` file it reads is a generated runtime artifact; the
-/// canonical source remains `TSCharactersTofu.txt`.
+/// `CharactersTofu.bin` file it reads is a generated runtime artifact; the
+/// canonical source remains `CharactersTofu.txt`.
 #[cfg(feature = "tofu-bin")]
 pub fn parse_tofu_bin(bytes: &[u8]) -> io::Result<Vec<(char, char, DetofuLevel)>> {
     if bytes.len() < TOFU_BIN_HEADER_LEN {
@@ -293,7 +293,7 @@ pub fn parse_tofu_bin(bytes: &[u8]) -> io::Result<Vec<(char, char, DetofuLevel)>
 ///
 /// This helper writes the generated representation consumed when the optional
 /// `tofu-bin` feature is enabled. The output should be derived from canonical
-/// `TSCharactersTofu.txt` data and committed as `TSCharactersTofu.bin`.
+/// `CharactersTofu.txt` data and committed as `CharactersTofu.bin`.
 #[cfg(feature = "tofu-bin")]
 pub fn write_tofu_bin<W: Write>(
     entries: &[(char, char, DetofuLevel)],
@@ -319,7 +319,7 @@ pub fn write_tofu_bin<W: Write>(
     Ok(())
 }
 
-/// Writes DeTofu entries to a `TSCharactersTofu.bin`-style binary file.
+/// Writes DeTofu entries to a `CharactersTofu.bin`-style binary file.
 ///
 /// Prefer [`write_tofu_bin_from_txt_file`] when regenerating the checked-in
 /// runtime artifact from canonical text data.
@@ -334,7 +334,7 @@ pub fn write_tofu_bin_file<P: AsRef<Path>>(
     writer.flush()
 }
 
-/// Generates a DeTofu binary file from canonical `TSCharactersTofu.txt` data.
+/// Generates a DeTofu binary file from canonical `CharactersTofu.txt` data.
 ///
 /// This is the public helper used by `dict-generate --tofu`. The input text is
 /// the canonical source of truth; the output binary is only the generated
@@ -353,13 +353,13 @@ pub fn write_tofu_bin_from_txt_file<P: AsRef<Path>, Q: AsRef<Path>>(
 #[cfg(feature = "tofu-bin")]
 fn load_builtin_tofu_entries() -> Vec<(char, char, DetofuLevel)> {
     parse_tofu_bin(TOFU_DATA)
-        .unwrap_or_else(|err| panic!("invalid built-in TSCharactersTofu.bin: {err}"))
+        .unwrap_or_else(|err| panic!("invalid built-in CharactersTofu.bin: {err}"))
 }
 
 #[cfg(not(feature = "tofu-bin"))]
 fn load_builtin_tofu_entries() -> Vec<(char, char, DetofuLevel)> {
     parse_tofu_entries(TOFU_DATA)
-        .unwrap_or_else(|err| panic!("invalid built-in TSCharactersTofu.txt: {err}"))
+        .unwrap_or_else(|err| panic!("invalid built-in CharactersTofu.txt: {err}"))
 }
 
 fn tofu_map() -> &'static FxHashMap<char, (char, DetofuLevel)> {
@@ -663,11 +663,11 @@ mod tofu_bin_tests {
 
     #[test]
     fn builtin_tofu_bin_matches_builtin_tofu_txt() {
-        let txt_entries = parse_tofu_entries(include_str!("data/TSCharactersTofu.txt"))
-            .expect("built-in TSCharactersTofu.txt should parse");
+        let txt_entries = parse_tofu_entries(include_str!("data/CharactersTofu.txt"))
+            .expect("built-in CharactersTofu.txt should parse");
 
-        let bin_entries = parse_tofu_bin(include_bytes!("data/TSCharactersTofu.bin"))
-            .expect("built-in TSCharactersTofu.bin should parse");
+        let bin_entries = parse_tofu_bin(include_bytes!("data/CharactersTofu.bin"))
+            .expect("built-in CharactersTofu.bin should parse");
 
         assert_eq!(
             txt_entries, bin_entries,

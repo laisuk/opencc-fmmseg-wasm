@@ -59,7 +59,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Arg::new("tofu")
                 .long("tofu")
                 .action(clap::ArgAction::SetTrue)
-                .help("Generate built-in TSCharactersTofu.bin from TSCharactersTofu.txt"),
+                .help("Generate built-in CharactersTofu.bin from CharactersTofu.txt"),
         )
         .arg(
             Arg::new("compat")
@@ -78,12 +78,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if matches.get_flag("tofu") {
-        let input = Path::new("vendor/opencc-fmmseg/src/data/TSCharactersTofu.txt");
+        let input = Path::new("vendor/opencc-fmmseg/src/data/CharactersTofu.txt");
 
         let output = matches
             .get_one::<String>("output")
             .map(String::as_str)
-            .unwrap_or("vendor/opencc-fmmseg/src/data/TSCharactersTofu.bin");
+            .unwrap_or("vendor/opencc-fmmseg/src/data/CharactersTofu.bin");
 
         write_tofu_bin_from_txt_file(input, output)?;
 
