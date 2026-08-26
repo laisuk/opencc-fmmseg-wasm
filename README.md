@@ -197,9 +197,89 @@ console.log(cc.convert(normalized, false));
 // 天龙八部书里的乔峰是契丹人
 ```
 
-This is an optional pre-conversion pass for text that contains compatibility ideographs from Unicode compatibility
-ranges. Unmapped characters are preserved unchanged. Normal OpenCC conversion does not automatically run this pass, so
-call it explicitly when compatibility normalization is desired.
+This is an optional pre-conversion pass for text that contains CJK Compatibility Ideographs. Unmapped characters are
+preserved unchanged. Normal OpenCC conversion does not automatically run this pass, so call it explicitly when
+compatibility normalization is desired.
+
+### normalizeUnicodeCompat
+
+Normalize additional Unicode compatibility forms, CJK radicals, allographs, legacy glyphs, and selected
+compatibility-like punctuation before conversion.
+
+```javascript
+cc.normalizeUnicodeCompat(text)
+```
+
+Parameters:
+
+* `text`: input string
+
+Returns:
+
+* normalized string
+
+Example:
+
+```javascript
+const cc = new OpenccWasm("t2s");
+
+const input = "聼聼竒羙⽟䂖甁噐⾳";
+const normalized = cc.normalizeUnicodeCompat(input);
+
+console.log(normalized);
+// 聽聽奇美玉石瓶器音
+
+console.log(cc.convert(normalized, false));
+// 听听奇美玉石瓶器音
+```
+
+This pass uses the extended Unicode compatibility table and is separate from `normalizeCompat()`. It is useful for text
+containing radical forms, historical or allographic Han forms, and other compatibility-like characters that are not
+covered by the CJK Compatibility Ideograph ranges.
+
+Unmapped characters are preserved unchanged.
+
+### normalizeCompatExtended
+
+Apply complete compatibility normalization before conversion.
+
+```javascript
+cc.normalizeCompatExtended(text)
+```
+
+Parameters:
+
+* `text`: input string
+
+Returns:
+
+* normalized string
+
+Example:
+
+```javascript
+const cc = new OpenccWasm("t2s");
+
+const input = "天龍八部書裡的聼眾";
+const normalized = cc.normalizeCompatExtended(input);
+
+console.log(normalized);
+// 天龍八部書裡的聽眾
+
+console.log(cc.convert(normalized, false));
+// 天龙八部书里的听众
+```
+
+`normalizeCompatExtended()` combines the extended Unicode compatibility table with CJK Compatibility Ideograph
+normalization. Use this when input may contain characters handled by either normalization set.
+
+The normalization order is:
+
+1. extended Unicode compatibility normalization;
+2. CJK Compatibility Ideograph normalization.
+
+Normal OpenCC conversion does not automatically perform compatibility normalization. Call this method explicitly before
+`convert()` when complete compatibility normalization is desired.
 
 ---
 
