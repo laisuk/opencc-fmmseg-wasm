@@ -7,7 +7,7 @@ edition = "2021"
 opencc-fmmseg = {
     path = "../..",
     default-features = false,
-    features = ["tofu-bin", "compat-bin", "zstd"]
+    features = ["tofu-bin", "compat-bin", "unicode-bin", "zstd"]
 }
 clap = "=4.5"
 serde = { version = "1.0", features = ["derive"] }

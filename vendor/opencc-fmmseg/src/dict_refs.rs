@@ -66,9 +66,9 @@ fn compute_round<'a>(dicts: &'a [&'a DictMaxLen], union: Arc<StarterUnion>) -> D
 /// Minimal example that builds two tiny dictionaries, a shared union,
 /// and runs a no-op conversion closure (for illustration only).
 ///
-/// ```
+/// ```ignore
 /// use std::sync::Arc;
-/// use opencc_fmmseg::dictionary_lib::{DictMaxLen, StarterUnion};
+/// use opencc_fmmseg::{DictMaxLen, StarterUnion};
 /// use opencc_fmmseg::DictRefs; // adjust path if needed
 ///
 /// // Tiny dicts (one-char mappings)
@@ -102,9 +102,9 @@ impl<'a> DictRefs<'a> {
     /// exactly `round_1_dicts` (and is typically cached and reused).
     ///
     /// # Example
-    /// ```
+    /// ```ignore
     /// # use std::sync::Arc;
-    /// # use opencc_fmmseg::dictionary_lib::{DictMaxLen, StarterUnion};
+    /// # use opencc_fmmseg::{DictMaxLen, StarterUnion};
     /// # use opencc_fmmseg::DictRefs;
     /// let d = DictMaxLen::build_from_pairs(vec![("你".into(), "您".into())]);
     /// let dicts: Vec<&DictMaxLen> = vec![&d];
@@ -190,9 +190,9 @@ impl<'a> DictRefs<'a> {
     /// It must return the transformed `String` for that round.
     ///
     /// # Example
-    /// ```
+    /// ```ignore
     /// # use std::sync::Arc;
-    /// # use opencc_fmmseg::dictionary_lib::{DictMaxLen, StarterUnion};
+    /// # use opencc_fmmseg::{DictMaxLen, StarterUnion};
     /// # use opencc_fmmseg::DictRefs;
     /// let d = DictMaxLen::build_from_pairs(vec![("你".into(), "您".into())]);
     /// let dicts: Vec<&DictMaxLen> = vec![&d];

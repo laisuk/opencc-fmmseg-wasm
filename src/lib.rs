@@ -246,6 +246,16 @@ impl OpenccWasm {
         self.inner.normalize_compat(text)
     }
 
+    #[wasm_bindgen(js_name = normalizeCompatExtended)]
+    pub fn normalize_compat_extended(&self, text: &str) -> String {
+        self.inner.normalize_compat_extended(text)
+    }
+
+    #[wasm_bindgen(js_name = normalizeUnicodeCompat)]
+    pub fn normalize_unicode_compat(&self, text: &str) -> String {
+        self.inner.normalize_unicode_compat(text)
+    }
+
     #[wasm_bindgen(js_name = detofu)]
     pub fn detofu(&self, text: &str, level: DetofuLevelWasm) -> String {
         self.inner.detofu(text, level.into())

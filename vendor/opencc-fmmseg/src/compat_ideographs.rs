@@ -1,67 +1,7 @@
-//! CJK Compatibility Ideograph normalization.
+//! Internal CJK Compatibility Ideograph normalization.
 //!
-//! This module normalizes Unicode CJK Compatibility Ideographs to their
-//! UnicodeData decomposition targets. It is an optional Unicode compatibility
-//! normalization pre-pass, not an OpenCC dictionary conversion.
-//!
-//! The built-in table is loaded from canonical
-//! `data/CJK_Compatibility_Ideographs.txt` by default, parsed once, and cached
-//! in dense runtime lookup tables with [`std::sync::OnceLock`]. Unmapped
-//! compatibility ideographs remain unchanged, as do characters outside the
-//! compatibility ideograph ranges.
-//!
-//! # Cargo feature
-//!
-//! Enabling the optional `compat-bin` feature switches the built-in runtime
-//! loader from the canonical text file to
-//! `data/CJK_Compatibility_Ideographs.bin`, a compact generated artifact. The
-//! binary file must be regenerated from `CJK_Compatibility_Ideographs.txt` with
-//! `dict-generate --compat` whenever the canonical text data changes.
-//!
-//! The feature model is intentionally binary:
-//!
-//! - without `compat-bin`, the runtime loads embedded TXT data;
-//! - with `compat-bin`, the runtime loads embedded BIN data.
-//!
-//! This pass is intentionally separate from [`detofu`](crate::detofu). Compatibility
-//! ideograph normalization runs before segmentation/conversion when callers
-//! want Unicode compatibility behavior; DeTofu is an optional post-processing
-//! display fallback for rare characters after conversion.
-//!
-//! # Examples
-//!
-//! Normalize a compatibility ideograph before conversion:
-//!
-//! ```rust
-//! use opencc_fmmseg::compat_ideographs::normalize_compat_ideographs;
-//!
-//! assert_eq!(normalize_compat_ideographs("金庸"), "金庸");
-//! ```
-//!
-//! Normalize a reusable character buffer in place:
-//!
-//! ```rust
-//! use opencc_fmmseg::compat_ideographs::CompatIdeographs;
-//!
-//! let table = CompatIdeographs::builtin();
-//! let mut chars: Vec<char> = "金庸".chars().collect();
-//! table.normalize_in_place(&mut chars);
-//!
-//! assert_eq!(chars.into_iter().collect::<String>(), "金庸");
-//! ```
-//!
-//! Use it as an explicit pre-pass before OpenCC conversion:
-//!
-//! ```rust
-//! use opencc_fmmseg::OpenCC;
-//! use opencc_fmmseg::compat_ideographs::normalize_compat_ideographs;
-//!
-//! let cc = OpenCC::new();
-//! let normalized = normalize_compat_ideographs("金庸小說");
-//! let converted = cc.convert(&normalized, "s2t", false);
-//!
-//! assert_eq!(converted, "金庸小說");
-//! ```
+//! The built-in UnicodeData-derived table is parsed once and cached in dense
+//! lookup tables. Public callers use [`crate::OpenCC::normalize_compat`].
 
 #[cfg(feature = "compat-bin")]
 use std::io::{self, Write};
@@ -101,7 +41,7 @@ static COMPAT_TABLE: OnceLock<CompatIdeographs> = OnceLock::new();
 /// character lookup. Characters without a mapping are initialized to themselves,
 /// so normalization preserves unmapped compatibility ideographs unchanged.
 #[derive(Debug, Clone)]
-pub struct CompatIdeographs {
+pub(crate) struct CompatIdeographs {
     bmp: [char; BMP_LEN],
     supp: [char; SUPP_LEN],
 }
@@ -128,7 +68,7 @@ impl CompatIdeographs {
     ///
     /// The bundled mapping data is parsed at most once per process. Subsequent
     /// calls reuse the same dense lookup tables.
-    pub fn builtin() -> &'static Self {
+    pub(crate) fn builtin() -> &'static Self {
         COMPAT_TABLE.get_or_init(load_builtin_compat_table)
     }
 
@@ -137,7 +77,8 @@ impl CompatIdeographs {
     /// This is mainly useful for tests or custom data. The expected format is
     /// one tab-separated `source<TAB>target` pair per line, with `#` comments
     /// and blank lines ignored.
-    pub fn from_text(text: &str) -> Result<Self, String> {
+    #[allow(dead_code)]
+    pub(crate) fn from_text(text: &str) -> Result<Self, String> {
         Self::from_entries(&parse_compat_entries(text)?)
     }
 
@@ -173,15 +114,8 @@ impl CompatIdeographs {
     /// compatibility ideographs without UnicodeData decomposition targets, are
     /// returned unchanged.
     ///
-    /// ```rust
-    /// use opencc_fmmseg::compat_ideographs::CompatIdeographs;
-    ///
-    /// let table = CompatIdeographs::builtin();
-    /// assert_eq!(table.normalize_char('金'), '金');
-    /// assert_eq!(table.normalize_char('金'), '金');
-    /// ```
     #[inline(always)]
-    pub fn normalize_char(&self, ch: char) -> char {
+    pub(crate) fn normalize_char(&self, ch: char) -> char {
         let u = ch as u32;
 
         if (BMP_START..=BMP_END).contains(&u) {
@@ -200,15 +134,8 @@ impl CompatIdeographs {
     /// This is useful when text has already been collected into a reusable
     /// `Vec<char>` before segmentation.
     ///
-    /// ```rust
-    /// use opencc_fmmseg::compat_ideographs::CompatIdeographs;
-    ///
-    /// let mut chars: Vec<char> = "金庸".chars().collect();
-    /// CompatIdeographs::builtin().normalize_in_place(&mut chars);
-    ///
-    /// assert_eq!(chars.into_iter().collect::<String>(), "金庸");
-    /// ```
-    pub fn normalize_in_place(&self, chars: &mut [char]) {
+    #[allow(dead_code)]
+    pub(crate) fn normalize_in_place(&self, chars: &mut [char]) {
         for ch in chars {
             *ch = self.normalize_char(*ch);
         }
@@ -218,12 +145,7 @@ impl CompatIdeographs {
     ///
     /// This returns a new string and leaves ordinary Chinese text unchanged.
     ///
-    /// ```rust
-    /// use opencc_fmmseg::compat_ideographs::CompatIdeographs;
-    ///
-    /// assert_eq!(CompatIdeographs::builtin().normalize("金庸"), "金庸");
-    /// ```
-    pub fn normalize(&self, input: &str) -> String {
+    pub(crate) fn normalize(&self, input: &str) -> String {
         let mut output = String::with_capacity(input.len());
 
         for ch in input.chars() {
@@ -493,12 +415,7 @@ fn single_char(text: &str, line_no: usize, field: &str) -> Result<char, String> 
 /// [`CompatIdeographs::normalize`]. It performs Unicode compatibility
 /// normalization as an optional pre-pass before OpenCC conversion.
 ///
-/// ```rust
-/// use opencc_fmmseg::compat_ideographs::normalize_compat_ideographs;
-///
-/// assert_eq!(normalize_compat_ideographs("金庸"), "金庸");
-/// ```
-pub fn normalize_compat_ideographs(input: &str) -> String {
+pub(crate) fn normalize_compat_ideographs(input: &str) -> String {
     CompatIdeographs::builtin().normalize(input)
 }
 

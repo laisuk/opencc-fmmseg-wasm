@@ -20,7 +20,7 @@
 //! See [README](https://github.com/laisuk/opencc-fmmseg) for more usage examples.
 
 use crate::delimiter_set::is_delimiter;
-use crate::dictionary_lib::dictionary_maxlength::UnionKey;
+use crate::dictionary_lib::UnionKey;
 use crate::dictionary_lib::{DictMaxLen, DictionaryMaxlength, StarterUnion};
 use crate::{
     compat_ideographs, find_max_utf8_length, for_each_len_dec, ids, DetofuLevel, DetofuMap,
@@ -1831,6 +1831,111 @@ impl OpenCC {
     /// ```
     pub fn normalize_compat(&self, text: &str) -> String {
         compat_ideographs::normalize_compat_ideographs(text)
+    }
+
+    /// Applies the full built-in compatibility normalization pre-pass.
+    ///
+    /// This combines the standard CJK Compatibility Ideograph mappings with the
+    /// curated mappings from `data/Unicode_Compatibility.txt`.
+    ///
+    /// It is the extended form of [`OpenCC::normalize_compat`]. In addition to
+    /// Unicode CJK Compatibility Ideographs, it normalizes selected Unicode
+    /// radicals, glyph variants, punctuation forms, and known text-extraction
+    /// artifacts used by this crate's curated compatibility table.
+    ///
+    /// This operation is independent of OpenCC conversion. It does not change this
+    /// [`OpenCC`] instance, the selected config, dictionaries, segmentation,
+    /// script detection, IDS handling, or punctuation conversion.
+    ///
+    /// Every curated mapping is one Unicode scalar value to one Unicode scalar
+    /// value. Unmapped characters are preserved unchanged.
+    ///
+    /// Use this as a pre-processing step before [`OpenCC::convert`] or
+    /// [`OpenCC::convert_with_config`] when input may contain broader Unicode or
+    /// extracted-text compatibility forms, such as text produced by PDF or
+    /// document extraction.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use opencc_fmmseg::OpenCC;
+    ///
+    /// let cc = OpenCC::new();
+    ///
+    /// // Includes ordinary CJK Compatibility Ideograph normalization.
+    /// assert_eq!(cc.normalize_compat_extended("金庸"), "金庸");
+    /// ```
+    ///
+    /// The extended table is applied together with the built-in compatibility
+    /// ideograph table:
+    ///
+    /// ```rust
+    /// use opencc_fmmseg::OpenCC;
+    ///
+    /// let cc = OpenCC::new();
+    /// let normalized = cc.normalize_compat_extended("金庸聼");
+    ///
+    /// assert_eq!(normalized, "金庸聽");
+    /// ```
+    ///
+    /// A typical processing pipeline is compatibility normalization first,
+    /// OpenCC conversion second, and optional DeTofu display fallback last:
+    ///
+    /// ```rust
+    /// use opencc_fmmseg::{DetofuLevel, OpenCC};
+    ///
+    /// let cc = OpenCC::new();
+    /// let normalized = cc.normalize_compat_extended("金庸小說");
+    /// let converted = cc.convert(&normalized, "s2t", false);
+    /// let display = cc.detofu(&converted, DetofuLevel::ExtB);
+    ///
+    /// assert_eq!(display, "金庸小說");
+    /// ```
+    pub fn normalize_compat_extended(&self, text: &str) -> String {
+        crate::unicode_compat::normalize_unicode_compat_all(text)
+    }
+
+    /// Normalizes text using only the curated Unicode compatibility table.
+    ///
+    /// This applies mappings from `data/Unicode_Compatibility.txt` without
+    /// applying the built-in CJK Compatibility Ideograph table used by
+    /// [`OpenCC::normalize_compat`].
+    ///
+    /// This lower-level helper is useful when callers specifically want the
+    /// crate's curated Unicode normalization rules without also normalizing
+    /// characters from the CJK Compatibility Ideographs blocks.
+    ///
+    /// The mapping table contains only one-Unicode-scalar-to-one-Unicode-scalar
+    /// replacements. Unmapped characters are copied unchanged, and this method
+    /// does not modify this [`OpenCC`] instance or participate in OpenCC
+    /// dictionary conversion.
+    ///
+    /// Most applications that want the complete compatibility pre-processing
+    /// behavior should prefer [`OpenCC::normalize_compat_extended`].
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use opencc_fmmseg::OpenCC;
+    ///
+    /// let cc = OpenCC::new();
+    ///
+    /// assert_eq!(cc.normalize_unicode_compat("聼"), "聽");
+    /// ```
+    ///
+    /// Unlike [`OpenCC::normalize_compat_extended`], this method does not apply
+    /// the CJK Compatibility Ideograph table:
+    ///
+    /// ```rust
+    /// use opencc_fmmseg::OpenCC;
+    ///
+    /// let cc = OpenCC::new();
+    ///
+    /// assert_eq!(cc.normalize_unicode_compat("金"), "金");
+    /// assert_eq!(cc.normalize_compat_extended("金"), "金");
+    /// ```
+    pub fn normalize_unicode_compat(&self, text: &str) -> String {
+        crate::unicode_compat::normalize_unicode_compat(text)
     }
 
     /// Converts non-BMP CJK extension characters to display-safe fallbacks.

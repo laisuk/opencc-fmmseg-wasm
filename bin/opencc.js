@@ -58,6 +58,7 @@ Convert options:
                               default when omitted value: all
   --keep-ids                  Preserve complete IDS expressions during conversion (default: false)
   -n, --norm-compat           Normalize CJK Compatibility Ideographs before conversion (default: false)
+  -E, --norm-compat-extended  Normalize extended Unicode compatibility forms before conversion (default: false)
   -D, --custom-dict <slot:mode:file>
                               Load a custom dictionary.
                               May be specified multiple times.
@@ -107,6 +108,7 @@ Examples:
   npx opencc-fmmseg convert -i a.txt -o b.txt -c t2s --detofu ext-c
   echo "⿰氵漢" | npx opencc-fmmseg convert -c t2s
   echo "⿰氵漢" | npx opencc-fmmseg convert -c t2s --keep-ids
+  echo "聼聼竒羙⽟䂖甁噐⾳" | npx opencc-fmmseg convert -c t2s -E
 
   npx opencc-fmmseg office -i a.docx -o b.docx -c s2t -p
   npx opencc-fmmseg office -i a.epub -c s2tw
@@ -463,6 +465,7 @@ async function runConvert(args) {
     const punct = hasFlag(args, "-p", "--punct");
     const keepIds = hasFlag(args, null, "--keep-ids");
     const normCompat = hasFlag(args, "-n", "--norm-compat");
+    const normCompatExtended = hasFlag(args, "-E", "--norm-compat-extended");
     const customDicts = getArgs(args, "-D", "--custom-dict")
         .map(parseCustomDictSpec);
 
@@ -498,7 +501,9 @@ async function runConvert(args) {
 
     let inputText = readInputText(input, inEnc);
 
-    if (normCompat) {
+    if (normCompatExtended) {
+        inputText = cc.normalizeCompatExtended(inputText);
+    } else if (normCompat) {
         inputText = cc.normalizeCompat(inputText);
     }
 
@@ -519,7 +524,13 @@ async function runConvert(args) {
         }
 
         const suffixParts = [];
-        if (normCompat) suffixParts.push("normalized");
+
+        if (normCompatExtended) {
+            suffixParts.push("norm-compat-extended");
+        } else if (normCompat) {
+            suffixParts.push("norm-compat");
+        }
+
         if (detofuEnabled) suffixParts.push("detofu");
         if (keepIds) suffixParts.push("keep-ids");
 

@@ -74,7 +74,7 @@ static LAST_ERROR: Mutex<Option<String>> = Mutex::new(None);
 /// ### Load
 ///
 /// ```no_run
-/// # use opencc_fmmseg::dictionary_lib::DictionaryMaxlength;
+/// # use opencc_fmmseg::DictionaryMaxlength;
 /// let dict = DictionaryMaxlength::deserialize_from_cbor("dictionary_maxlength.cbor")?;
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
@@ -205,7 +205,7 @@ impl DictionaryMaxlength {
     ///
     /// # Example
     /// ```
-    /// use opencc_fmmseg::dictionary_lib::DictionaryMaxlength;
+    /// use opencc_fmmseg::DictionaryMaxlength;
     ///
     /// let dicts = DictionaryMaxlength::from_zstd().unwrap();
     /// assert!(dicts.st_characters.is_populated());
@@ -363,7 +363,7 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     ///
     /// # Usage
     /// ```
-    /// use opencc_fmmseg::dictionary_lib::DictionaryMaxlength;
+    /// use opencc_fmmseg::DictionaryMaxlength;
     ///
     /// let dicts = DictionaryMaxlength::from_dicts().unwrap();
     /// assert!(dicts.st_characters.is_populated());
@@ -400,7 +400,7 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     ///
     /// # Example
     /// ```
-    /// use opencc_fmmseg::dictionary_lib::DictionaryMaxlength;
+    /// use opencc_fmmseg::DictionaryMaxlength;
     /// # let mut dicts = DictionaryMaxlength::default(); // assume default exists
     /// dicts.populate_all();
     /// assert!(dicts.st_characters.is_populated());
