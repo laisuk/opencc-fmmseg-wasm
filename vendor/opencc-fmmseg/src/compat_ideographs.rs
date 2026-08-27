@@ -77,7 +77,7 @@ impl CompatIdeographs {
     /// This is mainly useful for tests or custom data. The expected format is
     /// one tab-separated `source<TAB>target` pair per line, with `#` comments
     /// and blank lines ignored.
-    #[allow(dead_code)]
+    #[cfg(not(feature = "compat-bin"))]
     pub(crate) fn from_text(text: &str) -> Result<Self, String> {
         Self::from_entries(&parse_compat_entries(text)?)
     }
@@ -478,6 +478,7 @@ mod tests {
         assert_eq!(table.normalize_char('﨑'), '﨑');
     }
 
+    #[cfg(not(feature = "compat-bin"))]
     #[test]
     fn parses_custom_table() {
         let table = CompatIdeographs::from_text(
@@ -492,12 +493,14 @@ mod tests {
         assert_eq!(table.normalize("豈金"), "豈金");
     }
 
+    #[cfg(not(feature = "compat-bin"))]
     #[test]
     fn rejects_multi_char_source_or_target() {
         assert!(CompatIdeographs::from_text("豈x\t豈\n").is_err());
         assert!(CompatIdeographs::from_text("豈\t豈x\n").is_err());
     }
 
+    #[cfg(not(feature = "compat-bin"))]
     #[test]
     fn rejects_source_outside_supported_ranges() {
         assert!(CompatIdeographs::from_text("金\t金\n").is_err());

@@ -14,10 +14,10 @@ use std::sync::Arc;
 /// - `max_len` is `dicts.iter().map(|d| d.max_len).max().unwrap_or(1)`.
 /// - `union` must reflect exactly the dictionaries in `dicts`.
 ///   If the dictionaries change, rebuild the union.
-pub struct DictRound<'a> {
-    pub dicts: &'a [&'a DictMaxLen],
-    pub max_len: usize,
-    pub union: Arc<StarterUnion>,
+pub(crate) struct DictRound<'a> {
+    pub(crate) dicts: &'a [&'a DictMaxLen],
+    pub(crate) max_len: usize,
+    pub(crate) union: Arc<StarterUnion>,
 }
 
 /// Builds a [`DictRound`] from a slice of dictionaries and an associated
@@ -68,8 +68,8 @@ fn compute_round<'a>(dicts: &'a [&'a DictMaxLen], union: Arc<StarterUnion>) -> D
 ///
 /// ```ignore
 /// use std::sync::Arc;
-/// use opencc_fmmseg::{DictMaxLen, StarterUnion};
-/// use opencc_fmmseg::DictRefs; // adjust path if needed
+/// use crate::dict_refs::DictRefs;
+/// use crate::dictionary_lib::{DictMaxLen, StarterUnion};
 ///
 /// // Tiny dicts (one-char mappings)
 /// let d1 = DictMaxLen::build_from_pairs(vec![("你".into(), "您".into())]);
@@ -89,7 +89,7 @@ fn compute_round<'a>(dicts: &'a [&'a DictMaxLen], union: Arc<StarterUnion>) -> D
 ///
 /// For a full conversion, your closure would call your engine’s
 /// `segment_replace_with_union(input, dicts, max_len, union)`.
-pub struct DictRefs<'a> {
+pub(crate) struct DictRefs<'a> {
     round_1: DictRound<'a>,
     round_2: Option<DictRound<'a>>,
     round_3: Option<DictRound<'a>>,
@@ -104,14 +104,17 @@ impl<'a> DictRefs<'a> {
     /// # Example
     /// ```ignore
     /// # use std::sync::Arc;
-    /// # use opencc_fmmseg::{DictMaxLen, StarterUnion};
-    /// # use opencc_fmmseg::DictRefs;
+    /// # use crate::dict_refs::DictRefs;
+    /// # use crate::dictionary_lib::{DictMaxLen, StarterUnion};
     /// let d = DictMaxLen::build_from_pairs(vec![("你".into(), "您".into())]);
     /// let dicts: Vec<&DictMaxLen> = vec![&d];
     /// let union = Arc::new(StarterUnion::build(&dicts));
     /// let _refs = DictRefs::new(&dicts, union);
     /// ```
-    pub fn new(round_1_dicts: &'a [&'a DictMaxLen], round_1_union: Arc<StarterUnion>) -> Self {
+    pub(crate) fn new(
+        round_1_dicts: &'a [&'a DictMaxLen],
+        round_1_union: Arc<StarterUnion>,
+    ) -> Self {
         Self {
             round_1: compute_round(round_1_dicts, round_1_union),
             round_2: None,
@@ -140,7 +143,7 @@ impl<'a> DictRefs<'a> {
     /// # Returns
     ///
     /// The same [`DictRefs`] instance with round 2 attached.
-    pub fn with_round_2(
+    pub(crate) fn with_round_2(
         mut self,
         round_2_dicts: &'a [&'a DictMaxLen],
         round_2_union: Arc<StarterUnion>,
@@ -170,7 +173,8 @@ impl<'a> DictRefs<'a> {
     /// # Returns
     ///
     /// The same [`DictRefs`] instance with round 3 attached.
-    pub fn with_round_3(
+    #[allow(dead_code)]
+    pub(crate) fn with_round_3(
         mut self,
         round_3_dicts: &'a [&'a DictMaxLen],
         round_3_union: Arc<StarterUnion>,
@@ -192,8 +196,8 @@ impl<'a> DictRefs<'a> {
     /// # Example
     /// ```ignore
     /// # use std::sync::Arc;
-    /// # use opencc_fmmseg::{DictMaxLen, StarterUnion};
-    /// # use opencc_fmmseg::DictRefs;
+    /// # use crate::dict_refs::DictRefs;
+    /// # use crate::dictionary_lib::{DictMaxLen, StarterUnion};
     /// let d = DictMaxLen::build_from_pairs(vec![("你".into(), "您".into())]);
     /// let dicts: Vec<&DictMaxLen> = vec![&d];
     /// let union = Arc::new(StarterUnion::build(&dicts));
@@ -206,7 +210,7 @@ impl<'a> DictRefs<'a> {
     /// });
     /// assert_eq!(converted, "你");
     /// ```
-    pub fn apply_segment_replace<F>(&self, input: &str, segment_replace: F) -> String
+    pub(crate) fn apply_segment_replace<F>(&self, input: &str, segment_replace: F) -> String
     where
         F: Fn(&str, &[&DictMaxLen], usize, &StarterUnion) -> String,
     {

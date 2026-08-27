@@ -6,11 +6,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.3.10] - Unreleased
+## [0.4.0] - Unreleased
 
 ### Added
 
 - Added `OpenccWasm.normalizeCompatExtended()` and `OpenccWasm.normalizeUnicodeCompat()`.
+
+### Changed
+
+- Updated dictionary data.
+- Updated `opencc-fmmseg` native to `v0.12.0`.
+- CLI: Optimized error handling.
 
 ---
 

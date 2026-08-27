@@ -1,11 +1,11 @@
-/// Identifies a dictionary slot inside [`DictionaryMaxlength`](crate::dictionary_lib::DictionaryMaxlength).
+/// Identifies a dictionary slot inside [`DictionaryMaxlength`](crate::DictionaryMaxlength).
 ///
 /// Each slot corresponds to a specific OpenCC conversion dictionary.
 /// Custom dictionaries can be appended to or override entries inside
 /// these slots when using:
 ///
-/// - [`DictionaryMaxlength::from_dicts_custom()`](crate::dictionary_lib::DictionaryMaxlength::from_dicts_custom)
-/// - [`DictionaryMaxlength::from_dicts_custom_files()`](crate::dictionary_lib::DictionaryMaxlength::from_dicts_custom_files)
+/// - [`DictionaryMaxlength::from_dicts_custom()`](crate::DictionaryMaxlength::from_dicts_custom)
+/// - [`DictionaryMaxlength::from_dicts_custom_files()`](crate::DictionaryMaxlength::from_dicts_custom_files)
 ///
 /// # Notes
 ///
@@ -97,10 +97,10 @@ pub enum DictSlot {
     TSPunctuations,
 }
 
-/// Parses a canonical OpenCC dictionary slot name into a [`DictSlot`].
+/// Parses a canonical OpenCC dictionary slot name or a supported compatibility
+/// alias into a [`DictSlot`].
 ///
-/// This conversion is intentionally strict and only accepts canonical
-/// slot identifiers used by the OpenCC dictionary pipeline.
+/// This conversion is case-sensitive and does not trim whitespace.
 ///
 /// # Supported slot names
 ///
@@ -126,11 +126,7 @@ pub enum DictSlot {
 /// - `JPSCharactersRev`
 /// - `JPSPhrases`
 ///
-/// # Notes
-///
-/// File suffixes such as `.txt` are not accepted here.
-/// Higher-level bindings (for example Python wrappers) may provide
-/// additional normalization or compatibility handling.
+/// File suffixes such as `.txt` are not accepted.
 ///
 /// # Examples
 ///
@@ -259,9 +255,9 @@ impl DictSlot {
 
     /// Parses a canonical slot name without regard to ASCII case.
     ///
-    /// Leading and trailing whitespace is ignored. Filename stems, filename
-    /// suffixes, and other aliases are not accepted. Use [`DictSlot::try_from`]
-    /// when parsing must be case-sensitive and must not trim whitespace.
+    /// Leading and trailing whitespace is ignored. Filename stems, suffixes,
+    /// and other aliases are not accepted. Use [`DictSlot::try_from`] when
+    /// parsing must be case-sensitive and must not trim whitespace.
     ///
     /// # Examples
     ///
@@ -279,10 +275,12 @@ impl DictSlot {
     /// ```
     #[must_use]
     pub fn from_name_ignore_ascii_case(value: &str) -> Option<Self> {
+        let value = value.trim();
+
         Self::ALL
             .iter()
             .copied()
-            .find(|slot| slot.canonical_name().eq_ignore_ascii_case(value.trim()))
+            .find(|slot| slot.canonical_name().eq_ignore_ascii_case(value))
     }
 }
 
@@ -316,7 +314,7 @@ impl DictSlot {
 ///     }
 /// ]).unwrap();
 ///
-/// assert!(dictionary.st_phrases.max_len > 0);
+/// assert!(dictionary.st_phrases.max_key_len() > 0);
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum CustomDictMode {
@@ -367,7 +365,7 @@ pub enum CustomDictMode {
 ///     }
 /// ]).unwrap();
 ///
-/// assert!(dictionary.st_phrases.max_len > 0);
+/// assert!(dictionary.st_phrases.max_key_len() > 0);
 /// ```
 #[derive(Debug, Clone)]
 pub struct CustomDictSpec {
@@ -418,7 +416,7 @@ pub struct CustomDictSpec {
 ///     }
 /// ]).unwrap();
 ///
-/// assert!(dictionary.st_phrases.max_len > 0);
+/// assert!(dictionary.st_phrases.max_key_len() > 0);
 /// ```
 #[derive(Debug, Clone)]
 pub struct CustomDictFileSpec<P> {

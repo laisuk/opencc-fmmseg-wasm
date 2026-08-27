@@ -27,29 +27,29 @@
 /// | 3       | `S2twp`| Simplified → Taiwan (with phrases)         | ✅                          |
 /// | 4       | `S2hk` | Simplified → Hong Kong                     | ✅                          |
 /// | 5       | `T2s`  | Traditional → Simplified                   | ✅                          |
-/// | 6       | `T2tw` | Traditional → Taiwan                       | ❌ (ignored)                |
-/// | 7       | `T2twp`| Traditional → Taiwan (with phrases)        | ❌ (ignored)                |
-/// | 8       | `T2hk` | Traditional → Hong Kong                    | ❌ (ignored)                |
+/// | 6       | `T2tw` | Traditional → Taiwan                       | ✅                          |
+/// | 7       | `T2twp`| Traditional → Taiwan (with phrases)        | ✅                          |
+/// | 8       | `T2hk` | Traditional → Hong Kong                    | ✅                          |
 /// | 9       | `Tw2s` | Taiwan → Simplified                        | ✅                          |
 /// | 10      | `Tw2sp`| Taiwan → Simplified (variant)              | ✅                          |
-/// | 11      | `Tw2t` | Taiwan → Traditional                       | ❌ (ignored)                |
-/// | 12      | `Tw2tp`| Taiwan → Traditional (variant)             | ❌ (ignored)                |
+/// | 11      | `Tw2t` | Taiwan → Traditional                       | ✅                          |
+/// | 12      | `Tw2tp`| Taiwan → Traditional (variant)             | ✅                          |
 /// | 13      | `Hk2s` | Hong Kong → Simplified                     | ✅                          |
-/// | 14      | `Hk2t` | Hong Kong → Traditional                    | ❌ (ignored)                |
-/// | 15      | `Jp2t` | Japanese (Kanji variants) → Traditional     | ❌ (ignored)                |
-/// | 16      | `T2jp` | Traditional → Japanese (Kanji variants)     | ❌ (ignored)                |
-/// | 17      | `S2hkp`| Simplified → Hong Kong (with phrases)       | ✅                          |
-/// | 18      | `Hk2sp`| Hong Kong → Simplified (with phrases)       | ✅                          |
-/// | 19      | `T2hkp`| Traditional → Hong Kong (with phrases)      | ❌ (ignored)                |
-/// | 20      | `Hk2tp`| Hong Kong → Traditional (with phrases)      | ❌ (ignored)                |
+/// | 14      | `Hk2t` | Hong Kong → Traditional                    | ✅                          |
+/// | 15      | `Jp2t` | Japanese (Kanji variants) → Traditional    | ✅                          |
+/// | 16      | `T2jp` | Traditional → Japanese (Kanji variants)    | ✅                          |
+/// | 17      | `S2hkp`| Simplified → Hong Kong (with phrases)      | ✅                          |
+/// | 18      | `Hk2sp`| Hong Kong → Simplified (with phrases)      | ✅                          |
+/// | 19      | `T2hkp`| Traditional → Hong Kong (with phrases)     | ✅                          |
+/// | 20      | `Hk2tp`| Hong Kong → Traditional (with phrases)     | ✅                          |
 /// # Since
 ///
 /// Core configurations (`S2t` through `T2jp`) are available since **v0.8.4**.
 ///
 /// Hong Kong phrase configurations:
 ///
-/// - `S2hkp` — available since **v0.10.3**
-/// - `Hk2sp` — available since **v0.10.3**
+/// - `S2hkp` — available since **v0.11.0**
+/// - `Hk2sp` — available since **v0.11.0**
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpenccConfig {
@@ -133,11 +133,10 @@ impl TryFrom<&str> for OpenccConfig {
 }
 
 impl OpenccConfig {
-    /// All supported OpenCC configurations in canonical order.
+    /// All supported OpenCC configurations.
     ///
     /// This constant lists every [`OpenccConfig`] variant supported by the
-    /// library. The ordering corresponds to the canonical configuration
-    /// identifiers used by OpenCC.
+    /// library.
     ///
     /// This table is primarily used internally for:
     ///
@@ -145,8 +144,9 @@ impl OpenccConfig {
     /// - Case-insensitive parsing via [`OpenccConfig::parse`]
     /// - Validation helpers such as [`OpenccConfig::is_valid_config`]
     ///
-    /// The contents of this array are stable and reflect the same ordering
-    /// defined by the enum and its `#[repr(u32)]` FFI mapping.
+    /// Do not use the array index as a numeric configuration id. For FFI or
+    /// serialized numeric values, use [`OpenccConfig::to_ffi`] and
+    /// [`OpenccConfig::from_ffi`].
     ///
     /// # Since
     ///

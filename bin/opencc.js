@@ -89,7 +89,7 @@ Office options:
   -F, --convert-filename      Convert generated output filename stem (default: false)
   --keep-font                 Preserve font-family information (default)
   --no-keep-font              Do not preserve font-family information
-  --custom-dict <slot:mode:file>
+  -D, --custom-dict <slot:mode:file>
                               Load a custom dictionary.
                               May be specified multiple times.
                               Examples:
@@ -188,6 +188,24 @@ function validateInputFile(filePath) {
 
     if (!stats.isFile()) {
         throw new Error(`Input path is not a file: ${filePath}`);
+    }
+}
+
+function ensureDistinctPaths(input, output) {
+    if (!input || !output) {
+        return;
+    }
+
+    let inputPath = path.resolve(input);
+    let outputPath = path.resolve(output);
+
+    if (process.platform === "win32") {
+        inputPath = inputPath.toLowerCase();
+        outputPath = outputPath.toLowerCase();
+    }
+
+    if (inputPath === outputPath) {
+        throw new Error("Input and output files must be different.");
     }
 }
 
@@ -452,6 +470,8 @@ function parseDetofuLevel(value) {
 async function runConvert(args) {
     const input = getArg(args, "-i", "--input");
     const output = getArg(args, "-o", "--output");
+    ensureDistinctPaths(input, output);
+
     const config = getArg(args, "-c", "--config", "s2t");
     const inEnc = validateEncoding(
         getArg(args, null, "--in-enc", "utf8"),
@@ -534,6 +554,10 @@ async function runConvert(args) {
         if (detofuEnabled) suffixParts.push("detofu");
         if (keepIds) suffixParts.push("keep-ids");
 
+        for (const spec of customDicts) {
+            suffixParts.push(`custom:${spec.slot}:${spec.mode}`);
+        }
+
         const suffix = suffixParts.length ? `, ${suffixParts.join(", ")}` : "";
         console.error(`Conversion completed (${cc.getConfig()}${suffix}): ${inFrom} -> ${outTo}`);
     }
@@ -571,6 +595,8 @@ async function runOffice(args) {
     } else {
         output = applyOutputExtension(output, officeFormat);
     }
+
+    ensureDistinctPaths(input, output);
 
     const inputBytes = fs.readFileSync(input);
 
