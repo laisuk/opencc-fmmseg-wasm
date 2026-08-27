@@ -51,7 +51,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.3.8] -Unreleased
+## [0.3.8] -2026-07-28
 
 ### Changed
 
