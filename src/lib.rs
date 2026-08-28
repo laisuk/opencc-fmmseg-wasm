@@ -7,29 +7,52 @@ use opencc_fmmseg::{
 };
 use wasm_bindgen::prelude::*;
 
+/// OpenCC conversion configurations exposed to JavaScript/WebAssembly callers.
+///
+/// The numeric values are kept in sync with the backend [`OpenccConfig`] FFI IDs.
 #[wasm_bindgen]
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OpenccConfigWasm {
+    /// Simplified Chinese to Traditional Chinese.
     S2t = 1,
+    /// Simplified Chinese to Traditional Chinese (Taiwan).
     S2tw = 2,
+    /// Simplified Chinese to Traditional Chinese (Taiwan, with phrases).
     S2twp = 3,
+    /// Simplified Chinese to Traditional Chinese (Hong Kong).
     S2hk = 4,
+    /// Traditional Chinese to Simplified Chinese.
     T2s = 5,
+    /// Traditional Chinese to Traditional Chinese (Taiwan).
     T2tw = 6,
+    /// Traditional Chinese to Traditional Chinese (Taiwan, with phrases).
     T2twp = 7,
+    /// Traditional Chinese to Traditional Chinese (Hong Kong).
     T2hk = 8,
+    /// Traditional Chinese (Taiwan) to Simplified Chinese.
     Tw2s = 9,
+    /// Traditional Chinese (Taiwan) to Simplified Chinese, with phrase conversion.
     Tw2sp = 10,
+    /// Traditional Chinese (Taiwan) to generic Traditional Chinese.
     Tw2t = 11,
+    /// Traditional Chinese (Taiwan) to generic Traditional Chinese, with phrases.
     Tw2tp = 12,
+    /// Traditional Chinese (Hong Kong) to Simplified Chinese.
     Hk2s = 13,
+    /// Traditional Chinese (Hong Kong) to generic Traditional Chinese.
     Hk2t = 14,
+    /// Japanese Shinjitai forms to Traditional Chinese forms.
     Jp2t = 15,
+    /// Traditional Chinese forms to Japanese Shinjitai forms.
     T2jp = 16,
+    /// Simplified Chinese to Hong Kong Traditional Chinese, with phrase conversion.
     S2hkp = 17,
+    /// Hong Kong Traditional Chinese to Simplified Chinese, with phrase conversion.
     Hk2sp = 18,
+    /// Traditional Chinese to Hong Kong Traditional Chinese, with phrase conversion.
     T2hkp = 19,
+    /// Hong Kong Traditional Chinese to generic Traditional Chinese, with phrase conversion.
     Hk2tp = 20,
 }
 
@@ -46,17 +69,29 @@ impl From<OpenccConfigWasm> for OpenccConfig {
     }
 }
 
+/// CJK Extension support level used by DeToFu fallback processing.
+///
+/// Characters beyond the selected extension level may be replaced with safer
+/// fallback forms when mappings are available.
 #[wasm_bindgen]
 #[repr(u32)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DetofuLevelWasm {
+    /// Treat CJK Extension B as the maximum supported extension level.
     ExtB = 2,
+    /// Treat CJK Extension C as the maximum supported extension level.
     ExtC = 3,
+    /// Treat CJK Extension D as the maximum supported extension level.
     ExtD = 4,
+    /// Treat CJK Extension E as the maximum supported extension level.
     ExtE = 5,
+    /// Treat CJK Extension F as the maximum supported extension level.
     ExtF = 6,
+    /// Treat CJK Extension G as the maximum supported extension level.
     ExtG = 7,
+    /// Treat CJK Extension H as the maximum supported extension level.
     ExtH = 8,
+    /// Treat CJK Extension I as the maximum supported extension level.
     ExtI = 9,
 }
 
@@ -75,6 +110,10 @@ impl From<DetofuLevelWasm> for DetofuLevel {
     }
 }
 
+/// JavaScript-facing custom dictionary specification.
+///
+/// `slot` selects the OpenCC dictionary slot, `pairs` contains source/replacement
+/// entries, and `mode` accepts `"Append"`/`"append"` or `"Override"`/`"override"`.
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WasmCustomDictSpec {
@@ -107,6 +146,9 @@ impl TryFrom<WasmCustomDictSpec> for CustomDictSpec {
     }
 }
 
+/// WebAssembly wrapper around the embedded `opencc-fmmseg` conversion engine.
+///
+/// Each instance owns its conversion configuration and dictionary state.
 #[wasm_bindgen]
 pub struct OpenccWasm {
     inner: OpenCC,
@@ -124,10 +166,16 @@ fn parse_wasm_config(config: Option<String>) -> Result<OpenccConfig, JsValue> {
 
 #[wasm_bindgen]
 impl OpenccWasm {
+    /// Returns the `opencc-fmmseg-wasm` package version.
     pub fn version() -> String {
         env!("CARGO_PKG_VERSION").to_owned()
     }
 
+    /// Creates a converter using the embedded dictionaries.
+    ///
+    /// `config` is an OpenCC configuration name such as `"s2t"` or `"t2s"`.
+    /// When omitted, the default configuration is `"s2t"`. Invalid names throw
+    /// a JavaScript error.
     #[wasm_bindgen(constructor)]
     pub fn new(config: Option<String>) -> Result<OpenccWasm, JsValue> {
         let config = parse_wasm_config(config)?;
@@ -140,6 +188,11 @@ impl OpenccWasm {
         Ok(OpenccWasm { inner, config })
     }
 
+    /// Creates a converter with one or more custom dictionary specifications.
+    ///
+    /// `config` behaves like the main constructor and defaults to `"s2t"`.
+    /// `specs` must be an array of objects containing `slot`, `pairs`, and an
+    /// optional `mode`. Invalid specs throw a JavaScript error.
     #[wasm_bindgen(js_name = newWithCustomDicts)]
     pub fn new_with_custom_dicts(
         config: Option<String>,
@@ -165,15 +218,24 @@ impl OpenccWasm {
         Ok(OpenccWasm { inner, config })
     }
 
+    /// Converts text using the instance's current OpenCC configuration.
+    ///
+    /// `punctuation` enables the configuration's punctuation conversion when
+    /// supported. The instance configuration can be changed with [`Self::set_config`].
     pub fn convert(&self, text: &str, punctuation: bool) -> String {
         self.inner.convert(text, self.config.as_str(), punctuation)
     }
 
+    /// Returns the current OpenCC configuration name.
     #[wasm_bindgen(js_name = getConfig)]
     pub fn get_config(&self) -> String {
         self.config.as_str().to_string()
     }
 
+    /// Changes the current OpenCC configuration by name.
+    ///
+    /// Returns `true` when `config` is valid. On failure, returns `false` and
+    /// leaves the current configuration unchanged.
     #[wasm_bindgen(js_name = setConfig)]
     pub fn set_config(&mut self, config: &str) -> bool {
         match OpenccConfig::parse(config) {
@@ -185,11 +247,13 @@ impl OpenccWasm {
         }
     }
 
+    /// Returns whether a configuration name is supported.
     #[wasm_bindgen(js_name = isValidConfig)]
     pub fn is_valid_config(config: &str) -> bool {
         OpenccConfig::is_valid_config(config)
     }
 
+    /// Returns all supported OpenCC configuration names.
     #[wasm_bindgen(js_name = getSupportedConfigs)]
     pub fn get_supported_configs() -> Vec<String> {
         OpenccConfig::ALL
@@ -198,6 +262,7 @@ impl OpenccWasm {
             .collect()
     }
 
+    /// Returns all canonical dictionary slot names available for custom dictionaries.
     #[wasm_bindgen(js_name = getAvailableSlots)]
     pub fn get_available_slots() -> Vec<String> {
         DictSlot::ALL
@@ -206,6 +271,9 @@ impl OpenccWasm {
             .collect()
     }
 
+    /// Creates a converter using an [`OpenccConfigWasm`] enum value.
+    ///
+    /// When omitted, the configuration defaults to [`OpenccConfigWasm::S2t`].
     #[wasm_bindgen(js_name = newWithEnum)]
     pub fn new_with_enum(config: Option<OpenccConfigWasm>) -> Result<OpenccWasm, JsValue> {
         let config = config.map(OpenccConfig::from).unwrap_or(OpenccConfig::S2t);
@@ -216,51 +284,81 @@ impl OpenccWasm {
         Ok(OpenccWasm { inner, config })
     }
 
+    /// Changes the current configuration using an [`OpenccConfigWasm`] enum value.
     #[wasm_bindgen(js_name = setConfigEnum)]
     pub fn set_config_enum(&mut self, config: OpenccConfigWasm) {
         self.config = OpenccConfig::from(config);
     }
 
+    /// Returns the numeric FFI ID of the current OpenCC configuration.
     #[wasm_bindgen(js_name = getConfigId)]
     pub fn get_config_id(&self) -> u32 {
         self.config.to_ffi()
     }
 
+    /// Returns whether ID-preservation behavior is enabled in the backend.
     #[wasm_bindgen(js_name = getPreserveIds)]
     pub fn get_preserve_ids(&self) -> bool {
         self.inner.get_preserve_ids()
     }
 
+    /// Enables or disables ID-preservation behavior in the backend.
     #[wasm_bindgen(js_name = setPreserveIds)]
     pub fn set_preserve_ids(&mut self, value: bool) {
         self.inner.set_preserve_ids(value);
     }
 
+    /// Detects whether text is predominantly Traditional or Simplified Chinese.
+    ///
+    /// Returns `1` for Traditional Chinese, `2` for Simplified Chinese, and `0`
+    /// when the text cannot be classified as either.
     #[wasm_bindgen(js_name = zhoCheck)]
     pub fn zho_check(&self, text: &str) -> i32 {
         self.inner.zho_check(text)
     }
 
+    /// Normalizes Unicode CJK Compatibility Ideographs.
+    ///
+    /// This is an optional pre-conversion pass. Mapped compatibility ideographs
+    /// are replaced with their unified forms; unmapped characters are preserved.
     #[wasm_bindgen(js_name = normalizeCompat)]
     pub fn normalize_compat(&self, text: &str) -> String {
         self.inner.normalize_compat(text)
     }
 
+    /// Performs extended Unicode compatibility normalization.
+    ///
+    /// This applies the extended Unicode compatibility table together with CJK
+    /// Compatibility Ideograph normalization. It is intended as the broadest
+    /// optional normalization pre-pass before OpenCC conversion.
     #[wasm_bindgen(js_name = normalizeCompatExtended)]
     pub fn normalize_compat_extended(&self, text: &str) -> String {
         self.inner.normalize_compat_extended(text)
     }
 
+    /// Normalizes characters using the extended Unicode compatibility table only.
+    ///
+    /// This includes selected radicals, allographs, legacy glyphs, and
+    /// compatibility-like punctuation defined by the bundled extended table.
     #[wasm_bindgen(js_name = normalizeUnicodeCompat)]
     pub fn normalize_unicode_compat(&self, text: &str) -> String {
         self.inner.normalize_unicode_compat(text)
     }
 
+    /// Applies DeToFu fallback processing for rare CJK extension characters.
+    ///
+    /// `level` specifies the highest CJK Extension block considered safe for
+    /// display. Characters beyond that level are replaced when a fallback mapping
+    /// is available.
     #[wasm_bindgen(js_name = detofu)]
     pub fn detofu(&self, text: &str, level: DetofuLevelWasm) -> String {
         self.inner.detofu(text, level.into())
     }
 
+    /// Converts text and then applies DeToFu fallback processing.
+    ///
+    /// This is equivalent to calling [`Self::convert`] followed by [`Self::detofu`],
+    /// while reusing an internal output buffer for the DeToFu pass.
     #[wasm_bindgen(js_name = convertDetofu)]
     pub fn convert_detofu(&self, text: &str, punctuation: bool, level: DetofuLevelWasm) -> String {
         let converted = self.convert(text, punctuation);
@@ -272,6 +370,13 @@ impl OpenccWasm {
         output
     }
 
+    /// Converts a ZIP-based Office or EPUB document entirely in memory.
+    ///
+    /// `input` contains the complete document bytes. `format` accepts `"docx"`,
+    /// `"xlsx"`, `"pptx"`, `"odt"`, `"ods"`, `"odp"`, or `"epub"`.
+    /// `punctuation` controls punctuation conversion and `keep_font` preserves
+    /// supported font declarations. The returned byte array is the rebuilt file.
+    /// Invalid or unsupported input throws a JavaScript error.
     #[wasm_bindgen(js_name = convertOfficeBytes)]
     pub fn convert_office_bytes(
         &self,
@@ -292,12 +397,22 @@ impl OpenccWasm {
         .map_err(|e| JsValue::from_str(&e.to_string()))
     }
 
+    /// Runs a small internal conversion used for diagnostics.
+    ///
+    /// Returns the Traditional Chinese conversion of `"汉字"`. This method is
+    /// intended for debugging and environment checks rather than normal conversion.
     #[wasm_bindgen(js_name = debugPing)]
     pub fn debug_ping(&self) -> String {
         self.inner.convert("汉字", "s2t", false)
     }
 }
 
+/// Converts a ZIP-based Office or EPUB document entirely in memory without
+/// creating an [`OpenccWasm`] instance.
+///
+/// `config` is an OpenCC configuration name. `format` accepts `"docx"`, `"xlsx"`,
+/// `"pptx"`, `"odt"`, `"ods"`, `"odp"`, or `"epub"`. The returned byte array is
+/// the rebuilt document; invalid input produces a JavaScript error.
 #[wasm_bindgen]
 pub fn convert_office_bytes(
     input: &[u8],

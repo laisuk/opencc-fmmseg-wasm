@@ -729,6 +729,7 @@ opencc-fmmseg office -i input.docx -o output.docx -c s2t -p --keep-font
                               default when omitted value: all
 --keep-ids                  Preserve complete IDS expressions during conversion (default: false)
 -n, --norm-compat           Normalize CJK Compatibility Ideographs before conversion (default: false)
+-E, --norm-compat-extended  Normalize extended Unicode compatibility forms before conversion (default: false)
 -D, --custom-dict <slot:mode:file>
                             Load a custom dictionary.
                             May be specified multiple times.
