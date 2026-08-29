@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>opencc-fmmseg WASM test</title>
+    <title>Opencc-Fmmseg — CJK Conversion Tool</title>
 
     <style>
         body {
@@ -46,6 +46,41 @@
             white-space: pre-wrap;
         }
 
+        .office-drop {
+            margin-top: 16px;
+            padding: 24px;
+            border: 2px dashed #aaa;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .office-drop.dragover {
+            border-color: #555;
+            background: #f7f7f7;
+        }
+
+        .office-drop.disabled {
+            opacity: 0.55;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        .office-drop small {
+            display: block;
+            margin-top: 6px;
+        }
+
+        .office-result {
+            margin-top: 10px;
+            text-align: center;
+        }
+
+        .office-result[hidden] {
+            display: none;
+        }
+
         @media (max-width: 900px) {
             .editor-grid {
                 grid-template-columns: 1fr;
@@ -56,7 +91,7 @@
 
 <body>
 
-<h1>opencc-fmmseg WASM test</h1>
+<h1>Opencc-Fmmseg — CJK Conversion Tool</h1>
 
 <div class="row">
     <label for="config">Config:</label>
@@ -96,6 +131,17 @@
 
 <button id="btn">Convert</button>
 
+<div id="officeDrop" class="office-drop disabled" role="button" tabindex="0" aria-disabled="true">
+    <strong>Click to open or drop a document or EPUB here</strong>
+    <small>DOCX, XLSX, PPTX, EPUB — converted locally in your browser; nothing is uploaded</small>
+    <input id="officeFile" type="file" accept=".docx,.xlsx,.pptx,.epub" hidden>
+</div>
+
+<div id="officeResult" class="office-result" hidden>
+    <span id="officeResultText"></span>
+    <button id="officeDownloadBtn" type="button">Download converted file</button>
+</div>
+
 <h3>Status</h3>
 <pre id="out">Loading engine...</pre>
 
@@ -108,9 +154,16 @@
     import {defaultKeymap, history, historyKeymap} from "https://esm.sh/@codemirror/commands";
 
     const configInput = document.getElementById("config");
+    const officeDrop = document.getElementById("officeDrop");
+    const officeFile = document.getElementById("officeFile");
+    const officeResult = document.getElementById("officeResult");
+    const officeResultText = document.getElementById("officeResultText");
+    const officeDownloadBtn = document.getElementById("officeDownloadBtn");
     const out = document.getElementById("out");
 
     let cc = null;
+    let officeDownloadUrl = null;
+    let officeDownloadName = "";
 
     const editorLeft = createEditor(
         document.getElementById("editor-left"),
@@ -152,6 +205,8 @@
 
         document.getElementById("normalizeBtn").disabled = false;
         document.getElementById("btn").disabled = false;
+        officeDrop.classList.remove("disabled");
+        officeDrop.setAttribute("aria-disabled", "false");
 
         const version = OpenccWasm.version?.() ?? "unknown";
 
@@ -196,6 +251,149 @@
         });
     }
 
+
+    const officeMimeTypes = {
+        docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        epub: "application/epub+zip"
+    };
+
+    function getOfficeFormat(fileName) {
+        const dot = fileName.lastIndexOf(".");
+        return dot >= 0 ? fileName.slice(dot + 1).toLowerCase() : "";
+    }
+
+    function convertedFileName(fileName) {
+        const dot = fileName.lastIndexOf(".");
+
+        if (dot <= 0) {
+            return `${fileName}_converted`;
+        }
+
+        return `${fileName.slice(0, dot)}_converted${fileName.slice(dot)}`;
+    }
+
+    function clearOfficeResult() {
+        if (officeDownloadUrl) {
+            URL.revokeObjectURL(officeDownloadUrl);
+        }
+
+        officeDownloadUrl = null;
+        officeDownloadName = "";
+        officeResultText.textContent = "";
+        officeResult.hidden = true;
+    }
+
+    async function convertOfficeFile(file) {
+        if (!cc) {
+            out.textContent = "Engine is not loaded yet.";
+            return;
+        }
+
+        clearOfficeResult();
+
+        const format = getOfficeFormat(file.name);
+
+        if (!(format in officeMimeTypes)) {
+            out.textContent = `Unsupported document format: ${format || "unknown"}`;
+            return;
+        }
+
+        try {
+            out.textContent = `Converting ${file.name} (${cc.getConfig()})...`;
+
+            // Yield once so the browser can paint the status before Office conversion.
+            await new Promise(requestAnimationFrame);
+
+            const inputBytes = new Uint8Array(await file.arrayBuffer());
+            const startTime = performance.now();
+
+            const punctuation =
+                document.getElementById("punctuation").checked;
+
+            const outputBytes = cc.convertOfficeBytes(
+                inputBytes,
+                format,
+                punctuation,
+                true
+            );
+
+            const conversionMs = performance.now() - startTime;
+            const blob = new Blob([outputBytes], {
+                type: officeMimeTypes[format]
+            });
+
+            officeDownloadUrl = URL.createObjectURL(blob);
+            officeDownloadName = convertedFileName(file.name);
+
+            officeResultText.textContent = `Ready: ${officeDownloadName} `;
+            officeResult.hidden = false;
+
+            out.textContent =
+                `Document conversion completed.\n` +
+                `Config: ${cc.getConfig()}\n` +
+                `Punctuation: ${punctuation ? "enabled" : "disabled"}\n` +
+                `Input: ${file.name}\n` +
+                `Output: ${officeDownloadName}\n` +
+                `Conversion time: ${conversionMs.toFixed(2)} ms\n` +
+                `Click Download converted file when ready.`;
+        } catch (err) {
+            out.textContent = `Document conversion failed: ${err instanceof Error ? err.message : err}`;
+            console.error(err);
+        } finally {
+            officeFile.value = "";
+        }
+    }
+
+
+    officeDownloadBtn.addEventListener("click", () => {
+        if (!officeDownloadUrl || !officeDownloadName) {
+            return;
+        }
+
+        const a = document.createElement("a");
+        a.href = officeDownloadUrl;
+        a.download = officeDownloadName;
+        a.click();
+    });
+
+    officeDrop.addEventListener("click", () => officeFile.click());
+
+    officeDrop.addEventListener("keydown", event => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            officeFile.click();
+        }
+    });
+
+    officeDrop.addEventListener("dragover", event => {
+        event.preventDefault();
+        officeDrop.classList.add("dragover");
+    });
+
+    officeDrop.addEventListener("dragleave", () => {
+        officeDrop.classList.remove("dragover");
+    });
+
+    officeDrop.addEventListener("drop", event => {
+        event.preventDefault();
+        officeDrop.classList.remove("dragover");
+
+        const file = event.dataTransfer?.files?.[0];
+        if (file) {
+            void convertOfficeFile(file);
+        }
+    });
+
+    officeFile.addEventListener("change", () => {
+        const file = officeFile.files?.[0];
+        if (file) {
+            void convertOfficeFile(file);
+        }
+    });
+
+    window.addEventListener("beforeunload", clearOfficeResult);
 
     configInput.addEventListener("change", () => {
         if (!cc) {

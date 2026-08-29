@@ -36,7 +36,7 @@ Package profile:
 
 Try `opencc-fmmseg-wasm` directly in your browser:
 
-**[Open the live WASM demo](https://laisuk.github.io/opencc-fmmseg-wasm/)**
+**[Open the live WASM demo: CJK Conversion Tool](https://laisuk.github.io/opencc-fmmseg-wasm/)**
 
 No installation or server backend required.
 

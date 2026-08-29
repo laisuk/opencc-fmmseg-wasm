@@ -14,7 +14,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Update Demo Page codes
+- Update Demo Page codes to `CJK Conversion Tool` which include plain text and Office document/EPUB conversion.
 
 ---
 
