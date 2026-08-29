@@ -75,6 +75,7 @@
     <div>
         <h3>Input</h3>
         <button id="pasteBtn">Paste</button>
+        <button id="normalizeBtn">Normalize</button>
         <button id="clearInputBtn">Clear</button>
         <div id="editor-left" class="editor-box"></div>
     </div>
@@ -125,6 +126,7 @@
     );
 
     document.getElementById("setConfigBtn").disabled = true;
+    document.getElementById("normalizeBtn").disabled = true;
     document.getElementById("btn").disabled = true;
 
     try {
@@ -151,6 +153,7 @@
         document.getElementById("supported").textContent = configs.join(", ");
 
         document.getElementById("setConfigBtn").disabled = false;
+        document.getElementById("normalizeBtn").disabled = false;
         document.getElementById("btn").disabled = false;
 
         const version = OpenccWasm.version?.() ?? "unknown";
@@ -229,6 +232,21 @@
             out.textContent = "Copy failed. Browser may have blocked clipboard access.";
             console.error(err);
         }
+    };
+
+    document.getElementById("normalizeBtn").onclick = () => {
+        if (!cc) {
+            out.textContent = "Engine is not loaded yet.";
+            return;
+        }
+
+        const text = getEditorText(editorLeft);
+        const normalized = cc.normalizeCompatExtended(text);
+
+        setEditorText(editorLeft, normalized);
+        editorLeft.focus();
+
+        out.textContent = "Input normalized with extended Unicode compatibility normalization.";
     };
 
     document.getElementById("clearInputBtn").onclick = () => {
