@@ -63,7 +63,6 @@
 
     <select id="config"></select>
 
-    <button id="setConfigBtn">Set Config</button>
 </div>
 
 <div class="row">
@@ -125,7 +124,6 @@
         true
     );
 
-    document.getElementById("setConfigBtn").disabled = true;
     document.getElementById("normalizeBtn").disabled = true;
     document.getElementById("btn").disabled = true;
 
@@ -152,7 +150,6 @@
 
         document.getElementById("supported").textContent = configs.join(", ");
 
-        document.getElementById("setConfigBtn").disabled = false;
         document.getElementById("normalizeBtn").disabled = false;
         document.getElementById("btn").disabled = false;
 
@@ -200,7 +197,12 @@
     }
 
 
-    document.getElementById("setConfigBtn").onclick = () => {
+    configInput.addEventListener("change", () => {
+        if (!cc) {
+            out.textContent = "Engine is not loaded yet.";
+            return;
+        }
+
         const config = configInput.value.trim();
 
         if (!OpenccWasm.isValidConfig(config)) {
@@ -210,7 +212,7 @@
 
         cc.setConfig(config);
         out.textContent = `Current config set to: ${cc.getConfig()}`;
-    };
+    });
 
     document.getElementById("pasteBtn").onclick = async () => {
         try {

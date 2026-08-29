@@ -6,6 +6,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.1] - Unreleased
+
+### Added
+
+- Added Live Demo Page link in `README.md`
+
+### Changed
+
+- Update Demo Page codes
+
+---
+
 ## [0.4.0] - 2026-08-29
 
 ### Added
