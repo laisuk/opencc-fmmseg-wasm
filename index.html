@@ -129,6 +129,8 @@
     </label>
 </div>
 
+<input id="textFile" type="file" accept=".txt,.md" hidden>
+<button id="openFileBtn">Open File</button>
 <button id="btn">Convert</button>
 
 <div id="officeDrop" class="office-drop disabled" role="button" tabindex="0" aria-disabled="true">
@@ -254,6 +256,34 @@
         });
     }
 
+    const textFile = document.getElementById("textFile");
+
+    document.getElementById("openFileBtn").onclick = () => {
+        textFile.click();
+    };
+
+    textFile.addEventListener("change", async () => {
+        const file = textFile.files?.[0];
+        if (!file) {
+            return;
+        }
+
+        try {
+            const text = await file.text();
+
+            setEditorText(editorLeft, text);
+            editorLeft.focus();
+
+            out.textContent =
+                `Opened ${file.name} (${Array.from(text).length.toLocaleString()} characters).`;
+        } catch (err) {
+            out.textContent =
+                `Failed to open file: ${err instanceof Error ? err.message : err}`;
+            console.error(err);
+        } finally {
+            textFile.value = "";
+        }
+    });
 
     const documentMimeTypes = {
         docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
