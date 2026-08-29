@@ -20,6 +20,17 @@
             margin-top: 10px;
         }
 
+        .config-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .config-row select {
+            margin-top: 0;
+        }
+
         .editor-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -93,10 +104,10 @@
 
 <h1>Opencc-Fmmseg — CJK Conversion Tool</h1>
 
-<div class="row">
+<div class="row config-row">
     <label for="config">Config:</label>
-
     <select id="config"></select>
+    <span id="configDescription"></span>
 
 </div>
 
@@ -159,12 +170,46 @@
     import {defaultKeymap, history, historyKeymap} from "https://esm.sh/@codemirror/commands";
 
     const configInput = document.getElementById("config");
+    const configDescription = document.getElementById("configDescription");
     const officeDrop = document.getElementById("officeDrop");
     const officeFile = document.getElementById("officeFile");
     const officeResult = document.getElementById("officeResult");
     const officeResultText = document.getElementById("officeResultText");
     const officeDownloadBtn = document.getElementById("officeDownloadBtn");
     const out = document.getElementById("out");
+
+    const configDescriptions = {
+        s2t: "Simplified Chinese → Traditional Chinese",
+        t2s: "Traditional Chinese → Simplified Chinese",
+
+        s2tw: "Simplified Chinese → Traditional Chinese (Taiwan)",
+        s2twp: "Simplified Chinese → Traditional Chinese (Taiwan, phrases)",
+        tw2s: "Traditional Chinese (Taiwan) → Simplified Chinese",
+        tw2sp: "Traditional Chinese (Taiwan, phrases) → Simplified Chinese",
+
+        s2hk: "Simplified Chinese → Traditional Chinese (Hong Kong)",
+        s2hkp: "Simplified Chinese → Traditional Chinese (Hong Kong, phrases)",
+        hk2s: "Traditional Chinese (Hong Kong) → Simplified Chinese",
+        hk2sp: "Traditional Chinese (Hong Kong, phrases) → Simplified Chinese",
+
+        t2tw: "Traditional Chinese → Traditional Chinese (Taiwan)",
+        t2twp: "Traditional Chinese → Traditional Chinese (Taiwan, phrases)",
+        tw2t: "Traditional Chinese (Taiwan) → Traditional Chinese",
+        tw2tp: "Traditional Chinese (Taiwan, phrases) → Traditional Chinese",
+
+        t2hk: "Traditional Chinese → Traditional Chinese (Hong Kong)",
+        t2hkp: "Traditional Chinese → Traditional Chinese (Hong Kong, phrases)",
+        hk2t: "Traditional Chinese (Hong Kong) → Traditional Chinese",
+        hk2tp: "Traditional Chinese (Hong Kong, phrases) → Traditional Chinese",
+
+        t2jp: "Traditional Chinese → Japanese Shinjitai",
+        jp2t: "Japanese Shinjitai → Traditional Chinese"
+    };
+
+    function updateConfigDescription() {
+        configDescription.textContent =
+            configDescriptions[configInput.value] ?? "";
+    }
 
     let cc = null;
     let officeDownloadUrl = null;
@@ -206,6 +251,7 @@
             configInput.appendChild(option);
         }
 
+        updateConfigDescription()
         document.getElementById("supported").textContent = configs.join(", ");
 
         document.getElementById("normalizeBtn").disabled = false;
@@ -388,7 +434,6 @@
         }
     }
 
-
     officeDownloadBtn.addEventListener("click", () => {
         if (!officeDownloadUrl || !officeDownloadName) {
             return;
@@ -451,6 +496,7 @@
         }
 
         cc.setConfig(config);
+        updateConfigDescription();
         out.textContent = `Current config set to: ${cc.getConfig()}`;
     });
 
