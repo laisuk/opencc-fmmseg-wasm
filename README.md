@@ -48,25 +48,27 @@ No installation or server backend required.
 npm install @laisuk/opencc-fmmseg-wasm
 ```
 
+Or installation from the mirror package:
+
+```bash
+npm install opencc-fmmseg-wasm
+```
+
 ---
 
 ## Quick Start
 
 ```javascript
 import init, {
-    OpenccWasm,
-    DetofuLevelWasm
+    OpenccWasm
 } from "@laisuk/opencc-fmmseg-wasm";
 
 await init();
 
-const cc = new OpenccWasm("t2s");
+const cc = new OpenccWasm("s2t");
 
-console.log(cc.convert("漢字", false));
-// 汉字
-
-console.log(cc.convertDetofu("儼驂騑於上路", false, DetofuLevelWasm.ExtB));
-// 俨骖騑于上路
+console.log(cc.convert("汉字转换测试", false));
+// 漢字轉換測試
 ```
 
 ---
@@ -90,13 +92,22 @@ Example:
 const cc = new OpenccWasm("t2s");
 ```
 
+Taiwan phrase config example:
+
+```javascript
+const cc = new OpenccWasm("s2twp");
+
+cc.convert("预订‘奔驰’品牌出租车", true);
+// 預訂『賓士』品牌計程車
+```
+
 Hong Kong phrase config example:
 
 ```javascript
-const cc = new OpenccWasm("s2hkp");
+const cc = new OpenccWasm("hk2sp");
 
-cc.convert("别随便录影侵犯个人隐私权", false);
-// 別隨便錄影侵犯個人私隱權
+cc.convert("作業系統加密保護個人私隱權", false);
+// 操作系统加密保护个人隐私权
 ```
 
 ---
@@ -552,8 +563,8 @@ const cc = OpenccWasm.newWithEnum(
     OpenccConfigWasm.S2hkp
 );
 
-console.log(cc.convert("别随便录影侵犯个人隐私权", false));
-// 別隨便錄影侵犯個人私隱權
+console.log(cc.convert("操作系统加密保护个人隐私权", false));
+// 作業系統加密保護個人私隱權
 ```
 
 ---
@@ -706,7 +717,7 @@ The package includes a zero-dependency Node.js CLI:
 ```bash
 opencc-fmmseg convert -i input.txt -o output.txt -c s2t -p
 opencc-fmmseg convert -i input.txt -o output.txt -c t2s -p --detofu all
-echo "别随便录影侵犯个人隐私权" | opencc-fmmseg convert -c s2hkp
+echo "操作系统加密保护个人隐私权" | opencc-fmmseg convert -c s2hkp
 echo "天龍八部書裡的喬峰是契丹人" | opencc-fmmseg convert -c t2s --norm-compat
 // 天龙八部书里的乔峰是契丹人
 echo "這個細路哥很靈活" | opencc-fmmseg convert -c hk2sp --custom-dict hkphrasesrev:append:my_hk_dict.txt  
@@ -809,6 +820,7 @@ The WASM-facing enum is exported as `OpenccConfigWasm`, alongside `OpenccWasm`.
 - C API: https://github.com/laisuk/opencc-fmmseg/tree/master/capi/opencc-fmmseg-capi
 - .NET: https://github.com/laisuk/OpenccNet
 - Python: https://github.com/laisuk/opencc_purepy
+- Java: https://github.com/laisuk/OpenccJava
 
 ---
 
