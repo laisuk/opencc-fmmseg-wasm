@@ -505,6 +505,7 @@
 
         out.textContent =
             `Config: ${cc.getConfig()}\n` +
+            `Punctuation: ${punctuation ? "enabled" : "disabled"}\n` +
             `Characters processed: ${inputCharCount.toLocaleString()}\n` +
             `Output characters: ${outputCharCount.toLocaleString()}\n` +
             `Conversion time: ${conversionMs.toFixed(2)} ms\n` +
