@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>opencc-fmmseg WASM test</title>
+
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 20px;
+        }
+
+        input, select, button {
+            margin-top: 10px;
+            padding: 6px;
+            font-size: 14px;
+        }
+
+        .row {
+            margin-top: 10px;
+        }
+
+        .editor-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 10px;
+        }
+
+        .editor-box {
+            border: 1px solid #ccc;
+        }
+
+        .cm-editor {
+            height: 360px;
+            font-size: 16px;
+        }
+
+        .cm-scroller {
+            font-family: Consolas, "Courier New", monospace;
+        }
+
+        pre {
+            background: #f3f3f3;
+            padding: 12px;
+            white-space: pre-wrap;
+        }
+
+        @media (max-width: 900px) {
+            .editor-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>opencc-fmmseg WASM test</h1>
+
+<div class="row">
+    <label for="config">Config:</label>
+
+    <select id="config"></select>
+
+    <button id="setConfigBtn">Set Config</button>
+</div>
+
+<div class="row">
+    <strong>Supported configs:</strong>
+    <span id="supported"></span>
+</div>
+
+<div class="editor-grid">
+    <div>
+        <h3>Input</h3>
+        <button id="pasteBtn">Paste</button>
+        <button id="normalizeBtn">Normalize</button>
+        <button id="clearInputBtn">Clear</button>
+        <div id="editor-left" class="editor-box"></div>
+    </div>
+
+    <div>
+        <h3>Output</h3>
+        <button id="copyBtn">Copy</button>
+        <button id="clearOutputBtn">Clear</button>
+        <div id="editor-right" class="editor-box"></div>
+    </div>
+</div>
+
+<div class="row">
+    <label>
+        <input type="checkbox" id="punctuation">
+        Enable punctuation conversion
+    </label>
+</div>
+
+<button id="btn">Convert</button>
+
+<h3>Status</h3>
+<pre id="out">Loading engine...</pre>
+
+<script type="module">
+    import init, {OpenccWasm} from "https://cdn.jsdelivr.net/npm/@laisuk/opencc-fmmseg-wasm/opencc_fmmseg_wasm.js";
+    // import init, {OpenccWasm} from "./pkg/opencc_fmmseg_wasm.js";
+
+    import {EditorState} from "https://esm.sh/@codemirror/state";
+    import {EditorView, keymap, lineNumbers} from "https://esm.sh/@codemirror/view";
+    import {defaultKeymap, history, historyKeymap} from "https://esm.sh/@codemirror/commands";
+
+    const configInput = document.getElementById("config");
+    const out = document.getElementById("out");
+
+    let cc = null;
+
+    const editorLeft = createEditor(
+        document.getElementById("editor-left"),
+        "汉字转换测试",
+        false
+    );
+
+    const editorRight = createEditor(
+        document.getElementById("editor-right"),
+        "",
+        true
+    );
+
+    document.getElementById("setConfigBtn").disabled = true;
+    document.getElementById("normalizeBtn").disabled = true;
+    document.getElementById("btn").disabled = true;
+
+    try {
+        out.textContent = "Loading engine...";
+
+        await init();
+
+        cc = new OpenccWasm();
+
+        const configs = OpenccWasm.getSupportedConfigs();
+
+        for (const config of configs) {
+            const option = document.createElement("option");
+            option.value = config;
+            option.textContent = config;
+
+            if (config === "s2t") {
+                option.selected = true;
+            }
+
+            configInput.appendChild(option);
+        }
+
+        document.getElementById("supported").textContent = configs.join(", ");
+
+        document.getElementById("setConfigBtn").disabled = false;
+        document.getElementById("normalizeBtn").disabled = false;
+        document.getElementById("btn").disabled = false;
+
+        const version = OpenccWasm.version?.() ?? "unknown";
+
+        out.textContent =
+            `Engine ${version === "unknown" ? "(legacy)" : `v${version}`} loaded. (${configs.length} configs available)`;
+    } catch (err) {
+        out.textContent = "Failed to load WASM engine.";
+        console.error(err);
+    }
+
+    function createEditor(parent, text, readOnly) {
+        return new EditorView({
+            parent,
+            state: EditorState.create({
+                doc: text,
+                extensions: [
+                    lineNumbers(),
+                    history(),
+                    keymap.of([
+                        ...defaultKeymap,
+                        ...historyKeymap
+                    ]),
+                    EditorView.lineWrapping,
+                    EditorView.editable.of(!readOnly),
+                    EditorState.readOnly.of(readOnly)
+                ]
+            })
+        });
+    }
+
+    function getEditorText(editor) {
+        return editor.state.doc.toString();
+    }
+
+    function setEditorText(editor, text) {
+        editor.dispatch({
+            changes: {
+                from: 0,
+                to: editor.state.doc.length,
+                insert: text
+            }
+        });
+    }
+
+
+    document.getElementById("setConfigBtn").onclick = () => {
+        const config = configInput.value.trim();
+
+        if (!OpenccWasm.isValidConfig(config)) {
+            out.textContent = `Invalid config: ${config}`;
+            return;
+        }
+
+        cc.setConfig(config);
+        out.textContent = `Current config set to: ${cc.getConfig()}`;
+    };
+
+    document.getElementById("pasteBtn").onclick = async () => {
+        try {
+            const text = await navigator.clipboard.readText();
+            setEditorText(editorLeft, text);
+            out.textContent = "Pasted clipboard text into input.";
+        } catch (err) {
+            out.textContent = "Paste failed. Browser may have blocked clipboard access.";
+            console.error(err);
+        }
+    };
+
+    document.getElementById("copyBtn").onclick = async () => {
+        try {
+            const text = getEditorText(editorRight);
+            await navigator.clipboard.writeText(text);
+            out.textContent = "Copied output to clipboard.";
+        } catch (err) {
+            out.textContent = "Copy failed. Browser may have blocked clipboard access.";
+            console.error(err);
+        }
+    };
+
+    document.getElementById("normalizeBtn").onclick = () => {
+        if (!cc) {
+            out.textContent = "Engine is not loaded yet.";
+            return;
+        }
+
+        const text = getEditorText(editorLeft);
+        const normalized = cc.normalizeCompatExtended(text);
+
+        setEditorText(editorLeft, normalized);
+        editorLeft.focus();
+
+        out.textContent = "Input normalized with extended Unicode compatibility normalization.";
+    };
+
+    document.getElementById("clearInputBtn").onclick = () => {
+        setEditorText(editorLeft, "");
+        editorLeft.focus();
+        out.textContent = "Input cleared.";
+    };
+
+    document.getElementById("clearOutputBtn").onclick = () => {
+        setEditorText(editorRight, "");
+        out.textContent = "Output cleared.";
+    };
+
+    document.getElementById("btn").onclick = () => {
+        if (!cc) {
+            out.textContent = "Engine is not loaded yet.";
+            return;
+        }
+
+        const text = getEditorText(editorLeft);
+
+        const punctuation =
+            document.getElementById("punctuation").checked;
+
+        const converted =
+            cc.convert(text, punctuation);
+
+        const inputCharCount = Array.from(text).length;
+        const outputCharCount = Array.from(converted).length;
+
+        const check =
+            cc.zhoCheck(converted);
+
+        const language =
+            check === 1 ? "Traditional Chinese" :
+                check === 2 ? "Simplified Chinese" :
+                    "Other";
+
+        setEditorText(editorRight, converted);
+
+        out.textContent =
+            `Config: ${cc.getConfig()}\n` +
+            `Characters processed: ${inputCharCount.toLocaleString()}\n` +
+            `Output characters: ${outputCharCount.toLocaleString()}\n` +
+            `Output language detected: ${language}`;
+    };
+</script>
+
+</body>
+</html>
