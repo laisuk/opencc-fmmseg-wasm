@@ -271,8 +271,11 @@
         const punctuation =
             document.getElementById("punctuation").checked;
 
-        const converted =
-            cc.convert(text, punctuation);
+        // Measure only the WASM/OpenCC conversion itself.
+        // CodeMirror updates, character counting, and zhoCheck are excluded.
+        const startTime = performance.now();
+        const converted = cc.convert(text, punctuation);
+        const conversionMs = performance.now() - startTime;
 
         const inputCharCount = Array.from(text).length;
         const outputCharCount = Array.from(converted).length;
@@ -287,10 +290,15 @@
 
         setEditorText(editorRight, converted);
 
+        const charsPerSecond =
+            conversionMs > 0 ? inputCharCount / (conversionMs / 1000) : 0;
+
         out.textContent =
             `Config: ${cc.getConfig()}\n` +
             `Characters processed: ${inputCharCount.toLocaleString()}\n` +
             `Output characters: ${outputCharCount.toLocaleString()}\n` +
+            `Conversion time: ${conversionMs.toFixed(2)} ms\n` +
+            `Throughput: ${(charsPerSecond / 1_000_000).toFixed(2)}M chars/sec\n` +
             `Output language detected: ${language}`;
     };
 </script>
