@@ -132,9 +132,12 @@
 <button id="btn">Convert</button>
 
 <div id="officeDrop" class="office-drop disabled" role="button" tabindex="0" aria-disabled="true">
-    <strong>Click to open or drop a document or EPUB here</strong>
-    <small>DOCX, XLSX, PPTX, EPUB — converted locally in your browser; nothing is uploaded</small>
-    <input id="officeFile" type="file" accept=".docx,.xlsx,.pptx,.epub" hidden>
+    <strong>Click to open or drop a document, EPUB or text file here</strong>
+    <small>DOCX, XLSX, PPTX, EPUB, TXT — converted locally in your browser; nothing is uploaded</small>
+    <input id="officeFile"
+           type="file"
+           accept=".docx,.xlsx,.pptx,.epub,.txt"
+           hidden>
 </div>
 
 <div id="officeResult" class="office-result" hidden>
@@ -252,11 +255,12 @@
     }
 
 
-    const officeMimeTypes = {
+    const documentMimeTypes = {
         docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        epub: "application/epub+zip"
+        epub: "application/epub+zip",
+        txt: "text/plain;charset=utf-8"
     };
 
     function getOfficeFormat(fileName) {
@@ -295,7 +299,7 @@
 
         const format = getOfficeFormat(file.name);
 
-        if (!(format in officeMimeTypes)) {
+        if (!(format in documentMimeTypes)) {
             out.textContent = `Unsupported document format: ${format || "unknown"}`;
             return;
         }
@@ -312,16 +316,24 @@
             const punctuation =
                 document.getElementById("punctuation").checked;
 
-            const outputBytes = cc.convertOfficeBytes(
-                inputBytes,
-                format,
-                punctuation,
-                true
-            );
+            let outputBytes;
+
+            if (format === "txt") {
+                const text = new TextDecoder("utf-8").decode(inputBytes);
+                const converted = cc.convert(text, punctuation);
+                outputBytes = new TextEncoder().encode(converted);
+            } else {
+                outputBytes = cc.convertOfficeBytes(
+                    inputBytes,
+                    format,
+                    punctuation,
+                    true
+                );
+            }
 
             const conversionMs = performance.now() - startTime;
             const blob = new Blob([outputBytes], {
-                type: officeMimeTypes[format]
+                type: documentMimeTypes[format]
             });
 
             officeDownloadUrl = URL.createObjectURL(blob);
