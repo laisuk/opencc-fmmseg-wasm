@@ -288,8 +288,6 @@
                 check === 2 ? "Simplified Chinese" :
                     "Other";
 
-        setEditorText(editorRight, converted);
-
         const charsPerSecond =
             conversionMs > 0 ? inputCharCount / (conversionMs / 1000) : 0;
 
@@ -300,6 +298,12 @@
             `Conversion time: ${conversionMs.toFixed(2)} ms\n` +
             `Throughput: ${(charsPerSecond / 1_000_000).toFixed(2)}M chars/sec\n` +
             `Output language detected: ${language}`;
+
+        // Let the browser paint the status first, then update CodeMirror.
+        // This keeps the UI responsive when replacing very large documents.
+        requestAnimationFrame(() => {
+            setEditorText(editorRight, converted);
+        });
     };
 </script>
 
