@@ -11,11 +11,13 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ### Added
 
 - Added `OpenccWasm.normalizeCompatExtended()` and `OpenccWasm.normalizeUnicodeCompat()`.
+- Added extended Unicode compatibility normalization to the Node.js CLI via
+  `-E` / `--norm-compat-extended`.
 
 ### Changed
 
 - Updated dictionary data.
-- Updated `opencc-fmmseg` native to `v0.12.0`.
+- Updated the vendored `opencc-fmmseg` backend to `v0.12.0`.
 - CLI: Optimized error handling.
 
 ---

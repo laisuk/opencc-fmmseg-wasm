@@ -396,15 +396,6 @@ impl OpenccWasm {
         .map(|(bytes, _)| bytes)
         .map_err(|e| JsValue::from_str(&e.to_string()))
     }
-
-    /// Runs a small internal conversion used for diagnostics.
-    ///
-    /// Returns the Traditional Chinese conversion of `"汉字"`. This method is
-    /// intended for debugging and environment checks rather than normal conversion.
-    #[wasm_bindgen(js_name = debugPing)]
-    pub fn debug_ping(&self) -> String {
-        self.inner.convert("汉字", "s2t", false)
-    }
 }
 
 /// Converts a ZIP-based Office or EPUB document entirely in memory without

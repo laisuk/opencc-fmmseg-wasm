@@ -29,7 +29,7 @@ Package profile:
 
 - 0 runtime dependencies
 - 1 WASM file
-- 18 conversion configs
+- 20 conversion configs
 - 100% offline
 
 ---
@@ -52,10 +52,10 @@ import init, {
 
 await init();
 
-const cc = new OpenccWasm("s2t");
+const cc = new OpenccWasm("t2s");
 
-console.log(cc.convert("汉字", false));
-// 漢字
+console.log(cc.convert("漢字", false));
+// 汉字
 
 console.log(cc.convertDetofu("儼驂騑於上路", false, DetofuLevelWasm.ExtB));
 // 俨骖騑于上路
