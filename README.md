@@ -12,25 +12,25 @@ This package provides high-quality Simplified Chinese ↔ Traditional Chinese co
 
 Features:
 
-* OpenCC-compatible conversion configs
-* Pure WebAssembly (no native binaries)
-* Browser-friendly
-* TypeScript-friendly APIs
-* Fast Rust backend
-* FMM-based phrase segmentation
-* Traditional Chinese regional variants
-* Japanese Shinjitai conversion support
-* Chinese script detection (`zho_check`)
-* Optional CJK Compatibility Ideograph normalization
-* In-memory Office / EPUB document conversion
-* Zero-dependency Node.js CLI
+- OpenCC-compatible conversion configs
+- Pure WebAssembly (no native binaries)
+- Browser-friendly
+- TypeScript-friendly APIs
+- Fast Rust backend
+- FMM-based phrase segmentation
+- Traditional Chinese regional variants
+- Japanese Shinjitai conversion support
+- Chinese script detection (`zho_check`)
+- Optional CJK Compatibility Ideograph normalization
+- In-memory Office / EPUB document conversion
+- Zero-dependency Node.js CLI
 
 Package profile:
 
-* 0 runtime dependencies
-* 1 WASM file
-* 18 conversion configs
-* 100% offline
+- 0 runtime dependencies
+- 1 WASM file
+- 18 conversion configs
+- 100% offline
 
 ---
 
@@ -63,56 +63,6 @@ console.log(cc.convertDetofu("儼驂騑於上路", false, DetofuLevelWasm.ExtB))
 
 ---
 
-## Using Config Enums
-
-```javascript
-import init, {
-    OpenccWasm,
-    OpenccConfigWasm
-} from "@laisuk/opencc-fmmseg-wasm";
-
-await init();
-
-const cc = OpenccWasm.newWithEnum(
-    OpenccConfigWasm.S2hkp
-);
-
-console.log(cc.convert("别随便录影侵犯个人隐私权", false));
-// 別隨便錄影侵犯個人私隱權
-```
-
----
-
-## Supported Configs
-
-| Config  | Enum                     | Description                                           |
-|---------|--------------------------|-------------------------------------------------------|
-| `s2t`   | `OpenccConfigWasm.S2t`   | Simplified Chinese → Traditional Chinese              |
-| `s2tw`  | `OpenccConfigWasm.S2tw`  | Simplified Chinese → Taiwan Traditional               |
-| `s2twp` | `OpenccConfigWasm.S2twp` | Simplified Chinese → Taiwan Traditional (phrases)     |
-| `s2hk`  | `OpenccConfigWasm.S2hk`  | Simplified Chinese → Hong Kong Traditional            |
-| `s2hkp` | `OpenccConfigWasm.S2hkp` | Simplified Chinese → Hong Kong Traditional (phrases)  |
-| `t2s`   | `OpenccConfigWasm.T2s`   | Traditional Chinese → Simplified Chinese              |
-| `t2tw`  | `OpenccConfigWasm.T2tw`  | Traditional Chinese → Taiwan Traditional              |
-| `t2twp` | `OpenccConfigWasm.T2twp` | Traditional Chinese → Taiwan Traditional (phrases)    |
-| `t2hk`  | `OpenccConfigWasm.T2hk`  | Traditional Chinese → Hong Kong Traditional           |
-| `t2hkp` | `OpenccConfigWasm.T2hkp` | Traditional Chinese → Hong Kong Traditional (phrases) |
-| `tw2s`  | `OpenccConfigWasm.Tw2s`  | Taiwan Traditional → Simplified Chinese               |
-| `tw2sp` | `OpenccConfigWasm.Tw2sp` | Taiwan Traditional → Simplified Chinese (phrases)     |
-| `tw2t`  | `OpenccConfigWasm.Tw2t`  | Taiwan Traditional → Traditional Chinese              |
-| `tw2tp` | `OpenccConfigWasm.Tw2tp` | Taiwan Traditional → Traditional Chinese (phrases)    |
-| `hk2s`  | `OpenccConfigWasm.Hk2s`  | Hong Kong Traditional → Simplified Chinese            |
-| `hk2sp` | `OpenccConfigWasm.Hk2sp` | Hong Kong Traditional → Simplified Chinese (phrases)  |
-| `hk2t`  | `OpenccConfigWasm.Hk2t`  | Hong Kong Traditional → Traditional Chinese           |
-| `hk2tp` | `OpenccConfigWasm.Hk2tp` | Hong Kong Traditional → Traditional Chinese (phrases) |
-| `jp2t`  | `OpenccConfigWasm.Jp2t`  | Japanese Shinjitai → Traditional Chinese              |
-| `t2jp`  | `OpenccConfigWasm.T2jp`  | Traditional Chinese → Japanese Shinjitai              |
-
-The numeric enum values match the vendored Rust backend. Existing values are unchanged; `S2hkp = 17`, `Hk2sp = 18`,
-`T2hkp = 19`, and `Hk2tp = 20`.
-
----
-
 ## API
 
 ### Constructor
@@ -123,8 +73,8 @@ const cc = new OpenccWasm("s2t");
 
 Parameters:
 
-* `config` (optional): OpenCC config string
-* default: `"s2t"`
+- `config` (optional): OpenCC config string
+- default: `"s2t"`
 
 Example:
 
@@ -151,213 +101,17 @@ cc.convert(text, punctuation)
 
 Parameters:
 
-* `text`: input string
-* `punctuation`: whether to convert punctuation variants
+- `text`: input string
+- `punctuation`: whether to convert punctuation variants
 
 Returns:
 
-* converted string
+- converted string
 
 Example:
 
 ```javascript
 cc.convert("汉字", false);
-```
-
----
-
-### normalizeCompat
-
-Normalize Unicode CJK Compatibility Ideographs before conversion.
-
-```javascript
-cc.normalizeCompat(text)
-```
-
-Parameters:
-
-* `text`: input string
-
-Returns:
-
-* normalized string
-
-Example:
-
-```javascript
-const cc = new OpenccWasm("t2s");
-
-const input = "天龍八部書裡的喬峰是契丹人";
-const normalized = cc.normalizeCompat(input);
-
-console.log(normalized);
-// 天龍八部書裡的喬峰是契丹人
-
-console.log(cc.convert(normalized, false));
-// 天龙八部书里的乔峰是契丹人
-```
-
-This is an optional pre-conversion pass for text that contains CJK Compatibility Ideographs. Unmapped characters are
-preserved unchanged. Normal OpenCC conversion does not automatically run this pass, so call it explicitly when
-compatibility normalization is desired.
-
-### normalizeUnicodeCompat
-
-Normalize additional Unicode compatibility forms, CJK radicals, allographs, legacy glyphs, and selected
-compatibility-like punctuation before conversion.
-
-```javascript
-cc.normalizeUnicodeCompat(text)
-```
-
-Parameters:
-
-* `text`: input string
-
-Returns:
-
-* normalized string
-
-Example:
-
-```javascript
-const cc = new OpenccWasm("t2s");
-
-const input = "聼聼竒羙⽟䂖甁噐⾳";
-const normalized = cc.normalizeUnicodeCompat(input);
-
-console.log(normalized);
-// 聽聽奇美玉石瓶器音
-
-console.log(cc.convert(normalized, false));
-// 听听奇美玉石瓶器音
-```
-
-This pass uses the extended Unicode compatibility table and is separate from `normalizeCompat()`. It is useful for text
-containing radical forms, historical or allographic Han forms, and other compatibility-like characters that are not
-covered by the CJK Compatibility Ideograph ranges.
-
-Unmapped characters are preserved unchanged.
-
-### normalizeCompatExtended
-
-Apply complete compatibility normalization before conversion.
-
-```javascript
-cc.normalizeCompatExtended(text)
-```
-
-Parameters:
-
-* `text`: input string
-
-Returns:
-
-* normalized string
-
-Example:
-
-```javascript
-const cc = new OpenccWasm("t2s");
-
-const input = "天龍八部書裡的聼眾";
-const normalized = cc.normalizeCompatExtended(input);
-
-console.log(normalized);
-// 天龍八部書裡的聽眾
-
-console.log(cc.convert(normalized, false));
-// 天龙八部书里的听众
-```
-
-`normalizeCompatExtended()` combines the extended Unicode compatibility table with CJK Compatibility Ideograph
-normalization. Use this when input may contain characters handled by either normalization set.
-
-The normalization order is:
-
-1. extended Unicode compatibility normalization;
-2. CJK Compatibility Ideograph normalization.
-
-Normal OpenCC conversion does not automatically perform compatibility normalization. Call this method explicitly before
-`convert()` when complete compatibility normalization is desired.
-
----
-
-### detofu
-
-Replace tofu-risk rare CJK extension characters with display-compatible fallbacks.
-
-```javascript
-cc.detofu(text, level)
-```
-
-Parameters:
-
-* `text`: input string
-* `level`: `DetofuLevelWasm` threshold for the CJK extension ranges to replace
-
-Returns:
-
-* detofu-safe string
-
-Supported levels:
-
-| Enum                   | CLI value |
-|------------------------|-----------|
-| `DetofuLevelWasm.ExtB` | `ext-b`   |
-| `DetofuLevelWasm.ExtC` | `ext-c`   |
-| `DetofuLevelWasm.ExtD` | `ext-d`   |
-| `DetofuLevelWasm.ExtE` | `ext-e`   |
-| `DetofuLevelWasm.ExtF` | `ext-f`   |
-| `DetofuLevelWasm.ExtG` | `ext-g`   |
-| `DetofuLevelWasm.ExtH` | `ext-h`   |
-| `DetofuLevelWasm.ExtI` | `ext-i`   |
-
-Example:
-
-```javascript
-import init, {
-    OpenccWasm,
-    DetofuLevelWasm
-} from "@laisuk/opencc-fmmseg-wasm";
-
-await init();
-
-const cc = new OpenccWasm("t2s");
-const converted = cc.convert("儼驂騑於上路", false);
-
-console.log(converted);
-// 俨骖𬴂于上路
-
-console.log(cc.detofu(converted, DetofuLevelWasm.ExtB));
-// 俨骖騑于上路
-```
-
----
-
-### convertDetofu
-
-Convert text and apply detofu in one call.
-
-```javascript
-cc.convertDetofu(text, punctuation, level)
-```
-
-Parameters:
-
-* `text`: input string
-* `punctuation`: whether to convert punctuation variants
-* `level`: `DetofuLevelWasm` threshold for the CJK extension ranges to replace
-
-Returns:
-
-* converted detofu-safe string
-
-Example:
-
-```javascript
-cc.convertDetofu("儼驂騑於上路", false, DetofuLevelWasm.ExtB);
-// 俨骖騑于上路
 ```
 
 ---
@@ -370,8 +124,8 @@ cc.setConfig("t2s");
 
 Returns:
 
-* `true` if valid
-* `false` if invalid
+- `true` if valid
+- `false` if invalid
 
 ---
 
@@ -441,6 +195,202 @@ Returns:
 
 ---
 
+### normalizeCompat
+
+Normalize Unicode CJK Compatibility Ideographs before conversion.
+
+```javascript
+cc.normalizeCompat(text)
+```
+
+Parameters:
+
+- `text`: input string
+
+Returns:
+
+- normalized string
+
+Example:
+
+```javascript
+const cc = new OpenccWasm("t2s");
+
+const input = "天龍八部書裡的喬峰是契丹人";
+const normalized = cc.normalizeCompat(input);
+
+console.log(normalized);
+// 天龍八部書裡的喬峰是契丹人
+
+console.log(cc.convert(normalized, false));
+// 天龙八部书里的乔峰是契丹人
+```
+
+This is an optional pre-conversion pass for text that contains CJK Compatibility Ideographs. Unmapped characters are
+preserved unchanged. Normal OpenCC conversion does not automatically run this pass, so call it explicitly when
+compatibility normalization is desired.
+
+### normalizeUnicodeCompat
+
+Normalize additional Unicode compatibility forms, CJK radicals, allographs, legacy glyphs, and selected
+compatibility-like punctuation before conversion.
+
+```javascript
+cc.normalizeUnicodeCompat(text)
+```
+
+Parameters:
+
+- `text`: input string
+
+Returns:
+
+- normalized string
+
+Example:
+
+```javascript
+const cc = new OpenccWasm("t2s");
+
+const input = "聼聼竒羙⽟䂖甁噐⾳";
+const normalized = cc.normalizeUnicodeCompat(input);
+
+console.log(normalized);
+// 聽聽奇美玉石瓶器音
+
+console.log(cc.convert(normalized, false));
+// 听听奇美玉石瓶器音
+```
+
+This pass uses the extended Unicode compatibility table and is separate from `normalizeCompat()`. It is useful for text
+containing radical forms, historical or allographic Han forms, and other compatibility-like characters that are not
+covered by the CJK Compatibility Ideograph ranges.
+
+Unmapped characters are preserved unchanged.
+
+### normalizeCompatExtended
+
+Apply complete compatibility normalization before conversion.
+
+```javascript
+cc.normalizeCompatExtended(text)
+```
+
+Parameters:
+
+- `text`: input string
+
+Returns:
+
+- normalized string
+
+Example:
+
+```javascript
+const cc = new OpenccWasm("t2s");
+
+const input = "天龍八部書裡的聼眾";
+const normalized = cc.normalizeCompatExtended(input);
+
+console.log(normalized);
+// 天龍八部書裡的聽眾
+
+console.log(cc.convert(normalized, false));
+// 天龙八部书里的听众
+```
+
+`normalizeCompatExtended()` combines the extended Unicode compatibility table with CJK Compatibility Ideograph
+normalization. Use this when input may contain characters handled by either normalization set.
+
+The normalization order is:
+
+1. extended Unicode compatibility normalization;
+2. CJK Compatibility Ideograph normalization.
+
+Normal OpenCC conversion does not automatically perform compatibility normalization. Call this method explicitly before
+`convert()` when complete compatibility normalization is desired.
+
+---
+
+### detofu
+
+Replace tofu-risk rare CJK extension characters with display-compatible fallbacks.
+
+```javascript
+cc.detofu(text, level)
+```
+
+Parameters:
+
+- `text`: input string
+- `level`: `DetofuLevelWasm` threshold for the CJK extension ranges to replace
+
+Returns:
+
+- detofu-safe string
+
+Supported levels:
+
+| Enum                   | CLI value |
+|------------------------|-----------|
+| `DetofuLevelWasm.ExtB` | `ext-b`   |
+| `DetofuLevelWasm.ExtC` | `ext-c`   |
+| `DetofuLevelWasm.ExtD` | `ext-d`   |
+| `DetofuLevelWasm.ExtE` | `ext-e`   |
+| `DetofuLevelWasm.ExtF` | `ext-f`   |
+| `DetofuLevelWasm.ExtG` | `ext-g`   |
+| `DetofuLevelWasm.ExtH` | `ext-h`   |
+| `DetofuLevelWasm.ExtI` | `ext-i`   |
+
+Example:
+
+```javascript
+import init, {
+    OpenccWasm,
+    DetofuLevelWasm
+} from "@laisuk/opencc-fmmseg-wasm";
+
+await init();
+
+const cc = new OpenccWasm("t2s");
+const converted = cc.convert("儼驂騑於上路", false);
+
+console.log(converted);
+// 俨骖𬴂于上路
+
+console.log(cc.detofu(converted, DetofuLevelWasm.ExtB));
+// 俨骖騑于上路
+```
+
+---
+
+### convertDetofu
+
+Convert text and apply detofu in one call.
+
+```javascript
+cc.convertDetofu(text, punctuation, level)
+```
+
+Parameters:
+
+- `text`: input string
+- `punctuation`: whether to convert punctuation variants
+- `level`: `DetofuLevelWasm` threshold for the CJK extension ranges to replace
+
+Returns:
+
+- converted detofu-safe string
+
+Example:
+
+```javascript
+cc.convertDetofu("儼驂騑於上路", false, DetofuLevelWasm.ExtB);
+// 俨骖騑于上路
+```
+
+---
+
 ### newWithCustomDicts
 
 Construct a converter with in-memory custom dictionary pairs.
@@ -451,8 +401,8 @@ const cc = OpenccWasm.newWithCustomDicts(config, specs);
 
 Parameters:
 
-* `config`: OpenCC config string, such as `"s2t"`
-* `specs`: array of custom dictionary specs
+- `config`: OpenCC config string, such as `"s2t"`
+- `specs`: array of custom dictionary specs
 
 TypeScript-style spec shape:
 
@@ -535,18 +485,68 @@ Suffixes such as `.txt` are not accepted, even though case and surrounding white
 
 Merge contract:
 
-* Custom dictionaries are loaded from in-memory pairs only; no file I/O is involved.
-* The embedded compressed CBOR dictionary is loaded first.
-* Custom specs are applied to `DictionaryMaxlength` before `OpenCC::from_dictionary(...)`.
-* Conversion hot paths remain immutable after construction.
-* `Append` mode merges into the selected slot.
-* Duplicate or conflicting keys use last-wins semantics.
-* `Override` mode clears the selected slot first, then inserts the provided custom pairs.
-* Multiple specs are applied in array order.
+- Custom dictionaries are loaded from in-memory pairs only; no file I/O is involved.
+- The embedded compressed CBOR dictionary is loaded first.
+- Custom specs are applied to `DictionaryMaxlength` before `OpenCC::from_dictionary(...)`.
+- Conversion hot paths remain immutable after construction.
+- `Append` mode merges into the selected slot.
+- Duplicate or conflicting keys use last-wins semantics.
+- `Override` mode clears the selected slot first, then inserts the provided custom pairs.
+- Multiple specs are applied in array order.
 
 This API is useful for browser apps, user-defined terminology, database-loaded terms, generated dictionaries,
 `localStorage` or `IndexedDB` terms, testing, and embedded WASM environments. Customization happens at construction
 time, not during conversion.
+
+---
+
+## Supported Configs
+
+| Config  | Enum                     | Description                                           |
+|---------|--------------------------|-------------------------------------------------------|
+| `s2t`   | `OpenccConfigWasm.S2t`   | Simplified Chinese → Traditional Chinese              |
+| `s2tw`  | `OpenccConfigWasm.S2tw`  | Simplified Chinese → Taiwan Traditional               |
+| `s2twp` | `OpenccConfigWasm.S2twp` | Simplified Chinese → Taiwan Traditional (phrases)     |
+| `s2hk`  | `OpenccConfigWasm.S2hk`  | Simplified Chinese → Hong Kong Traditional            |
+| `s2hkp` | `OpenccConfigWasm.S2hkp` | Simplified Chinese → Hong Kong Traditional (phrases)  |
+| `t2s`   | `OpenccConfigWasm.T2s`   | Traditional Chinese → Simplified Chinese              |
+| `t2tw`  | `OpenccConfigWasm.T2tw`  | Traditional Chinese → Taiwan Traditional              |
+| `t2twp` | `OpenccConfigWasm.T2twp` | Traditional Chinese → Taiwan Traditional (phrases)    |
+| `t2hk`  | `OpenccConfigWasm.T2hk`  | Traditional Chinese → Hong Kong Traditional           |
+| `t2hkp` | `OpenccConfigWasm.T2hkp` | Traditional Chinese → Hong Kong Traditional (phrases) |
+| `tw2s`  | `OpenccConfigWasm.Tw2s`  | Taiwan Traditional → Simplified Chinese               |
+| `tw2sp` | `OpenccConfigWasm.Tw2sp` | Taiwan Traditional → Simplified Chinese (phrases)     |
+| `tw2t`  | `OpenccConfigWasm.Tw2t`  | Taiwan Traditional → Traditional Chinese              |
+| `tw2tp` | `OpenccConfigWasm.Tw2tp` | Taiwan Traditional → Traditional Chinese (phrases)    |
+| `hk2s`  | `OpenccConfigWasm.Hk2s`  | Hong Kong Traditional → Simplified Chinese            |
+| `hk2sp` | `OpenccConfigWasm.Hk2sp` | Hong Kong Traditional → Simplified Chinese (phrases)  |
+| `hk2t`  | `OpenccConfigWasm.Hk2t`  | Hong Kong Traditional → Traditional Chinese           |
+| `hk2tp` | `OpenccConfigWasm.Hk2tp` | Hong Kong Traditional → Traditional Chinese (phrases) |
+| `jp2t`  | `OpenccConfigWasm.Jp2t`  | Japanese Shinjitai → Traditional Chinese              |
+| `t2jp`  | `OpenccConfigWasm.T2jp`  | Traditional Chinese → Japanese Shinjitai              |
+
+The numeric enum values match the vendored Rust backend. Existing values are unchanged; `S2hkp = 17`, `Hk2sp = 18`,
+`T2hkp = 19`, and `Hk2tp = 20`.
+
+---
+
+## Using Config Enums
+
+```javascript
+import init, {
+    OpenccWasm,
+    OpenccConfigWasm
+} from "@laisuk/opencc-fmmseg-wasm";
+
+await init();
+
+const cc = OpenccWasm.newWithEnum(
+    OpenccConfigWasm.S2hkp
+);
+
+console.log(cc.convert("别随便录影侵犯个人隐私权", false));
+// 別隨便錄影侵犯個人私隱權
+```
 
 ---
 
@@ -573,14 +573,14 @@ cc.convertOfficeBytes(inputBytes, format, punctuation, keepFont)
 
 Parameters:
 
-* `inputBytes`: `Uint8Array` document bytes
-* `format`: `docx`, `xlsx`, `pptx`, `odt`, `ods`, `odp`, or `epub`
-* `punctuation`: whether to convert punctuation variants
-* `keepFont`: whether to preserve font declarations where supported
+- `inputBytes`: `Uint8Array` document bytes
+- `format`: `docx`, `xlsx`, `pptx`, `odt`, `ods`, `odp`, or `epub`
+- `punctuation`: whether to convert punctuation variants
+- `keepFont`: whether to preserve font declarations where supported
 
 Returns:
 
-* converted output bytes
+- converted output bytes
 
 The older free function remains available for compatibility:
 
@@ -789,18 +789,18 @@ The WASM-facing enum is exported as `OpenccConfigWasm`, alongside `OpenccWasm`.
 
 ## Performance Notes
 
-* WebAssembly build disables Rayon parallelism by default.
-* Dictionaries are embedded into the WASM binary.
-* Browser caching significantly improves subsequent loads.
+- WebAssembly build disables Rayon parallelism by default.
+- Dictionaries are embedded into the WASM binary.
+- Browser caching significantly improves subsequent loads.
 
 ---
 
 ## Related Projects
 
-* Rust backend: https://github.com/laisuk/opencc-fmmseg
-* C API: https://github.com/laisuk/opencc-fmmseg/tree/master/capi/opencc-fmmseg-capi
-* .NET: https://github.com/laisuk/OpenccNet
-* Python: https://github.com/laisuk/opencc_purepy
+- Rust backend: https://github.com/laisuk/opencc-fmmseg
+- C API: https://github.com/laisuk/opencc-fmmseg/tree/master/capi/opencc-fmmseg-capi
+- .NET: https://github.com/laisuk/OpenccNet
+- Python: https://github.com/laisuk/opencc_purepy
 
 ---
 
