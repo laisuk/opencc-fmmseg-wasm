@@ -142,11 +142,21 @@
 
 <input id="textFile" type="file" accept=".txt,.md" hidden>
 <button id="openFileBtn">Open File</button>
+<label for="textEncoding">Encoding:</label>
+<select id="textEncoding">
+    <option value="utf-8" selected>UTF-8</option>
+    <option value="utf-16le">UTF-16 LE</option>
+    <option value="utf-16be">UTF-16 BE</option>
+    <option value="gb18030">GB18030 / GBK</option>
+    <option value="big5">Big5</option>
+    <option value="shift_jis">Shift-JIS</option>
+</select>
 <button id="btn">Convert</button>
 
 <div id="officeDrop" class="office-drop disabled" role="button" tabindex="0" aria-disabled="true">
     <strong>Click to open or drop a document, EPUB or text file here</strong>
     <small>DOCX, XLSX, PPTX, EPUB, TXT — converted locally in your browser; nothing is uploaded</small>
+    <small>TXT uses the selected encoding; Office documents and EPUB handle text encoding internally.</small>
     <input id="officeFile"
            type="file"
            accept=".docx,.xlsx,.pptx,.epub,.txt"
@@ -215,10 +225,24 @@
     let officeDownloadUrl = null;
     let officeDownloadName = "";
 
+    let openedTextFileName = "";
+    let openedTextFileBytes = null;
+    let preserveOpenedTextFile = false;
+
+    function clearOpenedTextFile() {
+        openedTextFileName = "";
+        openedTextFileBytes = null;
+    }
+
     const editorLeft = createEditor(
         document.getElementById("editor-left"),
         "汉字转换测试",
-        false
+        false,
+        () => {
+            if (!preserveOpenedTextFile) {
+                clearOpenedTextFile();
+            }
+        }
     );
 
     const editorRight = createEditor(
@@ -268,22 +292,34 @@
         console.error(err);
     }
 
-    function createEditor(parent, text, readOnly) {
+    function createEditor(parent, text, readOnly, onDocChanged = null) {
+        const extensions = [
+            lineNumbers(),
+            history(),
+            keymap.of([
+                ...defaultKeymap,
+                ...historyKeymap
+            ]),
+            EditorView.lineWrapping,
+            EditorView.editable.of(!readOnly),
+            EditorState.readOnly.of(readOnly)
+        ];
+
+        if (onDocChanged) {
+            extensions.push(
+                EditorView.updateListener.of(update => {
+                    if (update.docChanged) {
+                        onDocChanged();
+                    }
+                })
+            );
+        }
+
         return new EditorView({
             parent,
             state: EditorState.create({
                 doc: text,
-                extensions: [
-                    lineNumbers(),
-                    history(),
-                    keymap.of([
-                        ...defaultKeymap,
-                        ...historyKeymap
-                    ]),
-                    EditorView.lineWrapping,
-                    EditorView.editable.of(!readOnly),
-                    EditorState.readOnly.of(readOnly)
-                ]
+                extensions
             })
         });
     }
@@ -302,7 +338,42 @@
         });
     }
 
+    function setInputEditorText(text, preserveFileBytes = false) {
+        preserveOpenedTextFile = preserveFileBytes;
+
+        try {
+            setEditorText(editorLeft, text);
+        } finally {
+            preserveOpenedTextFile = false;
+        }
+    }
+
     const textFile = document.getElementById("textFile");
+    const textEncoding = document.getElementById("textEncoding");
+
+    function decodeTextBytes(bytes, encoding) {
+        return new TextDecoder(encoding, {fatal: false}).decode(bytes);
+    }
+
+    function refreshOpenedTextFile() {
+        if (!openedTextFileBytes) {
+            return;
+        }
+
+        try {
+            const text = decodeTextBytes(openedTextFileBytes, textEncoding.value);
+            setInputEditorText(text, true);
+            editorLeft.focus();
+
+            out.textContent =
+                `Opened ${openedTextFileName} as ${textEncoding.options[textEncoding.selectedIndex].text} ` +
+                `(${Array.from(text).length.toLocaleString()} characters).`;
+        } catch (err) {
+            out.textContent =
+                `Failed to decode file as ${textEncoding.value}: ${err instanceof Error ? err.message : err}`;
+            console.error(err);
+        }
+    }
 
     document.getElementById("openFileBtn").onclick = () => {
         textFile.click();
@@ -315,14 +386,11 @@
         }
 
         try {
-            const text = await file.text();
-
-            setEditorText(editorLeft, text);
-            editorLeft.focus();
-
-            out.textContent =
-                `Opened ${file.name} (${Array.from(text).length.toLocaleString()} characters).`;
+            openedTextFileName = file.name;
+            openedTextFileBytes = new Uint8Array(await file.arrayBuffer());
+            refreshOpenedTextFile();
         } catch (err) {
+            clearOpenedTextFile();
             out.textContent =
                 `Failed to open file: ${err instanceof Error ? err.message : err}`;
             console.error(err);
@@ -330,6 +398,8 @@
             textFile.value = "";
         }
     });
+
+    textEncoding.addEventListener("change", refreshOpenedTextFile);
 
     const documentMimeTypes = {
         docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -395,7 +465,7 @@
             let outputBytes;
 
             if (format === "txt") {
-                const text = new TextDecoder("utf-8").decode(inputBytes);
+                const text = decodeTextBytes(inputBytes, textEncoding.value);
                 const converted = cc.convert(text, punctuation);
                 outputBytes = new TextEncoder().encode(converted);
             } else {
@@ -503,7 +573,7 @@
     document.getElementById("pasteBtn").onclick = async () => {
         try {
             const text = await navigator.clipboard.readText();
-            setEditorText(editorLeft, text);
+            setInputEditorText(text);
             out.textContent = "Pasted clipboard text into input.";
         } catch (err) {
             out.textContent = "Paste failed. Browser may have blocked clipboard access.";
@@ -531,14 +601,14 @@
         const text = getEditorText(editorLeft);
         const normalized = cc.normalizeCompatExtended(text);
 
-        setEditorText(editorLeft, normalized);
+        setInputEditorText(normalized);
         editorLeft.focus();
 
         out.textContent = "Input normalized with extended Unicode compatibility normalization.";
     };
 
     document.getElementById("clearInputBtn").onclick = () => {
-        setEditorText(editorLeft, "");
+        setInputEditorText("");
         editorLeft.focus();
         out.textContent = "Input cleared.";
     };
