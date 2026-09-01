@@ -364,7 +364,7 @@ dependencies = [
 
 [[package]]
 name = "opencc-fmmseg-wasm"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "opencc-fmmseg",
  "regex",
