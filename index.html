@@ -121,6 +121,7 @@
         <h3>Input</h3>
         <button id="pasteBtn">Paste</button>
         <button id="normalizeBtn">Normalize</button>
+        <button id="gbMojibakeBtn">GB Mojibake</button>
         <button id="clearInputBtn">Clear</button>
         <div id="editor-left" class="editor-box"></div>
     </div>
@@ -252,6 +253,7 @@
     );
 
     document.getElementById("normalizeBtn").disabled = true;
+    document.getElementById("gbMojibakeBtn").disabled = true;
     document.getElementById("btn").disabled = true;
 
     try {
@@ -279,6 +281,7 @@
         document.getElementById("supported").textContent = configs.join(", ");
 
         document.getElementById("normalizeBtn").disabled = false;
+        document.getElementById("gbMojibakeBtn").disabled = false;
         document.getElementById("btn").disabled = false;
         officeDrop.classList.remove("disabled");
         officeDrop.setAttribute("aria-disabled", "false");
@@ -400,6 +403,37 @@
     });
 
     textEncoding.addEventListener("change", refreshOpenedTextFile);
+
+    function repairGbMojibake(text) {
+        const normalized = text.normalize("NFC");
+
+        const cp1252 = new Map([
+            [0x20AC,0x80], [0x201A,0x82], [0x0192,0x83], [0x201E,0x84],
+            [0x2026,0x85], [0x2020,0x86], [0x2021,0x87], [0x02C6,0x88],
+            [0x2030,0x89], [0x0160,0x8A], [0x2039,0x8B], [0x0152,0x8C],
+            [0x017D,0x8E], [0x2018,0x91], [0x2019,0x92], [0x201C,0x93],
+            [0x201D,0x94], [0x2022,0x95], [0x2013,0x96], [0x2014,0x97],
+            [0x02DC,0x98], [0x2122,0x99], [0x0161,0x9A], [0x203A,0x9B],
+            [0x0153,0x9C], [0x017E,0x9E], [0x0178,0x9F]
+        ]);
+
+        const bytes = Uint8Array.from([...normalized], ch => {
+            const cp = ch.codePointAt(0);
+
+            if (cp <= 0xff)
+                return cp;
+
+            const byte = cp1252.get(cp);
+            if (byte !== undefined)
+                return byte;
+
+            throw new Error(
+                `Cannot recover byte from U+${cp.toString(16).toUpperCase()}`
+            );
+        });
+
+        return new TextDecoder("gb18030", { fatal: true }).decode(bytes);
+    }
 
     const documentMimeTypes = {
         docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -605,6 +639,16 @@
         editorLeft.focus();
 
         out.textContent = "Input normalized with extended Unicode compatibility normalization.";
+    };
+
+    document.getElementById("gbMojibakeBtn").onclick = () => {
+        const text = getEditorText(editorLeft);
+        const normalized = repairGbMojibake(text);
+
+        setInputEditorText(normalized);
+        editorLeft.focus();
+
+        out.textContent = "Input normalized with repair GB18030 Mojibake normalization.";
     };
 
     document.getElementById("clearInputBtn").onclick = () => {
