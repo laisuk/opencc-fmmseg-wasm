@@ -129,6 +129,7 @@
     <div>
         <h3>Output</h3>
         <button id="copyBtn">Copy</button>
+        <button id="deTofuBtn">DeTofu</button>
         <button id="clearOutputBtn">Clear</button>
         <div id="editor-right" class="editor-box"></div>
     </div>
@@ -141,26 +142,32 @@
     </label>
 </div>
 
-<input id="textFile" type="file" accept=".txt,.md" hidden>
-<button id="openFileBtn">Open File</button>
-<label for="textEncoding">Encoding:</label>
-<select id="textEncoding">
-    <option value="utf-8" selected>UTF-8</option>
-    <option value="utf-16le">UTF-16 LE</option>
-    <option value="utf-16be">UTF-16 BE</option>
-    <option value="gb18030">GB18030 / GBK</option>
-    <option value="big5">Big5</option>
-    <option value="shift_jis">Shift-JIS</option>
-</select>
-<button id="btn">Convert</button>
+<div class="row">
+    <input id="textFile" type="file" accept=".txt,.md" hidden>
+    <button id="openFileBtn">Open File</button>
+    <button id="btn">Convert</button>
+    <span id="openedFileName"></span>
+</div>
+
+<div class="row">
+    <label for="textEncoding">Text file encoding:</label>
+    <select id="textEncoding">
+        <option value="utf-8" selected>UTF-8</option>
+        <option value="utf-16le">UTF-16 LE</option>
+        <option value="utf-16be">UTF-16 BE</option>
+        <option value="gb18030">GB18030 / GBK</option>
+        <option value="big5">Big5</option>
+        <option value="shift_jis">Shift-JIS</option>
+    </select>
+</div>
 
 <div id="officeDrop" class="office-drop disabled" role="button" tabindex="0" aria-disabled="true">
     <strong>Click to open or drop a document, EPUB or text file here</strong>
-    <small>DOCX, XLSX, PPTX, EPUB, TXT — converted locally in your browser; nothing is uploaded</small>
-    <small>TXT uses the selected encoding; Office documents and EPUB handle text encoding internally.</small>
+    <small>DOCX, XLSX, PPTX, EPUB, TXT, MD — converted locally in your browser; nothing is uploaded</small>
+    <small>TXT/MD uses the selected encoding; Office documents and EPUB handle text encoding internally.</small>
     <input id="officeFile"
            type="file"
-           accept=".docx,.xlsx,.pptx,.epub,.txt"
+           accept=".docx,.xlsx,.pptx,.epub,.txt,.md"
            hidden>
 </div>
 
@@ -173,7 +180,10 @@
 <pre id="out">Loading engine...</pre>
 
 <script type="module">
-    import init, {OpenccWasm} from "https://cdn.jsdelivr.net/npm/@laisuk/opencc-fmmseg-wasm/opencc_fmmseg_wasm.js";
+    import init, {
+        OpenccWasm,
+        DetofuLevelWasm
+    } from "https://cdn.jsdelivr.net/npm/@laisuk/opencc-fmmseg-wasm/opencc_fmmseg_wasm.js";
     // import init, {OpenccWasm} from "./pkg/opencc_fmmseg_wasm.js";
 
     import {EditorState} from "https://esm.sh/@codemirror/state";
@@ -187,6 +197,7 @@
     const officeResult = document.getElementById("officeResult");
     const officeResultText = document.getElementById("officeResultText");
     const officeDownloadBtn = document.getElementById("officeDownloadBtn");
+    const openedFileName = document.getElementById("openedFileName");
     const out = document.getElementById("out");
 
     const configDescriptions = {
@@ -233,6 +244,7 @@
     function clearOpenedTextFile() {
         openedTextFileName = "";
         openedTextFileBytes = null;
+        openedFileName.textContent = "";
     }
 
     const editorLeft = createEditor(
@@ -391,6 +403,7 @@
         try {
             openedTextFileName = file.name;
             openedTextFileBytes = new Uint8Array(await file.arrayBuffer());
+            openedFileName.textContent = file.name;
             refreshOpenedTextFile();
         } catch (err) {
             clearOpenedTextFile();
@@ -408,13 +421,13 @@
         const normalized = text.normalize("NFC");
 
         const cp1252 = new Map([
-            [0x20AC,0x80], [0x201A,0x82], [0x0192,0x83], [0x201E,0x84],
-            [0x2026,0x85], [0x2020,0x86], [0x2021,0x87], [0x02C6,0x88],
-            [0x2030,0x89], [0x0160,0x8A], [0x2039,0x8B], [0x0152,0x8C],
-            [0x017D,0x8E], [0x2018,0x91], [0x2019,0x92], [0x201C,0x93],
-            [0x201D,0x94], [0x2022,0x95], [0x2013,0x96], [0x2014,0x97],
-            [0x02DC,0x98], [0x2122,0x99], [0x0161,0x9A], [0x203A,0x9B],
-            [0x0153,0x9C], [0x017E,0x9E], [0x0178,0x9F]
+            [0x20AC, 0x80], [0x201A, 0x82], [0x0192, 0x83], [0x201E, 0x84],
+            [0x2026, 0x85], [0x2020, 0x86], [0x2021, 0x87], [0x02C6, 0x88],
+            [0x2030, 0x89], [0x0160, 0x8A], [0x2039, 0x8B], [0x0152, 0x8C],
+            [0x017D, 0x8E], [0x2018, 0x91], [0x2019, 0x92], [0x201C, 0x93],
+            [0x201D, 0x94], [0x2022, 0x95], [0x2013, 0x96], [0x2014, 0x97],
+            [0x02DC, 0x98], [0x2122, 0x99], [0x0161, 0x9A], [0x203A, 0x9B],
+            [0x0153, 0x9C], [0x017E, 0x9E], [0x0178, 0x9F]
         ]);
 
         const bytes = Uint8Array.from([...normalized], ch => {
@@ -432,7 +445,7 @@
             );
         });
 
-        return new TextDecoder("gb18030", { fatal: true }).decode(bytes);
+        return new TextDecoder("gb18030", {fatal: true}).decode(bytes);
     }
 
     const documentMimeTypes = {
@@ -440,7 +453,8 @@
         xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
         epub: "application/epub+zip",
-        txt: "text/plain;charset=utf-8"
+        txt: "text/plain;charset=utf-8",
+        md: "text/markdown;charset=utf-8"
     };
 
     function getOfficeFormat(fileName) {
@@ -498,7 +512,7 @@
 
             let outputBytes;
 
-            if (format === "txt") {
+            if (format === "txt" || format === "md") {
                 const text = decodeTextBytes(inputBytes, textEncoding.value);
                 const converted = cc.convert(text, punctuation);
                 outputBytes = new TextEncoder().encode(converted);
@@ -633,6 +647,12 @@
         }
 
         const text = getEditorText(editorLeft);
+
+        if (!text) {
+            out.textContent = "Normalize: input is empty.";
+            return;
+        }
+
         const normalized = cc.normalizeCompatExtended(text);
 
         setInputEditorText(normalized);
@@ -643,18 +663,49 @@
 
     document.getElementById("gbMojibakeBtn").onclick = () => {
         const text = getEditorText(editorLeft);
-        const normalized = repairGbMojibake(text);
 
-        setInputEditorText(normalized);
-        editorLeft.focus();
+        try {
+            const repaired = repairGbMojibake(text);
 
-        out.textContent = "Input normalized with repair GB18030 Mojibake normalization.";
+            if (repaired === text) {
+                out.textContent = "GB Mojibake: nothing to repair.";
+                return;
+            }
+
+            setInputEditorText(repaired);
+            editorLeft.focus();
+
+            out.textContent = "Input repaired from GB Mojibake.";
+        } catch {
+            out.textContent = "GB Mojibake: nothing to repair.";
+        }
     };
 
     document.getElementById("clearInputBtn").onclick = () => {
         setInputEditorText("");
         editorLeft.focus();
         out.textContent = "Input cleared.";
+    };
+
+    document.getElementById("deTofuBtn").onclick = () => {
+        if (!cc) {
+            out.textContent = "Engine is not loaded yet.";
+            return;
+        }
+
+        const text = getEditorText(editorRight);
+
+        if (!text) {
+            out.textContent = "DeTofu: output is empty.";
+            return;
+        }
+
+        const detofued = cc.detofu(text, DetofuLevelWasm.ExtB);
+
+        setEditorText(editorRight, detofued);
+        editorRight.focus();
+
+        out.textContent = "Output processed with DeTofu.";
     };
 
     document.getElementById("clearOutputBtn").onclick = () => {
@@ -669,6 +720,11 @@
         }
 
         const text = getEditorText(editorLeft);
+
+        if (!text) {
+            out.textContent = "Convert: input is empty.";
+            return;
+        }
 
         const punctuation =
             document.getElementById("punctuation").checked;
