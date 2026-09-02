@@ -131,6 +131,8 @@
         <button id="copyBtn">Copy</button>
         <button id="deTofuBtn">DeTofu</button>
         <button id="clearOutputBtn">Clear</button>
+        <button id="downloadOutputBtn">Download</button>
+        <a id="outputDownloadLink" hidden></a>
         <div id="editor-right" class="editor-box"></div>
     </div>
 </div>
@@ -198,6 +200,8 @@
     const officeResultText = document.getElementById("officeResultText");
     const officeDownloadBtn = document.getElementById("officeDownloadBtn");
     const openedFileName = document.getElementById("openedFileName");
+    const downloadOutputBtn = document.getElementById("downloadOutputBtn");
+    const outputDownloadLink = document.getElementById("outputDownloadLink");
     const out = document.getElementById("out");
 
     const configDescriptions = {
@@ -236,6 +240,7 @@
     let cc = null;
     let officeDownloadUrl = null;
     let officeDownloadName = "";
+    let outputDownloadUrl = null;
 
     let openedTextFileName = "";
     let openedTextFileBytes = null;
@@ -472,6 +477,42 @@
         return `${fileName.slice(0, dot)}_converted${fileName.slice(dot)}`;
     }
 
+
+    function clearOutputDownload() {
+        if (outputDownloadUrl) {
+            URL.revokeObjectURL(outputDownloadUrl);
+        }
+
+        outputDownloadUrl = null;
+        outputDownloadLink.removeAttribute("href");
+        outputDownloadLink.removeAttribute("download");
+        outputDownloadLink.textContent = "";
+        outputDownloadLink.hidden = true;
+    }
+
+    function prepareOutputDownload() {
+        clearOutputDownload();
+
+        const text = getEditorText(editorRight);
+        if (!text) {
+            out.textContent = "Download: output is empty.";
+            return;
+        }
+
+        const blob = new Blob([text], {
+            type: "text/plain;charset=utf-8"
+        });
+
+        const fileName = "opencc_output.txt";
+        outputDownloadUrl = URL.createObjectURL(blob);
+        outputDownloadLink.href = outputDownloadUrl;
+        outputDownloadLink.download = fileName;
+        outputDownloadLink.textContent = fileName;
+        outputDownloadLink.hidden = false;
+
+        out.textContent = `Output ready for download: ${fileName}`;
+    }
+
     function clearOfficeResult() {
         if (officeDownloadUrl) {
             URL.revokeObjectURL(officeDownloadUrl);
@@ -598,7 +639,10 @@
         }
     });
 
-    window.addEventListener("beforeunload", clearOfficeResult);
+    window.addEventListener("beforeunload", () => {
+        clearOfficeResult();
+        clearOutputDownload();
+    });
 
     configInput.addEventListener("change", () => {
         if (!cc) {
@@ -703,6 +747,7 @@
         const detofued = cc.detofu(text, DetofuLevelWasm.ExtB);
 
         setEditorText(editorRight, detofued);
+        clearOutputDownload();
         editorRight.focus();
 
         out.textContent = "Output processed with DeTofu.";
@@ -710,8 +755,11 @@
 
     document.getElementById("clearOutputBtn").onclick = () => {
         setEditorText(editorRight, "");
+        clearOutputDownload();
         out.textContent = "Output cleared.";
     };
+
+    downloadOutputBtn.onclick = prepareOutputDownload;
 
     document.getElementById("btn").onclick = () => {
         if (!cc) {
@@ -762,6 +810,7 @@
         // This keeps the UI responsive when replacing very large documents.
         requestAnimationFrame(() => {
             setEditorText(editorRight, converted);
+            clearOutputDownload();
         });
     };
 </script>
