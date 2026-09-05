@@ -613,17 +613,8 @@ fn detofu_builtin_into(input: &str, level: DetofuLevel, output: &mut String) {
 /// Detofu is independent of OpenCC conversion dictionaries and does not modify
 /// OpenCC conversion logic. In a typical workflow, run OpenCC conversion first
 /// and then apply detofu to the converted text.
-///
-/// # Examples
-///
-/// ```rust
-/// use opencc_fmmseg::{detofu, DetofuLevel};
-///
-/// let safe = detofu("骖𬴂", DetofuLevel::ExtB);
-///
-/// assert_eq!(safe, "骖騑");
-/// ```
-pub fn detofu(input: &str, level: DetofuLevel) -> String {
+#[allow(dead_code)]
+pub(crate) fn detofu(input: &str, level: DetofuLevel) -> String {
     DetofuMap::builtin(level).detofu(input)
 }
 
@@ -640,18 +631,8 @@ pub fn detofu(input: &str, level: DetofuLevel) -> String {
 /// Detofu is independent of OpenCC conversion dictionaries and does not modify
 /// OpenCC conversion logic. In a typical workflow, run OpenCC conversion first
 /// and then apply detofu to the converted text.
-///
-/// # Examples
-///
-/// ```rust
-/// use opencc_fmmseg::{detofu_into, DetofuLevel};
-///
-/// let mut output = String::new();
-/// detofu_into("骖𬴂", DetofuLevel::ExtB, &mut output);
-///
-/// assert_eq!(output, "骖騑");
-/// ```
-pub fn detofu_into(input: &str, level: DetofuLevel, output: &mut String) {
+#[allow(dead_code)]
+pub(crate) fn detofu_into(input: &str, level: DetofuLevel, output: &mut String) {
     DetofuMap::builtin(level).detofu_into(input, output)
 }
 

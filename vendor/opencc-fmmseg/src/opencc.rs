@@ -2038,7 +2038,7 @@ impl OpenCC {
     /// assert_eq!(safe, "俨骖騑于上路，访风景于崇阿");
     /// ```
     pub fn detofu(&self, text: &str, level: DetofuLevel) -> String {
-        crate::detofu(text, level)
+        crate::DetofuMap::builtin(level).detofu(text)
     }
 
     /// Converts built-in non-BMP CJK extension characters into
@@ -2068,13 +2068,8 @@ impl OpenCC {
     ///
     /// assert_eq!(output, "骖騑");
     /// ```
-    pub fn detofu_into(
-        &self,
-        input: &str,
-        level: DetofuLevel,
-        output: &mut String,
-    ) {
-        crate::detofu_into(input, level, output);
+    pub fn detofu_into(&self, input: &str, level: DetofuLevel, output: &mut String) {
+        DetofuMap::builtin(level).detofu_into(input, output);
     }
 
     /// Converts non-BMP CJK extension characters using the built-in detofu
