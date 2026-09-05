@@ -21,6 +21,8 @@ use std::sync::Mutex;
 use std::{fs, io};
 #[cfg(feature = "zstd")]
 use zstd::{Decoder, Encoder};
+#[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
+use ruzstd::decoding::StreamingDecoder;
 
 use crate::dictionary_lib::{DictMaxLen, DictSlot};
 use crate::{CustomDictFileSpec, CustomDictMode, CustomDictSpec};
@@ -160,7 +162,7 @@ impl DictionaryMaxlength {
     /// This method is a thin wrapper around [`from_zstd`](Self::from_zstd),
     /// preserving its error while adding richer diagnostics.
     pub fn new() -> Result<Self, DictionaryError> {
-        #[cfg(feature = "zstd")]
+        #[cfg(any(feature = "zstd", feature = "ruzstd"))]
         {
             Self::from_zstd().map_err(|err| {
                 let msg = format!("Failed to load dictionary from Zstd: {}", err);
@@ -169,14 +171,13 @@ impl DictionaryMaxlength {
             })
         }
 
-        #[cfg(not(feature = "zstd"))]
+        #[cfg(not(any(feature = "zstd", feature = "ruzstd")))]
         {
             let err = DictionaryError::IoError(io::Error::new(
                 io::ErrorKind::Unsupported,
-                "default embedded dictionary loading requires the zstd feature",
+                "default embedded dictionary loading requires the zstd or ruzstd feature",
             ));
-            let msg = format!("Failed to load dictionary from Zstd: {}", err);
-            Self::set_last_error(&msg);
+            Self::set_last_error(&err.to_string());
             Err(err)
         }
     }
@@ -217,13 +218,27 @@ impl DictionaryMaxlength {
     ///
     /// # See also
     /// - [`from_dicts`](#method.from_dicts) — loads from plaintext `.txt` files.
-    #[cfg(feature = "zstd")]
+    #[cfg(any(feature = "zstd", feature = "ruzstd"))]
     pub fn from_zstd() -> Result<Self, DictionaryError> {
-        // Embedded compressed CBOR file at compile time
         let compressed_data = include_bytes!("dicts/dictionary_maxlength.zstd");
 
-        let cursor = Cursor::new(compressed_data);
-        let mut decoder = Decoder::new(cursor).map_err(DictionaryError::IoError)?;
+        #[cfg(feature = "zstd")]
+        let mut decoder = {
+            let cursor = Cursor::new(compressed_data);
+            Decoder::new(cursor).map_err(DictionaryError::IoError)?
+        };
+
+        #[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
+        let mut source = &compressed_data[..];
+
+        #[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
+        let mut decoder = StreamingDecoder::new(&mut source).map_err(|e| {
+            DictionaryError::IoError(io::Error::new(
+                io::ErrorKind::InvalidData,
+                e.to_string(),
+            ))
+        })?;
+
         let dictionary: DictionaryMaxlength =
             from_reader(&mut decoder).map_err(DictionaryError::CborParseError)?;
 
@@ -1148,15 +1163,22 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
         Ok(dictionary.finish())
     }
 
+    #[cfg(not(any(feature = "zstd", feature = "ruzstd")))]
     pub fn from_embedded_cbor() -> Self {
         Self::from_cbor_bytes(include_bytes!("dicts/dictionary_maxlength.cbor")).unwrap_or_default()
     }
 
+    #[cfg(not(any(feature = "zstd", feature = "ruzstd")))]
     pub fn from_cbor_bytes(bytes: &[u8]) -> Result<Self, DictionaryError> {
         let dictionary: DictionaryMaxlength =
             from_slice(bytes).map_err(DictionaryError::CborParseError)?;
 
         Ok(dictionary.finish())
+    }
+
+    #[cfg(any(feature = "zstd", feature = "ruzstd"))]
+    pub fn from_embedded_cbor() -> Self {
+        Self::from_zstd().unwrap()
     }
 
     /// Stores a human-readable error message for later retrieval.

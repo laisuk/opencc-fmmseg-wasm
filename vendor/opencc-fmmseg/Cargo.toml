@@ -42,13 +42,16 @@ rayon-core = { version = "=1.12", optional = true }
 regex = "1.13"
 serde = { version = "1.0", features = ["derive"] }
 serde_cbor = "0.11"
-zstd = { version = "0.13.3", optional = true }
-rustc-hash = "=2.1.1"
+zstd = { version = "0.14", optional = true }
+rustc-hash = "2.1"
+ruzstd = { version = "0.9", optional = true }
 
 [features]
 default = ["parallel", "zstd"]
 parallel = ["dep:rayon", "dep:rayon-core"]
 zstd = ["dep:zstd"]
+# Pure-Rust decode-only support, ideal for WASM
+ruzstd = ["dep:ruzstd"]
 
 tofu-bin = []
 compat-bin = []
