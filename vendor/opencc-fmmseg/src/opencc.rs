@@ -112,7 +112,7 @@ impl OpenCC {
     ///
     /// # Panics
     /// Never panics. If the dictionary fails to initialize, a default one is substituted,
-    /// and the error is stored internally via `set_last_error()`.
+    /// and the error is stored internally.
     ///
     /// # Example
     /// ```rust
@@ -140,7 +140,7 @@ impl OpenCC {
     ///
     /// # Panics
     /// Never panics. If loading fails, an empty dictionary is used and the error
-    /// is stored via `set_last_error()`.
+    /// is stored internally.
     ///
     /// # Example
     /// ```rust
@@ -169,8 +169,7 @@ impl OpenCC {
     /// A fully initialized `OpenCC` instance, or one with empty dictionaries if deserialization fails.
     ///
     /// # Errors
-    /// If deserialization fails, the dictionary is defaulted and the error is stored
-    /// via `set_last_error()`.
+    /// If deserialization fails, the dictionary is defaulted and the error is stored internally.
     ///
     /// # Example
     /// ```rust
@@ -2226,15 +2225,7 @@ impl OpenCC {
     ///
     /// * `err_msg` - The error message to store. Passing an empty string clears
     ///   the current error state.
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use opencc_fmmseg::OpenCC;
-    ///
-    /// OpenCC::set_last_error("Failed to load dictionary.");
-    /// ```
-    pub fn set_last_error(err_msg: &str) {
+    pub(crate) fn set_last_error(err_msg: &str) {
         let mut last_error = last_error_slot().lock().unwrap();
 
         if err_msg.is_empty() {
@@ -2293,10 +2284,6 @@ impl OpenCC {
     ///
     /// ```rust
     /// use opencc_fmmseg::OpenCC;
-    ///
-    /// // Record an error internally
-    /// OpenCC::set_last_error("Invalid config");
-    ///
     /// // Clear it
     /// OpenCC::clear_last_error();
     ///

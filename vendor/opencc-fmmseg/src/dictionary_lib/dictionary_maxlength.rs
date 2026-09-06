@@ -9,6 +9,8 @@
 //! advanced users may access it for custom loading, serialization, or optimization.
 
 use rustc_hash::FxHashMap;
+#[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
+use ruzstd::decoding::StreamingDecoder;
 use serde::{Deserialize, Serialize};
 use serde_cbor::{from_reader, from_slice};
 use std::error::Error;
@@ -21,8 +23,6 @@ use std::sync::Mutex;
 use std::{fs, io};
 #[cfg(feature = "zstd")]
 use zstd::{Decoder, Encoder};
-#[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
-use ruzstd::decoding::StreamingDecoder;
 
 use crate::dictionary_lib::{DictMaxLen, DictSlot};
 use crate::{CustomDictFileSpec, CustomDictMode, CustomDictSpec};
@@ -148,7 +148,7 @@ impl DictionaryMaxlength {
     /// - A guaranteed, version-matched dictionary set
     ///
     /// On failure, this method stores a human-readable message in the internal
-    /// error buffer via [`set_last_error`](Self::set_last_error), allowing
+    /// error buffer, allowing
     /// foreign-language bindings (C, C#, Python, Java through JNI) to retrieve
     /// the error message safely.
     ///
@@ -233,10 +233,7 @@ impl DictionaryMaxlength {
 
         #[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
         let mut decoder = StreamingDecoder::new(&mut source).map_err(|e| {
-            DictionaryError::IoError(io::Error::new(
-                io::ErrorKind::InvalidData,
-                e.to_string(),
-            ))
+            DictionaryError::IoError(io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
         })?;
 
         let dictionary: DictionaryMaxlength =
@@ -1116,8 +1113,7 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     ///
     /// ## Errors / FFI diagnostics
     ///
-    /// On failure, a human-readable message is written to the global last-error buffer
-    /// via [`set_last_error`](Self::set_last_error).
+    /// On failure, a human-readable message is written to the global last-error buffer.
     pub fn serialize_to_cbor<P: AsRef<Path>>(&self, path: P) -> Result<(), DictionaryError> {
         let cbor_data = serde_cbor::to_vec(self).map_err(|err| {
             let msg = format!("Failed to serialize to CBOR: {}", err);
@@ -1144,8 +1140,7 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     ///
     /// ## Errors / FFI diagnostics
     ///
-    /// On failure, a human-readable message is written to the global last-error buffer
-    /// via [`set_last_error`](Self::set_last_error).
+    /// On failure, a human-readable message is written to the global last-error buffer.
     pub fn deserialize_from_cbor<P: AsRef<Path>>(path: P) -> Result<Self, DictionaryError> {
         let file = File::open(&path).map_err(|err| {
             let msg = format!("Failed to read CBOR file: {}", err);
@@ -1202,7 +1197,7 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     /// - This function overwrites any previously stored message.
     /// - The stored message is `String`-backed and safe to clone across
     ///   language boundaries.
-    pub fn set_last_error(err_msg: &str) {
+    pub(crate) fn set_last_error(err_msg: &str) {
         let mut last_error = LAST_ERROR.lock().unwrap();
         *last_error = Some(err_msg.to_string());
     }
@@ -1210,8 +1205,8 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     /// Returns the most recently recorded error message, if any.
     ///
     /// This function reads from the global error buffer `LAST_ERROR`, which is
-    /// populated by calls to [`set_last_error`](Self::set_last_error) during
-    /// dictionary loading, parsing, serialization, and external-resource I/O.
+    /// populated during dictionary loading, parsing, serialization,
+    /// and external-resource I/O.
     ///
     /// It is primarily intended for FFI consumers (C, C#, Python, Java/JNI)
     /// that require explicit error retrieval after a failure in an exported
