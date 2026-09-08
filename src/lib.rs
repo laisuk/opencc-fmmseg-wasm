@@ -78,21 +78,21 @@ impl From<OpenccConfigWasm> for OpenccConfig {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DetofuLevelWasm {
     /// Treat CJK Extension B as the maximum supported extension level.
-    ExtB = 2,
+    ExtB = 0,
     /// Treat CJK Extension C as the maximum supported extension level.
-    ExtC = 3,
+    ExtC = 1,
     /// Treat CJK Extension D as the maximum supported extension level.
-    ExtD = 4,
+    ExtD = 2,
     /// Treat CJK Extension E as the maximum supported extension level.
-    ExtE = 5,
+    ExtE = 3,
     /// Treat CJK Extension F as the maximum supported extension level.
-    ExtF = 6,
+    ExtF = 4,
     /// Treat CJK Extension G as the maximum supported extension level.
-    ExtG = 7,
+    ExtG = 5,
     /// Treat CJK Extension H as the maximum supported extension level.
-    ExtH = 8,
+    ExtH = 6,
     /// Treat CJK Extension I as the maximum supported extension level.
-    ExtI = 9,
+    ExtI = 7,
 }
 
 impl From<DetofuLevelWasm> for DetofuLevel {
@@ -538,6 +538,18 @@ mod tests {
 
         let safe = cc.detofu(&converted, DetofuLevelWasm::ExtB);
         assert_eq!(safe, "俨骖騑于上路，访风景于崇阿");
+    }
+
+    #[test]
+    fn detofu_level_wasm_values_are_zero_based() {
+        assert_eq!(DetofuLevelWasm::ExtB as u32, 0);
+        assert_eq!(DetofuLevelWasm::ExtC as u32, 1);
+        assert_eq!(DetofuLevelWasm::ExtD as u32, 2);
+        assert_eq!(DetofuLevelWasm::ExtE as u32, 3);
+        assert_eq!(DetofuLevelWasm::ExtF as u32, 4);
+        assert_eq!(DetofuLevelWasm::ExtG as u32, 5);
+        assert_eq!(DetofuLevelWasm::ExtH as u32, 6);
+        assert_eq!(DetofuLevelWasm::ExtI as u32, 7);
     }
 
     #[test]
