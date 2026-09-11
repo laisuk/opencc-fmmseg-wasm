@@ -6,7 +6,8 @@ import process from "process";
 
 import init, {
     OpenccWasm,
-    DetofuLevelWasm
+    DetofuLevelWasm,
+    NormalizeModeWasm
 } from "../opencc_fmmseg_wasm.js";
 
 const OFFICE_FORMATS = new Set([
@@ -52,13 +53,13 @@ Convert options:
   -i, --input <file>          Input text file; stdin if omitted
   -o, --output <file>         Output text file; stdout if omitted
   -c, --config <conversion>   Conversion config (default: s2t)
-  -p, --punct                 Enable punctuation conversion
-  --detofu [level]            Replace tofu-risk rare CJK extension chars after conversion
-                              level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
-                              default when omitted value: all
-  --keep-ids                  Preserve complete IDS expressions during conversion (default: false)
+  -p, --punct                 Enable punctuation conversion 
+  --keep-ids                  Preserve complete IDS expressions during conversion (default: false) 
   -n, --norm-compat           Normalize CJK Compatibility Ideographs before conversion (default: false)
   -E, --norm-compat-extended  Normalize extended Unicode compatibility forms before conversion (default: false)
+  --detofu [level]            Replace tofu-risk rare CJK extension chars after conversion
+                              level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
+                              default when omitted value: all  
   -D, --custom-dict <slot:mode:file>
                               Load a custom dictionary.
                               May be specified multiple times.
@@ -89,6 +90,12 @@ Office options:
   -F, --convert-filename      Convert generated output filename stem (default: false)
   --keep-font                 Preserve font-family information (default)
   --no-keep-font              Do not preserve font-family information
+  --keep-ids                  Preserve complete IDS expressions during conversion (default: false) 
+  -n, --norm-compat           Normalize CJK Compatibility Ideographs before conversion (default: false)
+  -E, --norm-compat-extended  Normalize extended Unicode compatibility forms before conversion (default: false)
+  --detofu [level]            Replace tofu-risk rare CJK extension chars after conversion
+                              level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
+                              default when omitted value: all
   -D, --custom-dict <slot:mode:file>
                               Load a custom dictionary.
                               May be specified multiple times.
@@ -397,10 +404,15 @@ function inferOfficeFormat(inputFile, explicitFormat) {
     return ext;
 }
 
-function makeDefaultOfficeOutput(inputFile, officeFormat, convertFilename, cc, config, punct) {
+function makeDefaultOfficeOutput(
+    inputFile,
+    officeFormat,
+    convertStem = null
+) {
     const parsed = path.parse(inputFile);
-    const stem = convertFilename
-        ? cc.convert(parsed.name, punct)
+
+    const stem = convertStem
+        ? convertStem(parsed.name)
         : parsed.name;
 
     return path.join(
@@ -571,6 +583,27 @@ async function runOffice(args) {
     const punct = hasFlag(args, "-p", "--punct");
     const convertFilename = hasFlag(args, "-F", "--convert-filename");
     const keepFont = !hasFlag(args, null, "--no-keep-font");
+    const normCompat = hasFlag(args, "-n", "--norm-compat");
+    const normCompatExtended = hasFlag(args, "-E", "--norm-compat-extended");
+
+    const normMode = normCompatExtended
+        ? NormalizeModeWasm.CompatExtended
+        : normCompat
+            ? NormalizeModeWasm.Compat
+            : NormalizeModeWasm.None;
+
+    const detofuIndex = args.indexOf("--detofu");
+    const detofuEnabled = detofuIndex !== -1;
+    let detofuLevel;
+
+    if (detofuEnabled) {
+        const next = args[detofuIndex + 1];
+
+        detofuLevel = (!next || next.startsWith("-"))
+            ? parseDetofuLevel("all")
+            : parseDetofuLevel(next);
+    }
+
     const customDicts = getArgs(args, "-D", "--custom-dict")
         .map(parseCustomDictSpec);
 
@@ -589,8 +622,34 @@ async function runOffice(args) {
         ? new OpenccWasm(config)
         : OpenccWasm.newWithCustomDicts(config, customDicts);
 
+    const keepIds = hasFlag(args, null, "--keep-ids");
+
+    if (keepIds) {
+        cc.setPreserveIds(true);
+    }
+
+    const filenameConverter = convertFilename
+        ? text => {
+            let result = text;
+
+            if (normCompatExtended) {
+                result = cc.normalizeCompatExtended(result);
+            } else if (normCompat) {
+                result = cc.normalizeCompat(result);
+            }
+
+            result = cc.convert(result, punct);
+
+            if (detofuEnabled) {
+                result = cc.detofu(result, detofuLevel);
+            }
+
+            return result;
+        }
+        : null;
+
     if (!output) {
-        output = makeDefaultOfficeOutput(input, officeFormat, convertFilename, cc, config, punct);
+        output = makeDefaultOfficeOutput(input, officeFormat, filenameConverter);
         console.error(`Output file not specified. Using: ${output}`);
     } else {
         output = applyOutputExtension(output, officeFormat);
@@ -600,11 +659,13 @@ async function runOffice(args) {
 
     const inputBytes = fs.readFileSync(input);
 
-    const outputBytes = cc.convertOfficeBytes(
+    const outputBytes = cc.convertOfficeBytesPipeline(
         inputBytes,
         officeFormat,
         punct,
-        keepFont
+        keepFont,
+        normMode,
+        detofuLevel
     );
 
     fs.writeFileSync(output, outputBytes);

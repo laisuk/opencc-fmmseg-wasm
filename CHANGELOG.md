@@ -10,12 +10,29 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Added Live Demo Page link in `README.md`
+- Added a generic text-conversion pipeline to `OfficeConverter`, allowing Office document and EPUB conversion to use
+  caller-supplied text transformers while retaining the existing OpenCC-specific APIs for backward compatibility.
+- Added `convertOfficeBytesPipeline()` with configurable compatibility normalization, OpenCC conversion, and optional
+  DeToFu processing for Office documents and EPUB files.
+- Added `NormalizeModeWasm` for selecting no normalization, CJK compatibility normalization, Unicode compatibility
+  normalization, or extended compatibility normalization.
+- Added `-n` / `--norm-compat`, `-E` / `--norm-compat-extended`, and `--detofu [level]` support to the CLI `office`
+  subcommand.
+- Added `--keep-ids` support to the CLI `office` subcommand.
+- Added pipeline-aware `-F` / `--convert-filename` processing so generated output filenames use the same normalization,
+  OpenCC, DeToFu, custom-dictionary, and IDS-preservation settings as document content.
+- Added Live Demo Page link in `README.md`.
 
 ### Changed
 
-- Update Demo Page codes to `CJK Conversion Tool` which include plain text and Office document/EPUB conversion.
-- Updated Unicode mapping table
+- Refactored `OfficeConverter` so Office/EPUB package handling is independent of OpenCC-specific text-conversion policy.
+- Updated Office/EPUB conversion to use the generic text transformer internally while preserving the existing public
+  `OfficeConverter` API.
+- Hardened Office/EPUB ZIP processing with unsafe entry-name rejection and full output archive validation.
+- Extended PowerPoint conversion to include `commentAuthors.xml` alongside slides, notes, layouts, masters, and
+  comments.
+- Updated Demo Page code to `CJK Conversion Tool`, including plain-text and Office document/EPUB conversion.
+- Updated Unicode mapping table.
 - Updated dictionary data.
 
 ---

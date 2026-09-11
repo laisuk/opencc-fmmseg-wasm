@@ -583,8 +583,12 @@ docx, xlsx, pptx, odt, ods, odp, epub
 File size is limited by available browser or Node.js memory, but there is no upload or server-side limit. Font
 preservation is supported with the `keepFont` option.
 
-Use the instance method when possible. It reuses the converter configuration and any custom dictionaries already held by
-the `OpenccWasm` instance.
+Use the instance methods when possible. They reuse the converter configuration, custom dictionaries, and other converter
+state already held by the `OpenccWasm` instance.
+
+### Basic Office Conversion
+
+For normal OpenCC conversion, use:
 
 ```javascript
 cc.convertOfficeBytes(inputBytes, format, punctuation, keepFont)
@@ -601,10 +605,82 @@ Returns:
 
 - converted output bytes
 
-The older free function remains available for compatibility:
+The existing free function remains available for compatibility:
 
 ```javascript
 convert_office_bytes(inputBytes, format, config, punctuation, keepFont)
+```
+
+### Office Conversion Pipeline
+
+For compatibility normalization and optional DeTofu processing, use:
+
+```javascript
+cc.convertOfficeBytesPipeline(
+    inputBytes,
+    format,
+    punctuation,
+    keepFont,
+    normalizeMode,
+    detofuLevel
+)
+```
+
+The text-processing order is:
+
+```text
+Normalize -> OpenCC -> DeTofu
+```
+
+`normalizeMode` is a `NormalizeModeWasm` value:
+
+```javascript
+NormalizeModeWasm.None
+NormalizeModeWasm.Compat
+NormalizeModeWasm.UnicodeCompat
+NormalizeModeWasm.CompatExtended
+```
+
+The final `detofuLevel` argument is optional. When omitted or `undefined`, DeTofu is not applied.
+
+To enable DeTofu, pass a `DetofuLevelWasm` value:
+
+```javascript
+DetofuLevelWasm.ExtB
+DetofuLevelWasm.ExtC
+DetofuLevelWasm.ExtD
+DetofuLevelWasm.ExtE
+DetofuLevelWasm.ExtF
+DetofuLevelWasm.ExtG
+DetofuLevelWasm.ExtH
+DetofuLevelWasm.ExtI
+```
+
+`ExtB` applies all supported DeTofu mappings from Extension B onward.
+
+For example, extended compatibility normalization followed by OpenCC conversion, without DeTofu:
+
+```javascript
+const outputBytes = cc.convertOfficeBytesPipeline(
+    inputBytes,
+    "docx",
+    true,
+    true,
+    NormalizeModeWasm.CompatExtended
+);
+```
+
+To additionally apply DeTofu:
+
+```javascript
+const outputBytes = cc.convertOfficeBytesPipeline(
+    inputBytes,
+    "docx",
+    true,
+    true,
+    NormalizeModeWasm.CompatExtended,
+    DetofuLevelWasm.ExtB
+);
 ```
 
 ### Browser Office Example
@@ -623,6 +699,41 @@ const outputBytes = cc.convertOfficeBytes(
     "docx",
     true,
     true
+);
+
+const blob = new Blob([outputBytes], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+});
+
+const a = document.createElement("a");
+a.href = URL.createObjectURL(blob);
+a.download = "converted.docx";
+a.click();
+URL.revokeObjectURL(a.href);
+```
+
+### Browser Office Pipeline Example
+
+```javascript
+import init, {
+    OpenccWasm,
+    NormalizeModeWasm,
+    DetofuLevelWasm
+} from "@laisuk/opencc-fmmseg-wasm";
+
+await init();
+
+const cc = new OpenccWasm("t2s");
+const file = document.querySelector("input[type=file]").files[0];
+const inputBytes = new Uint8Array(await file.arrayBuffer());
+
+const outputBytes = cc.convertOfficeBytesPipeline(
+    inputBytes,
+    "docx",
+    true,
+    true,
+    NormalizeModeWasm.CompatExtended,
+    DetofuLevelWasm.ExtB
 );
 
 const blob = new Blob([outputBytes], {
@@ -655,6 +766,33 @@ const outputBytes = cc.convertOfficeBytes(
 );
 
 fs.writeFileSync("output.docx", outputBytes);
+```
+
+### Node.js Office Pipeline Example
+
+```javascript
+import fs from "fs";
+import init, {
+    OpenccWasm,
+    NormalizeModeWasm,
+    DetofuLevelWasm
+} from "@laisuk/opencc-fmmseg-wasm";
+
+await init();
+
+const cc = new OpenccWasm("t2s");
+const inputBytes = fs.readFileSync("input.epub");
+
+const outputBytes = cc.convertOfficeBytesPipeline(
+    inputBytes,
+    "epub",
+    true,
+    true,
+    NormalizeModeWasm.CompatExtended,
+    DetofuLevelWasm.ExtB
+);
+
+fs.writeFileSync("output.epub", outputBytes);
 ```
 
 ---
@@ -777,12 +915,18 @@ tw2s, tw2sp, tw2t, tw2tp, hk2s, hk2sp, hk2t, hk2tp, jp2t, t2jp
 -F, --convert-filename      Convert generated output filename stem (default: false)
 --keep-font                 Preserve font-family information (default)
 --no-keep-font              Do not preserve font-family information
---custom-dict <slot:mode:file>
-                            Load a custom dictionary.
-                            May be specified multiple times.
-                            Examples:
-                              --custom-dict hkphrasesrev:append:my_hk_dict.txt
-                              --custom-dict stphrases:override:terms.txt
+--keep-ids                  Preserve complete IDS expressions during conversion (default: false) 
+-n, --norm-compat           Normalize CJK Compatibility Ideographs before conversion (default: false)
+-E, --norm-compat-extended  Normalize extended Unicode compatibility forms before conversion (default: false)
+--detofu [level]            Replace tofu-risk rare CJK extension chars after conversion
+                          level: all | ext-b | ext-c | ext-d | ext-e | ext-f | ext-g | ext-h | ext-i
+                          default when omitted value: all
+-D, --custom-dict <slot:mode:file>
+                          Load a custom dictionary.
+                          May be specified multiple times.
+                          Examples:
+                            --custom-dict hkphrasesrev:append:my_hk_dict.txt
+                            --custom-dict stphrases:override:terms.txt
 ```
 
 For `office`, the format is inferred from the input file extension when `--format` is omitted.

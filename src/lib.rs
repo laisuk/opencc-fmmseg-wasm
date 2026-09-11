@@ -69,7 +69,7 @@ impl From<OpenccConfigWasm> for OpenccConfig {
     }
 }
 
-/// CJK Extension support level used by DeToFu fallback processing.
+/// CJK Extension support level used by DeTofu fallback processing.
 ///
 /// Characters beyond the selected extension level may be replaced with safer
 /// fallback forms when mappings are available.
@@ -108,6 +108,26 @@ impl From<DetofuLevelWasm> for DetofuLevel {
             DetofuLevelWasm::ExtI => DetofuLevel::ExtI,
         }
     }
+}
+
+/// Optional normalization stage used by Office/EPUB pipeline conversion.
+///
+/// Pipeline order is always normalization -> OpenCC conversion -> optional DeTofu.
+/// `None` skips normalization entirely. The remaining variants map directly to
+/// the corresponding normalization APIs exposed by [`OpenccWasm`].
+#[wasm_bindgen]
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NormalizeModeWasm {
+    /// Do not normalize before OpenCC conversion.
+    None = 0,
+    /// Normalize CJK Compatibility Ideographs.
+    Compat = 1,
+    /// Apply the extended Unicode compatibility table only.
+    UnicodeCompat = 2,
+    /// Apply extended Unicode compatibility normalization together with CJK
+    /// Compatibility Ideograph normalization.
+    CompatExtended = 3,
 }
 
 /// JavaScript-facing custom dictionary specification.
@@ -162,6 +182,47 @@ fn parse_wasm_config(config: Option<String>) -> Result<OpenccConfig, JsValue> {
 
     OpenccConfig::parse(config)
         .ok_or_else(|| JsValue::from_str(&format!("Invalid OpenCC config: {config}")))
+}
+
+/// Shared Office/EPUB pipeline adapter.
+///
+/// The Office package layer owns only ZIP/package mechanics. Text-processing
+/// policy is composed here in the fixed order normalization -> OpenCC -> DeTofu
+/// and supplied to [`OfficeConverter`] as a generic `&str -> String` closure.
+fn convert_office_bytes_pipeline_core(
+    input: &[u8],
+    format: &str,
+    inner: &OpenCC,
+    config: &str,
+    punctuation: bool,
+    keep_font: bool,
+    norm_mode: NormalizeModeWasm,
+    detofu_level: Option<DetofuLevelWasm>,
+) -> std::io::Result<(Vec<u8>, usize)> {
+    let text_converter = |text: &str| {
+        let converted = match norm_mode {
+            NormalizeModeWasm::None => inner.convert(text, config, punctuation),
+            NormalizeModeWasm::Compat => {
+                let normalized = inner.normalize_compat(text);
+                inner.convert(&normalized, config, punctuation)
+            }
+            NormalizeModeWasm::UnicodeCompat => {
+                let normalized = inner.normalize_unicode_compat(text);
+                inner.convert(&normalized, config, punctuation)
+            }
+            NormalizeModeWasm::CompatExtended => {
+                let normalized = inner.normalize_compat_extended(text);
+                inner.convert(&normalized, config, punctuation)
+            }
+        };
+
+        match detofu_level {
+            Some(level) => inner.detofu(&converted, level.into()),
+            None => converted,
+        }
+    };
+
+    OfficeConverter::convert_bytes_with(input, format, keep_font, &text_converter)
 }
 
 #[wasm_bindgen]
@@ -345,7 +406,7 @@ impl OpenccWasm {
         self.inner.normalize_unicode_compat(text)
     }
 
-    /// Applies DeToFu fallback processing for rare CJK extension characters.
+    /// Applies DeTofu fallback processing for rare CJK extension characters.
     ///
     /// `level` specifies the highest CJK Extension block considered safe for
     /// display. Characters beyond that level are replaced when a fallback mapping
@@ -355,10 +416,10 @@ impl OpenccWasm {
         self.inner.detofu(text, level.into())
     }
 
-    /// Converts text and then applies DeToFu fallback processing.
+    /// Converts text and then applies DeTofu fallback processing.
     ///
     /// This is equivalent to calling [`Self::convert`] followed by [`Self::detofu`],
-    /// while reusing an internal output buffer for the DeToFu pass.
+    /// while reusing an internal output buffer for the DeTofu pass.
     #[wasm_bindgen(js_name = convertDetofu)]
     pub fn convert_detofu(&self, text: &str, punctuation: bool, level: DetofuLevelWasm) -> String {
         let converted = self.convert(text, punctuation);
@@ -396,6 +457,41 @@ impl OpenccWasm {
         .map(|(bytes, _)| bytes)
         .map_err(|e| JsValue::from_str(&e.to_string()))
     }
+
+    /// Converts a ZIP-based Office or EPUB document using the full text pipeline.
+    ///
+    /// Processing order is fixed and explicit:
+    /// 1. normalization selected by `norm_mode`
+    /// 2. OpenCC conversion using this instance's current configuration
+    /// 3. optional DeTofu processing selected by `detofu_level`
+    ///
+    /// `NormalizeModeWasm::None` skips normalization. Passing `None` for
+    /// `detofu_level` skips DeTofu. Package parsing, XLSX inline-string handling,
+    /// font preservation, EPUB rules, and ZIP validation remain owned by
+    /// [`OfficeConverter`].
+    #[wasm_bindgen(js_name = convertOfficeBytesPipeline)]
+    pub fn convert_office_bytes_pipeline(
+        &self,
+        input: &[u8],
+        format: &str,
+        punctuation: bool,
+        keep_font: bool,
+        norm_mode: NormalizeModeWasm,
+        detofu_level: Option<DetofuLevelWasm>,
+    ) -> Result<Vec<u8>, JsValue> {
+        convert_office_bytes_pipeline_core(
+            input,
+            format,
+            &self.inner,
+            self.config.as_str(),
+            punctuation,
+            keep_font,
+            norm_mode,
+            detofu_level,
+        )
+        .map(|(bytes, _)| bytes)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+    }
 }
 
 /// Converts a ZIP-based Office or EPUB document entirely in memory without
@@ -420,9 +516,78 @@ pub fn convert_office_bytes(
         .map_err(|e| JsValue::from_str(&e.to_string()))
 }
 
+/// Converts a ZIP-based Office or EPUB document with the full normalization ->
+/// OpenCC -> optional DeTofu pipeline without creating an [`OpenccWasm`] instance.
+///
+/// `config` is an OpenCC configuration name. `norm_mode` selects the optional
+/// normalization stage, and `detofu_level` selects the optional DeTofu stage.
+/// Package processing itself remains conversion-policy-independent.
+#[wasm_bindgen]
+pub fn convert_office_bytes_pipeline(
+    input: &[u8],
+    format: &str,
+    config: &str,
+    punctuation: bool,
+    keep_font: bool,
+    norm_mode: NormalizeModeWasm,
+    detofu_level: Option<DetofuLevelWasm>,
+) -> Result<Vec<u8>, JsValue> {
+    let config = OpenccConfig::parse(config)
+        .ok_or_else(|| JsValue::from_str(&format!("Invalid OpenCC config: {config}")))?;
+
+    let mut opencc = OpenCC::new_embedded();
+    opencc.set_parallel(false);
+
+    convert_office_bytes_pipeline_core(
+        input,
+        format,
+        &opencc,
+        config.as_str(),
+        punctuation,
+        keep_font,
+        norm_mode,
+        detofu_level,
+    )
+    .map(|(bytes, _)| bytes)
+    .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Cursor, Read, Write};
+    use zip::{
+        CompressionMethod, ZipArchive, ZipWriter,
+        write::{ExtendedFileOptions, FileOptions},
+    };
+
+    fn make_test_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut cursor = Cursor::new(Vec::<u8>::new());
+        {
+            let mut zip = ZipWriter::new(&mut cursor);
+            let opts: FileOptions<'_, ExtendedFileOptions> =
+                FileOptions::default().compression_method(CompressionMethod::Deflated);
+
+            for (name, bytes) in entries {
+                zip.start_file(*name, opts.clone()).unwrap();
+                zip.write_all(bytes).unwrap();
+            }
+
+            zip.finish().unwrap();
+        }
+        cursor.into_inner()
+    }
+
+    fn read_test_zip_entry(zip_bytes: &[u8], name: &str) -> String {
+        let cursor = Cursor::new(zip_bytes);
+        let mut zip = ZipArchive::new(cursor).expect("ZIP archive should be readable");
+        let mut entry = zip.by_name(name).expect("ZIP entry should exist");
+        let mut content = String::new();
+        entry
+            .read_to_string(&mut content)
+            .expect("ZIP entry should be UTF-8 text");
+        content
+    }
 
     #[test]
     fn test_cbor_load_and_convert() {
@@ -598,5 +763,92 @@ mod tests {
         };
 
         assert!(CustomDictSpec::try_from(spec).is_err());
+    }
+    #[test]
+    fn normalize_mode_wasm_values_are_stable() {
+        assert_eq!(NormalizeModeWasm::None as u32, 0);
+        assert_eq!(NormalizeModeWasm::Compat as u32, 1);
+        assert_eq!(NormalizeModeWasm::UnicodeCompat as u32, 2);
+        assert_eq!(NormalizeModeWasm::CompatExtended as u32, 3);
+    }
+
+    #[test]
+    fn test_office_pipeline_applies_normalization_before_opencc() {
+        let input = make_test_zip(&[(
+            "word/document.xml",
+            "<w:document><w:t>天龍八部</w:t></w:document>".as_bytes(),
+        )]);
+        let cc = OpenccWasm::new(Some("t2s".to_string())).unwrap();
+
+        let output = cc
+            .convert_office_bytes_pipeline(
+                &input,
+                "docx",
+                false,
+                false,
+                NormalizeModeWasm::Compat,
+                None,
+            )
+            .expect("Office pipeline conversion should succeed");
+
+        let document = read_test_zip_entry(&output, "word/document.xml");
+        assert!(
+            document.contains("天龙八部"),
+            "expected compatibility normalization before t2s conversion, got: {document}"
+        );
+    }
+
+    #[test]
+    fn test_office_pipeline_applies_detofu_after_opencc() {
+        let input = make_test_zip(&[(
+            "word/document.xml",
+            "<w:document><w:t>儼驂騑於上路</w:t></w:document>".as_bytes(),
+        )]);
+        let cc = OpenccWasm::new(Some("t2s".to_string())).unwrap();
+
+        let output = cc
+            .convert_office_bytes_pipeline(
+                &input,
+                "docx",
+                false,
+                false,
+                NormalizeModeWasm::None,
+                Some(DetofuLevelWasm::ExtB),
+            )
+            .expect("Office pipeline conversion should succeed");
+
+        let document = read_test_zip_entry(&output, "word/document.xml");
+        assert!(
+            document.contains("俨骖騑于上路"),
+            "expected DeTofu after t2s conversion, got: {document}"
+        );
+    }
+
+    #[test]
+    fn test_office_pipeline_none_matches_legacy_office_conversion() {
+        let input = make_test_zip(&[(
+            "word/document.xml",
+            "<w:document><w:t>汉语</w:t></w:document>".as_bytes(),
+        )]);
+        let cc = OpenccWasm::new(Some("s2t".to_string())).unwrap();
+
+        let legacy = cc
+            .convert_office_bytes(&input, "docx", false, false)
+            .expect("legacy Office conversion should succeed");
+        let pipeline = cc
+            .convert_office_bytes_pipeline(
+                &input,
+                "docx",
+                false,
+                false,
+                NormalizeModeWasm::None,
+                None,
+            )
+            .expect("pipeline Office conversion should succeed");
+
+        assert_eq!(
+            read_test_zip_entry(&legacy, "word/document.xml"),
+            read_test_zip_entry(&pipeline, "word/document.xml")
+        );
     }
 }
