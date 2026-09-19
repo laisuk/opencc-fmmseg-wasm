@@ -11,6 +11,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Update dictionary data.
+- Slim vendored CBOR/JSON dictionary artifacts by omitting redundant single-character starter masks and restoring them on load, while retaining legacy artifact compatibility.
 
 ---
 
