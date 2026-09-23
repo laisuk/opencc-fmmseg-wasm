@@ -13,6 +13,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - Update dictionary data.
 - Slim vendored CBOR/JSON dictionary artifacts by omitting redundant single-character starter masks and restoring them on load, while retaining legacy artifact compatibility.
 - Added Unicode Compat map table entries.
+- perf: optimize astral starter union construction
 
 ---
 
