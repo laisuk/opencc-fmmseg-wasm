@@ -176,18 +176,17 @@ impl StarterUnion {
                     }
                 } else {
                     *astral_mask.entry(c0).or_insert(0) |= mask;
-                    let cap = d
-                        .map
-                        .keys()
-                        .filter(|key| key.first().copied() == Some(c0))
-                        .map(|key| u8::try_from(key.len()).unwrap_or(u8::MAX))
-                        .max()
-                        .unwrap_or_else(|| DictMaxLen::max_len_from_mask(mask).unwrap_or(0) as u8);
+
+                    // starter_len_mask already contains the exact per-starter lengths
+                    // representable by the 64-bit mask. Keys longer than 64 are handled
+                    // by the long-key pass below.
+                    let cap = DictMaxLen::max_len_from_mask(mask).unwrap_or(0) as u8;
+
                     astral_cap
                         .entry(c0)
                         .and_modify(|m| {
                             if cap > *m {
-                                *m = cap
+                                *m = cap;
                             }
                         })
                         .or_insert(cap);

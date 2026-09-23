@@ -5,8 +5,8 @@ extension characters. It is useful when those characters may render as tofu boxe
 document viewers, mobile devices, or e-book readers.
 
 DeTofu is not an OpenCC dictionary conversion rule. It does not change OpenCC conversion dictionaries, phrase matching,
-regional variant selection, script detection, or punctuation conversion. It should normally be applied after
-`convert()`:
+regional variant selection, script detection, or punctuation conversion. It is exposed through `OpenCC` as an optional
+post-conversion add-on and should normally be applied after `convert()`:
 
 ```rust
 use opencc_fmmseg::{DetofuLevel, OpenCC};
@@ -29,16 +29,24 @@ fn main() {
 ## Public APIs
 
 * `DetofuLevel` selects the fallback threshold.
+* `OpenCC` is the normal public entry point for DeTofu in an OpenCC conversion workflow.
+* `DetofuMap` is the advanced reusable/customizable API for bindings, tools, and applications that need their own fallback map.
+
+### OpenCC APIs
+
 * `OpenCC::detofu(&self, input: &str, level: DetofuLevel) -> String` applies DeTofu through an `OpenCC` instance.
-* `OpenCC::detofu_with_custom_file(&self, input, level, path)` applies DeTofu using the built-in fallback table plus a
-  user-supplied fallback file.
-* `OpenCC::detofu_with_custom_pairs(&self, input, level, pairs)` applies DeTofu using the built-in fallback table plus
-  in-memory custom fallback pairs.
-* `detofu(text: &str, level: DetofuLevel) -> String` applies DeTofu as a direct utility function.
-* `DetofuMap::builtin(level)` builds a reusable map from the built-in fallback data.
-* `DetofuMap::with_custom_pairs(...)` adds post-load custom fallback pairs.
+* `OpenCC::detofu_into(&self, input: &str, level: DetofuLevel, output: &mut String)` appends the DeTofu result to an existing output buffer for allocation reuse.
+* `OpenCC::detofu_with_custom_file(&self, input, level, path)` applies DeTofu using the built-in fallback table plus a user-supplied fallback file.
+* `OpenCC::detofu_with_custom_pairs(&self, input, level, pairs)` applies DeTofu using the built-in fallback table plus in-memory custom fallback pairs.
+
+### Reusable `DetofuMap`
+
+* `DetofuMap::builtin(level)` creates a reusable DeTofu map backed by the shared built-in fallback table.
+* `DetofuMap::with_custom_pairs(...)` adds custom fallback pairs that override built-in mappings.
 * `DetofuMap::with_custom_file(...)` loads additional fallback mappings from a UTF-8 text file.
-* `DetofuMap::detofu(...)` applies a reusable map to text.
+* `DetofuMap::detofu(...)` applies a reusable map and returns a newly allocated `String`.
+* `DetofuMap::detofu_into(...)` applies a reusable map and appends the result to an existing output buffer for allocation reuse.
+
 
 ## OpenCC Instance Usage
 
@@ -86,7 +94,7 @@ exists in the built-in map, the custom pair wins. If the same key appears more t
 wins. Unlike custom fallback files, direct pairs do not carry an extension column, so they are always added to the
 selected map. DeTofu preserves unmapped characters unchanged.
 
-## Reusable Map Usage
+## Advanced Reusable Map Usage
 
 ```rust,no_run
 use opencc_fmmseg::{DetofuLevel, DetofuMap};
@@ -117,18 +125,6 @@ Threshold behavior is inclusive of later supported extensions:
 * `DetofuLevel::ExtG` means ExtG and above.
 * `DetofuLevel::ExtH` means ExtH and above.
 * `DetofuLevel::ExtI` means ExtI only.
-
-## Direct Utility Usage
-
-```rust
-use opencc_fmmseg::{detofu, DetofuLevel};
-
-fn main() {
-    let safe = detofu("骖𬴂", DetofuLevel::ExtB);
-
-    assert_eq!(safe, "骖騑");
-}
-```
 
 ## Custom Fallback Files
 
@@ -185,4 +181,4 @@ ExtD
 ---
 
 > Crate: [opencc-fmmseg on crates.io](https://crates.io/crates/opencc-fmmseg)  
-> Docs: [docs.rs/opencc-fmmseg](https://docs.rs/opencc-fmmseg/0.11.0/opencc_fmmseg/)
+> Docs: [docs.rs/opencc-fmmseg](https://docs.rs/opencc-fmmseg)
