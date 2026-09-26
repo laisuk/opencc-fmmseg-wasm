@@ -17,19 +17,15 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Write};
 #[cfg(feature = "zstd")]
-use std::io::{BufWriter, Cursor};
+use std::io::Cursor;
 use std::path::Path;
 use std::sync::Mutex;
 use std::{fs, io};
 #[cfg(feature = "zstd")]
-use zstd::{Decoder, Encoder};
+use zstd::Decoder;
 
-use crate::dictionary_lib::{DictMaxLen, DictSlot};
+use crate::dictionary_lib::{union_cache, DictMaxLen, DictSlot};
 use crate::{CustomDictFileSpec, CustomDictMode, CustomDictSpec};
-
-mod union_cache;
-pub(crate) use union_cache::UnionKey;
-// so callers can say `UnionKey::S2T { punct: ... }`
 
 // Define a global mutable variable to store the error message
 static LAST_ERROR: Mutex<Option<String>> = Mutex::new(None);
@@ -130,7 +126,7 @@ pub struct DictionaryMaxlength {
 
     #[serde(skip)]
     #[serde(default)]
-    unions: union_cache::Unions,
+    pub(super) unions: union_cache::Unions,
 }
 
 impl DictionaryMaxlength {
@@ -1239,7 +1235,9 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     /// - Embedding as an asset in external applications
     ///
     /// Unlike [`serialize_to_cbor`](Self::serialize_to_cbor), this function
-    /// performs both **serialization** and **compression** in one step.
+    /// serializes the dictionary to CBOR in memory and then compresses the
+    /// complete CBOR payload with Zstd. Using one-shot compression allows the
+    /// resulting Zstd frame to include its uncompressed content size.
     ///
     /// # Arguments
     ///
@@ -1260,12 +1258,12 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
         dictionary: &DictionaryMaxlength,
         path: &str,
     ) -> Result<(), DictionaryError> {
-        let file = File::create(path).map_err(|e| DictionaryError::IoError(e))?;
-        let writer = BufWriter::new(file);
-        let mut encoder = Encoder::new(writer, 19).map_err(|e| DictionaryError::IoError(e))?;
-        serde_cbor::to_writer(&mut encoder, dictionary)
-            .map_err(|e| DictionaryError::CborParseError(e))?;
-        encoder.finish().map_err(|e| DictionaryError::IoError(e))?;
+        let cbor = serde_cbor::to_vec(dictionary).map_err(DictionaryError::CborParseError)?;
+
+        let compressed = zstd::bulk::compress(&cbor, 19).map_err(DictionaryError::IoError)?;
+
+        fs::write(path, compressed).map_err(DictionaryError::IoError)?;
+
         Ok(())
     }
 
