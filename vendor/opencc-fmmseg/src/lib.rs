@@ -15,6 +15,8 @@ mod opencc_config;
 mod unicode_compat;
 /// Common helpers for opencc-fmmseg.
 mod utils;
+#[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
+mod zstd;
 
 pub use crate::delimiter_set::{is_delimiter, DelimiterSet};
 pub use crate::dictionary_lib::{CustomDictFileSpec, CustomDictMode, CustomDictSpec, DictSlot};

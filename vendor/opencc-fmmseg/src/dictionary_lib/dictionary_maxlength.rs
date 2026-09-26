@@ -9,15 +9,13 @@
 //! advanced users may access it for custom loading, serialization, or optimization.
 
 use rustc_hash::FxHashMap;
-#[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
-use ruzstd::decoding::StreamingDecoder;
 use serde::{Deserialize, Serialize};
 use serde_cbor::{from_reader, from_slice};
 use std::error::Error;
 use std::fs::File;
-use std::io::{BufRead, BufReader, Write};
 #[cfg(feature = "zstd")]
 use std::io::Cursor;
+use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::sync::Mutex;
 use std::{fs, io};
@@ -224,16 +222,18 @@ impl DictionaryMaxlength {
             Decoder::new(cursor).map_err(DictionaryError::IoError)?
         };
 
-        #[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
-        let mut source = &compressed_data[..];
-
-        #[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
-        let mut decoder = StreamingDecoder::new(&mut source).map_err(|e| {
-            DictionaryError::IoError(io::Error::new(io::ErrorKind::InvalidData, e.to_string()))
-        })?;
-
+        #[cfg(feature = "zstd")]
         let dictionary: DictionaryMaxlength =
             from_reader(&mut decoder).map_err(DictionaryError::CborParseError)?;
+
+        #[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
+        let decompressed = crate::zstd::decompress(compressed_data).map_err(|err| {
+            DictionaryError::IoError(io::Error::new(io::ErrorKind::InvalidData, err.to_string()))
+        })?;
+
+        #[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
+        let dictionary: DictionaryMaxlength =
+            from_slice(&decompressed).map_err(DictionaryError::CborParseError)?;
 
         Ok(dictionary.finish())
     }

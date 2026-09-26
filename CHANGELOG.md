@@ -6,6 +6,15 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.4.3] - Unreleased
+
+### Changed
+
+- Moved vendored union_cache to its super.
+- Update dictionary data.
+
+---
+
 ## [0.4.2] - 2026-09-23
 
 ### Changed
