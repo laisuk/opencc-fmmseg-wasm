@@ -1,34 +1,33 @@
-# test-opencc.ps1
-# Local npm smoke test for opencc-fmmseg-wasm
-
-$ErrorActionPreference = "Stop"
+param(
+    [string]$Package = "opencc-fmmseg-wasm"
+)
 
 $ProjectName = "test-opencc"
 
-# Detect caller current directory
-$BaseDir = (Get-Location).Path
+if (Test-Path $ProjectName) {
+    Remove-Item $ProjectName -Recurse -Force
+}
 
-Write-Host "BaseDir: $BaseDir"
+New-Item -ItemType Directory $ProjectName | Out-Null
 
-$ProjectPath = Join-Path $BaseDir $ProjectName
+if (Test-Path $Package) {
+    $Package = (Resolve-Path $Package).Path
+}
 
-Write-Host "Creating project at:"
-Write-Host $ProjectPath
+Push-Location $ProjectName
 
-# Create project folder
-New-Item -ItemType Directory -Force -Path $ProjectPath | Out-Null
+try {
+    npm init -y
+    if ($LASTEXITCODE -ne 0) { throw "npm init failed" }
 
-# Enter project folder
-Set-Location $ProjectPath
+    npm install $Package
+    if ($LASTEXITCODE -ne 0) { throw "npm install failed" }
 
-# Init npm
-npm init -y
+    npx opencc-fmmseg -h
+    if ($LASTEXITCODE -ne 0) { throw "opencc-fmmseg CLI smoke test failed" }
 
-# Install package
-npm install opencc-fmmseg-wasm
-
-# Test CLI
-npx opencc-fmmseg -h
-
-Write-Host ""
-Write-Host "Done."
+    Write-Host "npm package smoke test passed." -ForegroundColor Green
+}
+finally {
+    Pop-Location
+}

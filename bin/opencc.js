@@ -69,13 +69,25 @@ Convert options:
   --in-enc <encoding>         Input encoding (default: utf8)
   --out-enc <encoding>        Output encoding (default: utf8)
   
-Supported encodings:
+Supported input encodings:
   utf8
   utf16le
   latin1
   ascii
-  
-  Note: utf8 and utf16le are recommended for CJK text.
+  gb18030
+  gbk       (decoded as gb18030)
+  gb2312    (decoded as gb18030)
+  big5
+  shift_jis
+  shift-jis  (alias of shift_jis)
+
+Supported output encodings:
+  utf8
+  utf16le
+  latin1
+  ascii
+
+Note: utf8 and utf16le are recommended for output and general-purpose CJK text.
 
 Supported configs:
   s2t, s2tw, s2twp, s2hk, s2hkp, t2s, t2tw, t2twp, t2hk, t2hkp,
@@ -167,6 +179,30 @@ function getArgs(args, shortName, longName) {
 
 function validateEncoding(value, optionName) {
     const encoding = String(value).trim().toLowerCase();
+
+    if (optionName === "--in-enc") {
+        const supported = new Set([
+            "utf8",
+            "utf16le",
+            "latin1",
+            "ascii",
+            "gb18030",
+            "gbk",
+            "gb2312",
+            "big5",
+            "shift_jis",
+            "shift-jis"
+        ]);
+
+        if (!supported.has(encoding)) {
+            throw new Error(
+                `Unsupported encoding for ${optionName}: ${value}. ` +
+                `Supported values: ${Array.from(supported).join(", ")}`
+            );
+        }
+
+        return encoding;
+    }
 
     if (!Buffer.isEncoding(encoding)) {
         throw new Error(
@@ -347,13 +383,30 @@ function hasFlag(args, shortName, longName) {
     );
 }
 
+const TEXT_DECODER_ENCODINGS = new Set([
+    "big5",
+    "gb18030",
+    "shift_jis"
+]);
+
 function readInputText(filePath, encoding) {
+    const enc = normalizeInputEncoding(encoding);
+
+    const read = (path) => {
+        if (TEXT_DECODER_ENCODINGS.has(enc)) {
+            const buffer = fs.readFileSync(path);
+            return new TextDecoder(enc, {fatal: true}).decode(buffer);
+        }
+
+        return fs.readFileSync(path, enc);
+    };
+
     if (!filePath) {
-        return fs.readFileSync(0, encoding);
+        return read(0);
     }
 
     try {
-        return fs.readFileSync(filePath, encoding);
+        return read(filePath);
     } catch (err) {
         if (err?.code === "ENOENT") {
             throw new Error(`Input file not found: ${filePath}`);
@@ -366,6 +419,22 @@ function readInputText(filePath, encoding) {
         throw new Error(
             `Cannot read input file ${filePath}: ${err?.message || err}`
         );
+    }
+}
+
+function normalizeInputEncoding(encoding) {
+    const enc = encoding.toLowerCase();
+
+    switch (enc) {
+        case "gb2312":
+        case "gbk":
+            return "gb18030";
+
+        case "shift-jis":
+            return "shift_jis";
+
+        default:
+            return enc;
     }
 }
 
