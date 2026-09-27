@@ -1,9 +1,28 @@
 param(
     [ValidateSet("", "scoped", "unscoped")]
-    [string]$PackageNameMode = ""
+    [string]$PackageNameMode = "",
+
+    [switch]$Ruzstd
 )
 
-wasm-pack build --target web --release
+$wasmPackArgs = @(
+    "build",
+    "--target", "web",
+    "--release"
+)
+
+if ($Ruzstd) {
+    $wasmPackArgs += @("--", "--features", "ruzstd")
+    Write-Host "Building with pure-Rust ZSTD dictionary decoding (ruzstd)." -ForegroundColor Cyan
+} else {
+    Write-Host "Building with CBOR dictionaries." -ForegroundColor Cyan
+}
+
+wasm-pack @wasmPackArgs
+
+if ($LASTEXITCODE -ne 0) {
+    exit $LASTEXITCODE
+}
 
 $src = ".\bin\opencc.js"
 $dst = ".\pkg\bin\opencc.js"

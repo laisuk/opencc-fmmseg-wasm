@@ -650,9 +650,19 @@ mod tofu_bin_tests {
         let bin_entries = parse_tofu_bin(include_bytes!("data/CharactersTofu.bin"))
             .expect("built-in CharactersTofu.bin should parse");
 
+        for (index, (txt, bin)) in txt_entries.iter().zip(&bin_entries).enumerate() {
+            assert_eq!(
+                txt, bin,
+                "CharactersTofu.bin differs at entry {index}; \
+                 regenerate CharactersTofu.bin"
+            );
+        }
+
         assert_eq!(
-            txt_entries, bin_entries,
-            "TSCharactersTofu.bin must be regenerated from TSCharactersTofu.txt"
+            txt_entries.len(),
+            bin_entries.len(),
+            "CharactersTofu.bin entry count differs; \
+             regenerate CharactersTofu.bin"
         );
     }
 }

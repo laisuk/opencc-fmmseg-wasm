@@ -323,16 +323,12 @@ pub fn parse_unicode_compat_bin(bytes: &[u8]) -> io::Result<Vec<(char, char)>> {
     ) as usize;
 
     let expected_len = UNICODE_BIN_HEADER_LEN
-        .checked_add(
-            count
-                .checked_mul(UNICODE_BIN_RECORD_LEN)
-                .ok_or_else(|| {
-                    io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "unicode compatibility binary record count overflows",
-                    )
-                })?,
-        )
+        .checked_add(count.checked_mul(UNICODE_BIN_RECORD_LEN).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unicode compatibility binary record count overflows",
+            )
+        })?)
         .ok_or_else(|| {
             io::Error::new(
                 io::ErrorKind::InvalidData,
@@ -521,19 +517,27 @@ mod unicode_bin_tests {
 
     #[test]
     fn builtin_unicode_bin_matches_builtin_unicode_txt() {
-        let txt_entries = parse_unicode_compat_entries(include_str!(
-            "data/Unicode_Compatibility.txt"
-        ))
-            .expect("built-in Unicode_Compatibility.txt should parse");
+        let txt_entries =
+            parse_unicode_compat_entries(include_str!("data/Unicode_Compatibility.txt"))
+                .expect("built-in Unicode_Compatibility.txt should parse");
 
-        let bin_entries = parse_unicode_compat_bin(include_bytes!(
-            "data/Unicode_Compatibility.bin"
-        ))
-            .expect("built-in Unicode_Compatibility.bin should parse");
+        let bin_entries =
+            parse_unicode_compat_bin(include_bytes!("data/Unicode_Compatibility.bin"))
+                .expect("built-in Unicode_Compatibility.bin should parse");
+
+        for (index, (txt, bin)) in txt_entries.iter().zip(&bin_entries).enumerate() {
+            assert_eq!(
+                txt, bin,
+                "Unicode_Compatibility.bin differs at entry {index}; \
+         regenerate Unicode_Compatibility.bin"
+            );
+        }
 
         assert_eq!(
-            txt_entries, bin_entries,
-            "Unicode_Compatibility.bin must be regenerated from Unicode_Compatibility.txt"
+            txt_entries.len(),
+            bin_entries.len(),
+            "Unicode_Compatibility.bin entry count differs; \
+     regenerate Unicode_Compatibility.bin"
         );
     }
 
@@ -541,11 +545,7 @@ mod unicode_bin_tests {
     fn unicode_bin_round_trip_preserves_duplicate_order_and_astral_scalars() {
         use super::write_unicode_compat_bin;
 
-        let entries = vec![
-            ('聼', '听'),
-            ('𠮷', '𠮟'),
-            ('聼', '聽'),
-        ];
+        let entries = vec![('聼', '听'), ('𠮷', '𠮟'), ('聼', '聽')];
         let mut bytes = Vec::new();
 
         write_unicode_compat_bin(&entries, &mut bytes).unwrap();
@@ -569,7 +569,7 @@ mod tests {
 聼\t聽
 ",
         )
-            .unwrap();
+        .unwrap();
 
         assert_eq!(table.normalize("⺙聼"), "攵聽");
     }
@@ -582,7 +582,7 @@ mod tests {
 聼\t聽
 ",
         )
-            .unwrap();
+        .unwrap();
 
         assert_eq!(entries, vec![('聼', '听'), ('聼', '聽')]);
     }
@@ -620,7 +620,7 @@ mod tests {
 聼\t聽
 ",
         )
-            .unwrap();
+        .unwrap();
 
         assert_eq!(table.normalize("聼"), "聽");
     }

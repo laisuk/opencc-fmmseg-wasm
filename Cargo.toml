@@ -33,6 +33,10 @@ regex = "1.13"
 serde-wasm-bindgen = "0.6.5"
 serde = { version = "1.0.229", features = ["derive"] }
 
+[features]
+default = []
+ruzstd = ["opencc-fmmseg/ruzstd"]
+
 # Default: heavy optimization for libraries (C API performance)
 
 [profile.release]

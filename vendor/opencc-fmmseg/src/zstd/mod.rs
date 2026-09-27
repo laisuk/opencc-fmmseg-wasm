@@ -82,7 +82,7 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "ruzstd")]
+    #[cfg(all(feature = "ruzstd", feature = "zstd"))]
     #[test]
     fn decompress_with_fcs_matches_original() {
         let expected = include_bytes!("../dictionary_lib/dicts/dictionary_maxlength.cbor");

@@ -432,9 +432,19 @@ mod compat_bin_tests {
         let bin_entries = parse_compat_bin(include_bytes!("data/CJK_Compatibility_Ideographs.bin"))
             .expect("built-in CJK_Compatibility_Ideographs.bin should parse");
 
+        for (index, (txt, bin)) in txt_entries.iter().zip(&bin_entries).enumerate() {
+            assert_eq!(
+                txt, bin,
+                "CJK_Compatibility_Ideographs.bin differs at entry {index}; \
+                 regenerate CJK_Compatibility_Ideographs.bin"
+            );
+        }
+
         assert_eq!(
-            txt_entries, bin_entries,
-            "CJK_Compatibility_Ideographs.bin must be regenerated from CJK_Compatibility_Ideographs.txt"
+            txt_entries.len(),
+            bin_entries.len(),
+            "CJK_Compatibility_Ideographs.bin entry count differs; \
+             regenerate CJK_Compatibility_Ideographs.bin"
         );
     }
 }

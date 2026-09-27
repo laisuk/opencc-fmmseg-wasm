@@ -10,8 +10,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Moved vendored union_cache to its super.
-- Update dictionary data.
+- Moved the vendored `union_cache` module to its parent module.
+- Updated dictionary data.
+- Added optional `ruzstd` support for pure-Rust ZSTD dictionary decoding in WebAssembly builds, reducing the WASM and
+  npm package footprint while avoiding native ZSTD dependencies.
+- Added `-Ruzstd` support to the npm preparation script for building release packages with ZSTD-compressed dictionaries.
 
 ---
 
@@ -20,7 +23,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Update dictionary data.
-- Slim vendored CBOR/JSON dictionary artifacts by omitting redundant single-character starter masks and restoring them on load, while retaining legacy artifact compatibility.
+- Slim vendored CBOR/JSON dictionary artifacts by omitting redundant single-character starter masks and restoring them
+  on load, while retaining legacy artifact compatibility.
 - Added Unicode Compat map table entries.
 - perf: optimize astral starter union construction
 
