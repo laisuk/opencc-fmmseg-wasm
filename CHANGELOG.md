@@ -17,6 +17,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - Added `-Ruzstd` support to the npm preparation script for building release packages with ZSTD-compressed dictionaries.
 - Extended the JavaScript CLI with legacy CJK input decoding for **GB18030**, **GBK**, **GB2312**, **Big5**, and
   **Shift_JIS**, using the built-in `TextDecoder` API without additional npm dependencies.
+- Demo: improve mobile responsiveness.
 
 ---
 

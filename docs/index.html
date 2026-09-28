@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Opencc-Fmmseg — CJK Conversion Tool</title>
 
     <style>
@@ -48,7 +49,28 @@
         }
 
         .cm-scroller {
+            overflow: auto;
             font-family: Consolas, "Courier New", monospace;
+        }
+
+        @media (max-width: 900px) {
+            .editor-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .cm-editor {
+                height: 300px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                margin: 10px;
+            }
+
+            .cm-editor {
+                height: 240px;
+            }
         }
 
         pre {
@@ -182,11 +204,14 @@
 <pre id="out">Loading engine...</pre>
 
 <script type="module">
+    // import init, {
+    //     OpenccWasm,
+    //     DetofuLevelWasm
+    // } from "https://cdn.jsdelivr.net/npm/@laisuk/opencc-fmmseg-wasm/opencc_fmmseg_wasm.js";
     import init, {
         OpenccWasm,
         DetofuLevelWasm
-    } from "https://cdn.jsdelivr.net/npm/@laisuk/opencc-fmmseg-wasm/opencc_fmmseg_wasm.js";
-    // import init, {OpenccWasm} from "./pkg/opencc_fmmseg_wasm.js";
+    } from "./pkg/opencc_fmmseg_wasm.js";
 
     import {EditorState} from "https://esm.sh/@codemirror/state";
     import {EditorView, keymap, lineNumbers} from "https://esm.sh/@codemirror/view";
