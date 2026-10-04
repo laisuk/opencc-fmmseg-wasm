@@ -216,6 +216,7 @@
     import {EditorState} from "https://esm.sh/@codemirror/state";
     import {EditorView, keymap, lineNumbers} from "https://esm.sh/@codemirror/view";
     import {defaultKeymap, history, historyKeymap} from "https://esm.sh/@codemirror/commands";
+    import {detectCjkEncoding} from "./cjkEncodingDetector.js";
 
     const configInput = document.getElementById("config");
     const configDescription = document.getElementById("configDescription");
@@ -433,6 +434,12 @@
         try {
             openedTextFileName = file.name;
             openedTextFileBytes = new Uint8Array(await file.arrayBuffer());
+
+            const detected = detectCjkEncoding(openedTextFileBytes);
+            if (detected.detected) {
+                textEncoding.value = detected.encoding;
+            }
+
             openedFileName.textContent = file.name;
             refreshOpenedTextFile();
         } catch (err) {
