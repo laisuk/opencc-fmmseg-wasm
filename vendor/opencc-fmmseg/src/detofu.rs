@@ -569,6 +569,13 @@ impl DetofuMap {
                 continue;
             }
 
+            // Custom pairs may target BMP characters; after a miss, skip
+            // the built-in table, whose entries start at CJK Extension B.
+            if ch < '\u{20000}' {
+                output.push(ch);
+                continue;
+            }
+
             match builtin.get(&ch) {
                 Some(&(fallback, entry_level)) if entry_level >= self.level => {
                     output.push(fallback);

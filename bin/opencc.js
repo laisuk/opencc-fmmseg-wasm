@@ -91,7 +91,7 @@ Note: utf8 and utf16le are recommended for output and general-purpose CJK text.
 
 Supported configs:
   s2t, s2tw, s2twp, s2hk, s2hkp, t2s, t2tw, t2twp, t2hk, t2hkp,
-  tw2s, tw2sp, tw2t, tw2tp, hk2s, hk2sp, hk2t, hk2tp, jp2t, t2jp
+  tw2s, tw2sp, tw2t, tw2tp, hk2s, hk2sp, hk2t, hk2tp, jp2t, t2jp, s2seal, t2seal, seal2s, seal2t
 
 Office options:
   -i, --input <file>          Input Office / EPUB file

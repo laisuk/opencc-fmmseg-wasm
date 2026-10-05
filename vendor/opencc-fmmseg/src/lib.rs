@@ -34,4 +34,3 @@ pub use detofu::DetofuLevel;
 pub use detofu::DetofuMap;
 #[cfg(feature = "unicode-bin")]
 pub use unicode_compat::write_unicode_compat_bin_from_txt_file;
-pub(crate) use utils::*;

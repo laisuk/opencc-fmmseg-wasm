@@ -80,6 +80,7 @@ fn dictionary_ids_and_window_limit() {
 }
 
 #[cfg(feature = "ruzstd")]
+#[cfg(feature = "zstd")]
 #[test]
 fn unknown_size_across_collection_and_history_boundaries() {
     use std::io::Write;

@@ -1,5 +1,7 @@
+mod custom_dict;
 mod json_io;
 
+use crate::custom_dict::parse_custom_dict_spec;
 use crate::json_io::DictionaryMaxlengthSerde;
 use clap::{Arg, Command};
 use opencc_fmmseg::DictionaryMaxlength;
@@ -57,6 +59,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .value_name("dir")
                 .default_value("dicts")
                 .help("Base directory containing OpenCC dictionary TXT files"),
+        )
+        .arg(
+            Arg::new("custom-dict")
+                .short('D')
+                .long("custom-dict")
+                .value_name("SLOT:MODE:FILE")
+                .action(clap::ArgAction::Append)
+                .help("Custom dictionary file, e.g. HKPhrasesRev:append:my_hk_dict.txt (slot names are ASCII case-insensitive)"),
         )
         .arg(
             Arg::new("tofu")
@@ -143,15 +153,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     if matches.get_flag("unicode") {
-        let input =
-            Path::new("vendor/opencc-fmmseg/src/data/Unicode_Compatibility.txt");
+        let input = Path::new("vendor/opencc-fmmseg/src/data/Unicode_Compatibility.txt");
 
         let output = matches
             .get_one::<String>("output")
             .map(String::as_str)
-            .unwrap_or(
-                "vendor/opencc-fmmseg/src/data/Unicode_Compatibility.bin"
-            );
+            .unwrap_or("vendor/opencc-fmmseg/src/data/Unicode_Compatibility.bin");
 
         write_unicode_compat_bin_from_txt_file(input, output)?;
 
@@ -211,7 +218,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let dictionary = DictionaryMaxlength::from_dicts_at(dict_dir)?;
+    let dictionary = match matches.get_many::<String>("custom-dict") {
+        Some(values) => {
+            let specs = values
+                .map(|v| parse_custom_dict_spec(v))
+                .collect::<Result<Vec<_>, _>>()?;
+
+            DictionaryMaxlength::from_dicts_at(dict_dir)?.with_custom_dict_files(&specs)?
+        }
+        None => DictionaryMaxlength::from_dicts_at(dict_dir)?,
+    };
+
+    // let dictionary = DictionaryMaxlength::from_dicts_at(dict_dir)?;
 
     match dict_format {
         Some("zstd") => {
@@ -321,10 +339,16 @@ fn required_dictionary_files() -> &'static [&'static str] {
         "JPShinjitaiCharacters.txt",
         "JPShinjitaiCharactersRev.txt",
         "JPShinjitaiPhrases.txt",
+        "SealCharacters.txt",
+        "SealCharactersRev.txt",
+        "SealVariants.txt",
+        "SealVariantsRev.txt",
         "STPunctuations.txt",
         "TSPunctuations.txt",
     ]
 }
+
+// Tests
 
 #[cfg(test)]
 mod tests {
@@ -336,5 +360,10 @@ mod tests {
 
         assert!(required.contains(&"TWVariantsPhrases.txt"));
         assert!(required.contains(&"HKVariantsPhrases.txt"));
+
+        assert!(required.contains(&"SealCharacters.txt"));
+        assert!(required.contains(&"SealCharactersRev.txt"));
+        assert!(required.contains(&"SealVariants.txt"));
+        assert!(required.contains(&"SealVariantsRev.txt"));
     }
 }

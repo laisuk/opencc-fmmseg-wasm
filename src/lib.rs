@@ -54,6 +54,14 @@ pub enum OpenccConfigWasm {
     T2hkp = 19,
     /// Hong Kong Traditional Chinese to generic Traditional Chinese, with phrase conversion.
     Hk2tp = 20,
+    /// Simplified Chinese to Small Seal Script.
+    S2seal = 21,
+    /// Traditional Chinese to Small Seal Script.
+    T2seal = 22,
+    /// Small Seal Script to Simplified Chinese.
+    Seal2s = 23,
+    /// Small Seal Script to Traditional Chinese.
+    Seal2t = 24,
 }
 
 impl OpenccConfigWasm {
@@ -284,7 +292,8 @@ impl OpenccWasm {
     /// `punctuation` enables the configuration's punctuation conversion when
     /// supported. The instance configuration can be changed with [`Self::set_config`].
     pub fn convert(&self, text: &str, punctuation: bool) -> String {
-        self.inner.convert(text, self.config.as_str(), punctuation)
+        self.inner
+            .convert_with_config(text, self.config, punctuation)
     }
 
     /// Returns the current OpenCC configuration name.
@@ -623,7 +632,7 @@ mod tests {
         for config in OpenccConfig::ALL {
             let id = config.to_ffi();
 
-            assert!(matches!(id, 1..=20));
+            assert!(matches!(id, 1..=24));
             assert_eq!(OpenccConfig::from_ffi(id), Some(config));
         }
 
@@ -633,6 +642,32 @@ mod tests {
         assert_eq!(OpenccConfigWasm::Hk2sp as u32, OpenccConfig::Hk2sp.to_ffi());
         assert_eq!(OpenccConfigWasm::T2hkp as u32, OpenccConfig::T2hkp.to_ffi());
         assert_eq!(OpenccConfigWasm::Hk2tp as u32, OpenccConfig::Hk2tp.to_ffi());
+    }
+
+    #[test]
+    fn test_seal_configs() {
+        let traditional = "你好，小篆國際編碼18";
+        let simplified = "你好，小篆国际编码18";
+        let seal = "你𿒛，𽌠𽴖𾇓𿭖𿛛碼18";
+        for (config, input, expected) in [
+            (OpenccConfigWasm::S2seal, simplified, seal),
+            (OpenccConfigWasm::T2seal, traditional, seal),
+            (OpenccConfigWasm::Seal2s, seal, simplified),
+            (OpenccConfigWasm::Seal2t, seal, traditional),
+        ] {
+            let backend = config.into_backend();
+            assert_eq!(backend.to_ffi(), config as u32);
+            let mut cc = OpenccWasm::new(Some(backend.as_str().to_owned())).unwrap();
+            assert_eq!(cc.convert(input, false), expected);
+            assert!(cc.set_config(&backend.as_str().to_ascii_uppercase()));
+            assert_eq!(cc.get_config(), backend.as_str());
+            assert_eq!(cc.convert(input, false), expected);
+        }
+        let cc = OpenccWasm::new(Some("s2seal".to_owned())).unwrap();
+        let simplified = "她的发色展示了他自己开发的新颖染发霜颜色";
+        let seal = cc.convert(simplified, false);
+        let reverse = OpenccWasm::new(Some("seal2s".to_owned())).unwrap();
+        assert_eq!(reverse.convert(&seal, false), simplified);
     }
 
     #[test]

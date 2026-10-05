@@ -29,7 +29,7 @@ Package profile:
 
 - 0 runtime dependencies
 - 1 WASM file
-- 20 conversion configs
+- 24 conversion configs
 - 100% offline
 
 ### 🌐 Live Demo
@@ -543,9 +543,14 @@ time, not during conversion.
 | `hk2tp` | `OpenccConfigWasm.Hk2tp` | Hong Kong Traditional → Traditional Chinese (phrases) |
 | `jp2t`  | `OpenccConfigWasm.Jp2t`  | Japanese Shinjitai → Traditional Chinese              |
 | `t2jp`  | `OpenccConfigWasm.T2jp`  | Traditional Chinese → Japanese Shinjitai              |
+| `s2seal` | `OpenccConfigWasm.S2seal` | Simplified Chinese → Small Seal Script |
+| `t2seal` | `OpenccConfigWasm.T2seal` | Traditional Chinese → Small Seal Script |
+| `seal2s` | `OpenccConfigWasm.Seal2s` | Small Seal Script → Simplified Chinese |
+| `seal2t` | `OpenccConfigWasm.Seal2t` | Small Seal Script → Traditional Chinese |
 
 The numeric enum values match the vendored Rust backend. Existing values are unchanged; `S2hkp = 17`, `Hk2sp = 18`,
-`T2hkp = 19`, and `Hk2tp = 20`.
+`T2hkp = 19`, and `Hk2tp = 20`. Small Seal Script configs use `S2seal = 21`, `T2seal = 22`,
+`Seal2s = 23`, and `Seal2t = 24`. Rendering seal output requires a font with Small Seal Script glyphs.
 
 ---
 
@@ -901,7 +906,7 @@ Supported conversion configs:
 
 ```text
 s2t, s2tw, s2twp, s2hk, s2hkp, t2s, t2tw, t2twp, t2hk, t2hkp,
-tw2s, tw2sp, tw2t, tw2tp, hk2s, hk2sp, hk2t, hk2tp, jp2t, t2jp
+tw2s, tw2sp, tw2t, tw2tp, hk2s, hk2sp, hk2t, hk2tp, jp2t, t2jp, s2seal, t2seal, seal2s, seal2t
 ```
 
 ### Office / EPUB Options

@@ -22,7 +22,8 @@ use std::{fs, io};
 #[cfg(feature = "zstd")]
 use zstd::Decoder;
 
-use crate::dictionary_lib::{union_cache, DictMaxLen, DictSlot};
+use super::union_cache::Unions;
+use crate::dictionary_lib::{DictMaxLen, DictSlot};
 use crate::{CustomDictFileSpec, CustomDictMode, CustomDictSpec};
 
 // Define a global mutable variable to store the error message
@@ -79,52 +80,87 @@ static LAST_ERROR: Mutex<Option<String>> = Mutex::new(None);
 /// dictionary and can be used as a drop-in replacement.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DictionaryMaxlength {
+    /// Simplified-to-Traditional character mappings.
     #[serde(default)]
     pub st_characters: DictMaxLen,
+    /// Simplified-to-Traditional phrase mappings.
     #[serde(default)]
     pub st_phrases: DictMaxLen,
+    /// Traditional-to-Simplified character mappings.
     #[serde(default)]
     pub ts_characters: DictMaxLen,
+    /// Traditional-to-Simplified phrase mappings.
     #[serde(default)]
     pub ts_phrases: DictMaxLen,
+    /// Traditional-to-Taiwan phrase mappings.
     #[serde(default)]
     pub tw_phrases: DictMaxLen,
+    /// Taiwan-to-Traditional reverse phrase mappings.
     #[serde(default)]
     pub tw_phrases_rev: DictMaxLen,
+    /// Traditional-to-Hong Kong phrase mappings.
     #[serde(default)]
     pub hk_phrases: DictMaxLen,
+    /// Hong Kong-to-Traditional reverse phrase mappings.
     #[serde(default)]
     pub hk_phrases_rev: DictMaxLen,
+    /// Traditional-to-Taiwan regional phrase-variant mappings.
     #[serde(default)]
     pub tw_variants_phrases: DictMaxLen,
+    /// Traditional-to-Taiwan regional character-variant mappings.
     #[serde(default)]
     pub tw_variants: DictMaxLen,
+    /// Taiwan-to-Traditional reverse character-variant mappings.
     #[serde(default)]
     pub tw_variants_rev: DictMaxLen,
+    /// Taiwan-to-Traditional reverse phrase-variant mappings.
     #[serde(default)]
     pub tw_variants_rev_phrases: DictMaxLen,
+    /// Traditional-to-Hong Kong regional phrase-variant mappings.
     #[serde(default)]
     pub hk_variants_phrases: DictMaxLen,
+    /// Traditional-to-Hong Kong regional character-variant mappings.
     #[serde(default)]
     pub hk_variants: DictMaxLen,
+    /// Hong Kong-to-Traditional reverse character-variant mappings.
     #[serde(default)]
     pub hk_variants_rev: DictMaxLen,
+    /// Hong Kong-to-Traditional reverse phrase-variant mappings.
     #[serde(default)]
     pub hk_variants_rev_phrases: DictMaxLen,
+    /// Japanese Shinjitai-to-Kyūjitai character mappings.
     #[serde(default)]
     pub jps_characters: DictMaxLen,
+    /// Kyūjitai-to-Japanese Shinjitai reverse character mappings.
     #[serde(default)]
     pub jps_characters_rev: DictMaxLen,
+    /// Japanese Shinjitai-to-Kyūjitai phrase mappings.
     #[serde(default)]
     pub jps_phrases: DictMaxLen,
+    /// Small Seal Script-to-regular-script transcription mappings.
+    #[serde(default)]
+    pub seal_characters: DictMaxLen,
+    /// Regular-script transcription-to-Small Seal Script reverse character mappings.
+    #[serde(default)]
+    pub seal_characters_rev: DictMaxLen,
+    /// Same-character variant bridging from standard Traditional forms to regular-script
+    /// transcriptions used by Seal mappings; no historical 本字/假借 substitutions.
+    #[serde(default)]
+    pub seal_variants: DictMaxLen,
+    /// Reverse same-character variant bridging from regular-script transcriptions
+    /// to standard Traditional forms after Small Seal Script decoding.
+    #[serde(default)]
+    pub seal_variants_rev: DictMaxLen,
+    /// Simplified-to-Traditional punctuation mappings.
     #[serde(default)]
     pub st_punctuations: DictMaxLen,
+    /// Traditional-to-Simplified punctuation mappings.
     #[serde(default)]
     pub ts_punctuations: DictMaxLen,
 
     #[serde(skip)]
     #[serde(default)]
-    pub(super) unions: union_cache::Unions,
+    pub(super) unions: Unions,
 }
 
 impl DictionaryMaxlength {
@@ -141,10 +177,8 @@ impl DictionaryMaxlength {
     /// - Zero file-system access
     /// - A guaranteed, version-matched dictionary set
     ///
-    /// On failure, this method stores a human-readable message in the internal
-    /// error buffer, allowing
-    /// foreign-language bindings (C, C#, Python, Java through JNI) to retrieve
-    /// the error message safely.
+    /// On failure, this method stores a human-readable message in the process-wide
+    /// `DictionaryMaxlength` error buffer for retrieval with [`Self::get_last_error`].
     ///
     /// # Returns
     ///
@@ -331,17 +365,23 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     /// ├── TSPhrases.txt
     /// ├── TWPhrases.txt
     /// ├── TWPhrasesRev.txt
-    /// ├── HKPhrases.txt
-    /// ├── HKPhrasesRev.txt
+    /// ├── TWVariantsPhrases.txt
     /// ├── TWVariants.txt
     /// ├── TWVariantsRev.txt
     /// ├── TWVariantsRevPhrases.txt
+    /// ├── HKPhrases.txt
+    /// ├── HKPhrasesRev.txt
+    /// ├── HKVariantsPhrases.txt
     /// ├── HKVariants.txt
     /// ├── HKVariantsRev.txt
     /// ├── HKVariantsRevPhrases.txt
     /// ├── JPShinjitaiCharacters.txt
     /// ├── JPShinjitaiCharactersRev.txt
     /// ├── JPShinjitaiPhrases.txt
+    /// ├── SealCharacters.txt
+    /// ├── SealCharactersRev.txt
+    /// ├── SealVariants.txt
+    /// ├── SealVariantsRev.txt
     /// ├── STPunctuations.txt
     /// └── TSPunctuations.txt
     /// ```
@@ -396,7 +436,7 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     /// maximum length arrays** (`first_char_max_len`).
     ///
     /// This method should be run after any bulk changes to dictionary contents,
-    /// especially after deserialization or manual editing of `map`/`starter_cap`.
+    /// especially after deserialization or internal/bulk reconstruction of `map`/`starter_cap`.
     ///
     /// # Behavior
     /// - Only affects runtime accelerator fields; does not modify `map`, `max_len`, or `starter_cap`.
@@ -434,6 +474,10 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
         self.jps_characters.populate_starter_indexes();
         self.jps_characters_rev.populate_starter_indexes();
         self.jps_phrases.populate_starter_indexes();
+        self.seal_characters.populate_starter_indexes();
+        self.seal_characters_rev.populate_starter_indexes();
+        self.seal_variants.populate_starter_indexes();
+        self.seal_variants_rev.populate_starter_indexes();
         self.st_punctuations.populate_starter_indexes();
         self.ts_punctuations.populate_starter_indexes();
     }
@@ -467,6 +511,14 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
         self.populate_all();
         self
     }
+    /// Validates that every dictionary has populated starter indexes.
+    ///
+    /// Available only in debug builds, this helper verifies the runtime lookup
+    /// accelerators after loading or modifying dictionary data.
+    ///
+    /// # Panics
+    ///
+    /// Panics if any contained dictionary has not been fully populated.
     #[cfg(debug_assertions)]
     pub fn debug_assert_populated(&self) {
         let all = [
@@ -489,6 +541,10 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
             &self.jps_characters,
             &self.jps_characters_rev,
             &self.jps_phrases,
+            &self.seal_characters,
+            &self.seal_characters_rev,
+            &self.seal_variants,
+            &self.seal_variants_rev,
             &self.st_punctuations,
             &self.ts_punctuations,
         ];
@@ -568,6 +624,10 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
             ("JPShinjitaiCharacters.txt", &self.jps_characters.map),
             ("JPShinjitaiCharactersRev.txt", &self.jps_characters_rev.map),
             ("JPShinjitaiPhrases.txt", &self.jps_phrases.map),
+            ("SealCharacters.txt", &self.seal_characters.map),
+            ("SealCharactersRev.txt", &self.seal_characters_rev.map),
+            ("SealVariants.txt", &self.seal_variants.map),
+            ("SealVariantsRev.txt", &self.seal_variants_rev.map),
             ("STPunctuations.txt", &self.st_punctuations.map),
             ("TSPunctuations.txt", &self.ts_punctuations.map),
         ]
@@ -960,6 +1020,26 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
                 DictSlot::JPSPhrases,
             )?,
 
+            seal_characters: load_slot(
+                base_dir,
+                "SealCharacters.txt",
+                specs,
+                DictSlot::SealCharacters,
+            )?,
+            seal_characters_rev: load_slot(
+                base_dir,
+                "SealCharactersRev.txt",
+                specs,
+                DictSlot::SealCharactersRev,
+            )?,
+            seal_variants: load_slot(base_dir, "SealVariants.txt", specs, DictSlot::SealVariants)?,
+            seal_variants_rev: load_slot(
+                base_dir,
+                "SealVariantsRev.txt",
+                specs,
+                DictSlot::SealVariantsRev,
+            )?,
+
             st_punctuations: load_slot(
                 base_dir,
                 "STPunctuations.txt",
@@ -1031,7 +1111,7 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     /// - Empty lines are ignored.
     /// - Lines starting with `#` are ignored.
     /// - Trailing `\r` and whitespace are stripped automatically.
-    /// - UTF-8 BOM (`\u{FEFF}`) is stripped from the first data line if present.
+    /// - UTF-8 BOM (`\u{FEFF}`) is stripped if present on the first physical line.
     /// - The first whitespace-separated token after the TAB is used as the value.
     /// - Additional tokens after the first value are ignored.
     ///
@@ -1056,21 +1136,20 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
         let reader = BufReader::new(file);
 
         let mut pairs = Vec::new();
-        let mut saw_data_line = false;
 
         for (lineno, raw_line) in reader.lines().enumerate() {
             let raw_line = raw_line?;
             let mut line = raw_line.trim_end();
 
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-
-            if !saw_data_line {
+            // UTF-8 BOM is only valid at the beginning of the file.
+            if lineno == 0 {
                 if let Some(rest) = line.strip_prefix('\u{FEFF}') {
                     line = rest;
                 }
-                saw_data_line = true;
+            }
+
+            if line.is_empty() || line.starts_with('#') {
+                continue;
             }
 
             let Some((k, v)) = line.split_once('\t') else {
@@ -1107,9 +1186,10 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     /// - Variant and reverse-variant tables
     /// - Any metadata currently present in the struct
     ///
-    /// ## Errors / FFI diagnostics
+    /// ## Error diagnostics
     ///
-    /// On failure, a human-readable message is written to the global last-error buffer.
+    /// On failure, a human-readable message is written to the process-wide
+    /// `DictionaryMaxlength` last-error buffer for retrieval with [`Self::get_last_error`].
     pub fn serialize_to_cbor<P: AsRef<Path>>(&self, path: P) -> Result<(), DictionaryError> {
         let cbor_data = serde_cbor::to_vec(self).map_err(|err| {
             let msg = format!("Failed to serialize to CBOR: {}", err);
@@ -1134,9 +1214,10 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     /// After decoding, the dictionary is finalized via [`finish`](Self::finish)
     /// (e.g., max-key-length metadata used by longest-match segmentation).
     ///
-    /// ## Errors / FFI diagnostics
+    /// ## Error diagnostics
     ///
-    /// On failure, a human-readable message is written to the global last-error buffer.
+    /// On failure, a human-readable message is written to the process-wide
+    /// `DictionaryMaxlength` last-error buffer for retrieval with [`Self::get_last_error`].
     pub fn deserialize_from_cbor<P: AsRef<Path>>(path: P) -> Result<Self, DictionaryError> {
         let file = File::open(&path).map_err(|err| {
             let msg = format!("Failed to read CBOR file: {}", err);
@@ -1172,27 +1253,7 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
         Self::from_zstd().unwrap()
     }
 
-    /// Stores a human-readable error message for later retrieval.
-    ///
-    /// This function records the most recent error encountered during dictionary
-    /// operations such as loading, parsing, serialization, or file I/O.
-    ///
-    /// The message is written into the global thread-safe buffer
-    /// `LAST_ERROR`, which is shared across FFI bindings (C, C#, Python,
-    /// Java/JNI).
-    ///
-    /// Foreign callers that cannot rely on Rust's `Result` system can retrieve
-    /// this message using [`get_last_error`](Self::get_last_error).
-    ///
-    /// # Arguments
-    ///
-    /// * `err_msg` — The error message to record.
-    ///
-    /// # Notes
-    ///
-    /// - This function overwrites any previously stored message.
-    /// - The stored message is `String`-backed and safe to clone across
-    ///   language boundaries.
+    // Stores a dictionary error independently of the C API error slot.
     pub(crate) fn set_last_error(err_msg: &str) {
         let mut last_error = LAST_ERROR.lock().unwrap();
         *last_error = Some(err_msg.to_string());
@@ -1200,23 +1261,21 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
 
     /// Returns the most recently recorded error message, if any.
     ///
-    /// This function reads from the global error buffer `LAST_ERROR`, which is
-    /// populated during dictionary loading, parsing, serialization,
-    /// and external-resource I/O.
-    ///
-    /// It is primarily intended for FFI consumers (C, C#, Python, Java/JNI)
-    /// that require explicit error retrieval after a failure in an exported
-    /// function.
+    /// This function reads the process-wide `DictionaryMaxlength` error state populated by
+    /// failures during dictionary loading, parsing, serialization, and
+    /// external-resource I/O. This state is separate from the [`crate::OpenCC`]
+    /// error state. The C API also maintains a separate thread-local error
+    /// state and does not read or write this storage.
     ///
     /// # Returns
     ///
     /// - `Some(String)` containing the last error message
     /// - `None` if no error has been recorded
     ///
-    /// # Notes
-    ///
-    /// This function clones the stored string, ensuring safe ownership transfer
-    /// to external callers.
+    /// The returned string is cloned from the stored message. A successful
+    /// dictionary operation does not necessarily clear a previously recorded
+    /// message; callers should primarily use the returned [`Result`] to determine
+    /// whether the current operation succeeded.
     pub fn get_last_error() -> Option<String> {
         let last_error = LAST_ERROR.lock().unwrap();
         last_error.clone()
@@ -1231,7 +1290,7 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     /// The resulting file is suitable for:
     ///
     /// - Distributing custom dictionary builds
-    /// - Loading via [`load_compressed`](Self::load_cbor_compressed)
+    /// - Loading via [`load_cbor_compressed`](Self::load_cbor_compressed)
     /// - Embedding as an asset in external applications
     ///
     /// Unlike [`serialize_to_cbor`](Self::serialize_to_cbor), this function
@@ -1269,7 +1328,7 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
 
     /// Loads the dictionary from a Zstd-compressed CBOR file.
     ///
-    /// This function reverses [`save_compressed`](Self::save_cbor_compressed) by:
+    /// This function reverses [`save_cbor_compressed`](Self::save_cbor_compressed) by:
     ///
     /// 1. Opening the specified file
     /// 2. Decompressing its Zstd stream
@@ -1318,13 +1377,13 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
 
             DictSlot::TWPhrases => &mut self.tw_phrases,
             DictSlot::TWPhrasesRev => &mut self.tw_phrases_rev,
-            DictSlot::HKPhrases => &mut self.hk_phrases,
-            DictSlot::HKPhrasesRev => &mut self.hk_phrases_rev,
             DictSlot::TWVariantsPhrases => &mut self.tw_variants_phrases,
             DictSlot::TWVariants => &mut self.tw_variants,
             DictSlot::TWVariantsRev => &mut self.tw_variants_rev,
             DictSlot::TWVariantsRevPhrases => &mut self.tw_variants_rev_phrases,
 
+            DictSlot::HKPhrases => &mut self.hk_phrases,
+            DictSlot::HKPhrasesRev => &mut self.hk_phrases_rev,
             DictSlot::HKVariantsPhrases => &mut self.hk_variants_phrases,
             DictSlot::HKVariants => &mut self.hk_variants,
             DictSlot::HKVariantsRev => &mut self.hk_variants_rev,
@@ -1333,6 +1392,11 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
             DictSlot::JPSCharacters => &mut self.jps_characters,
             DictSlot::JPSCharactersRev => &mut self.jps_characters_rev,
             DictSlot::JPSPhrases => &mut self.jps_phrases,
+
+            DictSlot::SealCharacters => &mut self.seal_characters,
+            DictSlot::SealCharactersRev => &mut self.seal_characters_rev,
+            DictSlot::SealVariants => &mut self.seal_variants,
+            DictSlot::SealVariantsRev => &mut self.seal_variants_rev,
 
             DictSlot::STPunctuations => &mut self.st_punctuations,
             DictSlot::TSPunctuations => &mut self.ts_punctuations,
@@ -1470,12 +1534,12 @@ impl Default for DictionaryMaxlength {
             ts_phrases: DictMaxLen::default(),
             tw_phrases: DictMaxLen::default(),
             tw_phrases_rev: DictMaxLen::default(),
-            hk_phrases: DictMaxLen::default(),
-            hk_phrases_rev: DictMaxLen::default(),
             tw_variants_phrases: DictMaxLen::default(),
             tw_variants: DictMaxLen::default(),
             tw_variants_rev: DictMaxLen::default(),
             tw_variants_rev_phrases: DictMaxLen::default(),
+            hk_phrases: DictMaxLen::default(),
+            hk_phrases_rev: DictMaxLen::default(),
             hk_variants_phrases: DictMaxLen::default(),
             hk_variants: DictMaxLen::default(),
             hk_variants_rev: DictMaxLen::default(),
@@ -1483,6 +1547,10 @@ impl Default for DictionaryMaxlength {
             jps_characters: DictMaxLen::default(),
             jps_characters_rev: DictMaxLen::default(),
             jps_phrases: DictMaxLen::default(),
+            seal_characters: DictMaxLen::default(),
+            seal_characters_rev: DictMaxLen::default(),
+            seal_variants: DictMaxLen::default(),
+            seal_variants_rev: DictMaxLen::default(),
             st_punctuations: DictMaxLen::default(),
             ts_punctuations: DictMaxLen::default(),
             // runtime-only cache (serde-skipped)
@@ -1582,8 +1650,6 @@ impl From<serde_cbor::Error> for DictionaryError {
         DictionaryError::CborParseError(err)
     }
 }
-
-// ------ Tests ------
 
 #[cfg(test)]
 mod tests {
@@ -1728,6 +1794,10 @@ mod tests {
         fs::create_dir_all(&dir).expect("temp dict dir should be created");
 
         for file in [
+            "SealCharacters.txt",
+            "SealCharactersRev.txt",
+            "SealVariants.txt",
+            "SealVariantsRev.txt",
             "STCharacters.txt",
             "STPhrases.txt",
             "TSCharacters.txt",
@@ -1865,6 +1935,10 @@ mod tests {
             jps_phrases: DictMaxLen::default(),
             st_punctuations: DictMaxLen::default(),
             ts_punctuations: DictMaxLen::default(),
+            seal_characters: DictMaxLen::default(),
+            seal_characters_rev: DictMaxLen::default(),
+            seal_variants: DictMaxLen::default(),
+            seal_variants_rev: DictMaxLen::default(),
             // runtime-only cache (serde-skipped)
             unions: Default::default(),
         };

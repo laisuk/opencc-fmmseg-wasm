@@ -1,6 +1,3 @@
-// Enable cfg badges on docs.rs (optional)
-#![cfg_attr(docsrs, feature(doc_cfg))]
-
 //! High-performance Chinese text converter using OpenCC lexicons and FMM segmentation.
 //!
 //! This crate provides efficient segment-based conversion between Simplified and Traditional Chinese.
@@ -23,12 +20,12 @@ use crate::delimiter_set::is_delimiter;
 use crate::dict_refs::DictRefs;
 use crate::dictionary_lib::UnionKey;
 use crate::dictionary_lib::{DictMaxLen, DictionaryMaxlength, StarterUnion};
-use crate::{
-    compat_ideographs, find_max_utf8_length, for_each_len_dec, ids, DetofuLevel, DetofuMap,
-    OpenccConfig,
-};
+use crate::utils::{find_max_utf8_length, for_each_len_dec};
+use crate::{compat_ideographs, detofu, ids, DetofuLevel, DetofuMap, OpenccConfig};
 #[cfg(feature = "parallel")]
-use rayon::prelude::*;
+use rayon::iter::ParallelIterator;
+#[cfg(feature = "parallel")]
+use rayon::prelude::ParallelSlice;
 use regex::Regex;
 use rustc_hash::FxHashMap;
 use std::path::Path;
@@ -40,11 +37,10 @@ static LAST_ERROR: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 /// Regular expression used to normalize or strip punctuation from input.
 static STRIP_REGEX: OnceLock<Regex> = OnceLock::new();
 
-/// Returns a thread-safe reference to the global last-error storage.
+/// Returns a thread-safe reference to OpenCC's global last-error storage.
 ///
 /// This helper lazily initializes the internal [`Mutex`] holding an optional
-/// error message. It is used by C API functions to record and retrieve
-/// the most recent error across threads.
+/// error message. The C API maintains a separate thread-local error slot.
 ///
 /// # Returns
 ///
@@ -98,11 +94,11 @@ pub struct OpenCC {
 }
 
 impl OpenCC {
-    /// Creates a new `OpenCC` instance using built-in dictionary constants.
+    /// Creates a new `OpenCC` instance using the embedded dictionary artifact.
     ///
-    /// This is the recommended method for most users. It loads all dictionaries
-    /// compiled into the binary at build time (e.g., via `include_str!`), allowing for
-    /// fast startup and zero I/O cost.
+    /// This is the recommended method for most users. It loads the bundled
+    /// Zstandard-compressed CBOR dictionary embedded in the binary with
+    /// `include_bytes!`, providing fast startup without runtime dictionary I/O.
     ///
     /// Internally, this loads the default `DictionaryMaxlength` via `DictionaryMaxlength::new()`,
     /// and sets up default Chinese delimiters and regular expressions.
@@ -112,7 +108,7 @@ impl OpenCC {
     ///
     /// # Panics
     /// Never panics. If the dictionary fails to initialize, a default one is substituted,
-    /// and the error is stored internally.
+    /// and the error is recorded for retrieval with [`Self::get_last_error`].
     ///
     /// # Example
     /// ```rust
@@ -129,7 +125,7 @@ impl OpenCC {
         Self::from_dictionary(dictionary)
     }
 
-    /// Creates an `OpenCC` instance using in-memory JSON dictionary objects.
+    /// Creates an `OpenCC` instance using plaintext OpenCC dictionary objects.
     ///
     /// This method is useful for unit testing or embedding custom dictionaries directly
     /// in code. It bypasses any file loading or embedded CBOR/JSON files, relying instead
@@ -140,7 +136,7 @@ impl OpenCC {
     ///
     /// # Panics
     /// Never panics. If loading fails, an empty dictionary is used and the error
-    /// is stored internally.
+    /// is recorded for retrieval with [`Self::get_last_error`].
     ///
     /// # Example
     /// ```rust
@@ -169,7 +165,8 @@ impl OpenCC {
     /// A fully initialized `OpenCC` instance, or one with empty dictionaries if deserialization fails.
     ///
     /// # Errors
-    /// If deserialization fails, the dictionary is defaulted and the error is stored internally.
+    /// If deserialization fails, the dictionary is defaulted and the error is
+    /// recorded for retrieval with [`Self::get_last_error`].
     ///
     /// # Example
     /// ```rust
@@ -190,6 +187,7 @@ impl OpenCC {
         Self::from_dictionary(dictionary)
     }
 
+    /// Loads the WASM embedded dictionary (CBOR or pure-Rust Zstd).
     pub fn new_embedded() -> Self {
         Self::from_dictionary(DictionaryMaxlength::from_embedded_cbor())
     }
@@ -400,9 +398,21 @@ impl OpenCC {
 
         #[cfg(feature = "parallel")]
         if self.is_parallel {
+            let threads = rayon::current_num_threads().max(1);
+
+            if threads <= 1 {
+                return self.segment_replace_with_union_serial_streaming(
+                    text.len(),
+                    &chars,
+                    dictionaries,
+                    max_word_length,
+                    union,
+                );
+            }
+
+            // Only prepare ranges/chunks when parallel execution is actually possible.
             // Build delimiter-safe ranges (no cross-phrase splits)
             let ranges = self.get_chars_range(&chars, true, self.is_preserve_ids);
-            let threads = rayon::current_num_threads().max(1);
             let desired_chunks = threads * 6;
             let chunk_ranges = (ranges.len() / desired_chunks).max(128).min(2048);
 
@@ -447,7 +457,6 @@ impl OpenCC {
 
             return parts.concat(); // exact single allocation
         }
-
         self.segment_replace_with_union_serial_streaming(
             text.len(),
             &chars,
@@ -537,7 +546,7 @@ impl OpenCC {
     ///
     /// # Example (internal)
     /// ```ignore
-    /// use opencc_fmmseg::{DictMaxLen, StarterUnion};
+    /// use crate::dictionary_lib::{DictMaxLen, StarterUnion};
     ///
     /// let d1 = DictMaxLen::build_from_pairs(vec![("你好".into(), "您好".into())]);
     /// let d2 = DictMaxLen::build_from_pairs(vec![("世界".into(), "世間".into())]);
@@ -580,6 +589,7 @@ impl OpenCC {
 
         let is_multi_dicts = dictionaries.len() > 1;
         let mut start_pos = 0;
+        let text_ptr = text_chars.as_ptr();
 
         while start_pos < text_length {
             let c0 = text_chars[start_pos];
@@ -590,7 +600,14 @@ impl OpenCC {
             // Pull precomputed mask + cap.
             let (mask, cap_u8) = if u0 <= 0xFFFF {
                 let idx = u0 as usize;
-                (union.bmp_mask[idx], union.bmp_cap[idx])
+                // SAFETY: `StarterUnion` owns full BMP-sized dense tables, and
+                // `idx` is bounded by the BMP check above.
+                unsafe {
+                    (
+                        *union.bmp_mask.get_unchecked(idx),
+                        *union.bmp_cap.get_unchecked(idx),
+                    )
+                }
             } else {
                 (
                     *union.astral_mask.get(&c0).unwrap_or(&0),
@@ -606,8 +623,6 @@ impl OpenCC {
 
             let cap_here = global_cap.min(cap_u8 as usize);
             let mut matched = false;
-
-            let text_ptr = text_chars.as_ptr();
 
             for_each_len_dec(mask, cap_here, |length| {
                 let cap_bit = if length >= 64 { 63 } else { length - 1 };
@@ -780,7 +795,7 @@ impl OpenCC {
     /// cc.set_parallel(false);
     /// assert!(!cc.get_parallel());
     /// ```
-    pub fn set_parallel(&mut self, is_parallel: bool) -> () {
+    pub fn set_parallel(&mut self, is_parallel: bool) {
         self.is_parallel = is_parallel;
     }
 
@@ -863,6 +878,28 @@ impl OpenCC {
             })
     }
 
+    /// Applies a three-round conversion pipeline with shared orchestration.
+    #[inline]
+    fn apply_dicts_3(
+        &self,
+        input: &str,
+        round_1: &[&DictMaxLen],
+        u1: Arc<StarterUnion>,
+        round_2: &[&DictMaxLen],
+        u2: Arc<StarterUnion>,
+        round_3: &[&DictMaxLen],
+        u3: Arc<StarterUnion>,
+    ) -> String {
+        Self::clear_last_error();
+
+        DictRefs::new(round_1, u1)
+            .with_round_2(round_2, u2)
+            .with_round_3(round_3, u3)
+            .apply_segment_replace(input, |input, refs, max_len, union| {
+                self.segment_replace_with_union(input, refs, max_len, union)
+            })
+    }
+
     /// Applies a primary dictionary round followed by optional
     /// Simplified-to-Traditional punctuation normalization.
     #[inline]
@@ -933,6 +970,89 @@ impl OpenCC {
         } else {
             let round_2 = [&self.dictionary.ts_phrases, &self.dictionary.ts_characters];
             self.apply_dicts_2(input, round_1, u1, &round_2, u2)
+        }
+    }
+
+    /// Applies a shared S2T-style first round with optional punctuation maps.
+    ///
+    /// This helper selects either the 2-dictionary (`st_phrases`,
+    /// `st_characters`) or 3-dictionary (`+ st_punctuations`) first-round stack
+    /// based on `punctuation`, then forwards to [`apply_dicts_3`].
+    #[inline]
+    fn apply_st_round_3(
+        &self,
+        input: &str,
+        punctuation: bool,
+        u1: Arc<StarterUnion>,
+        round_2: &[&DictMaxLen],
+        u2: Arc<StarterUnion>,
+        round_3: &[&DictMaxLen],
+        u3: Arc<StarterUnion>,
+    ) -> String {
+        if punctuation {
+            let round_1 = [
+                &self.dictionary.st_phrases,
+                &self.dictionary.st_characters,
+                &self.dictionary.st_punctuations,
+            ];
+            self.apply_dicts_3(input, &round_1, u1, round_2, u2, round_3, u3)
+        } else {
+            let round_1 = [&self.dictionary.st_phrases, &self.dictionary.st_characters];
+            self.apply_dicts_3(input, &round_1, u1, round_2, u2, round_3, u3)
+        }
+    }
+
+    /// Applies a shared T2S-style third round with optional punctuation maps.
+    ///
+    /// This helper selects either the 2-dictionary (`ts_phrases`,
+    /// `ts_characters`) or 3-dictionary (`+ ts_punctuations`) third-round stack
+    /// based on `punctuation`, then forwards to [`apply_dicts_3`].
+    #[inline]
+    fn apply_ts_round_3(
+        &self,
+        input: &str,
+        punctuation: bool,
+        round_1: &[&DictMaxLen],
+        u1: Arc<StarterUnion>,
+        round_2: &[&DictMaxLen],
+        u2: Arc<StarterUnion>,
+        u3: Arc<StarterUnion>,
+    ) -> String {
+        if punctuation {
+            let round_3 = [
+                &self.dictionary.ts_phrases,
+                &self.dictionary.ts_characters,
+                &self.dictionary.ts_punctuations,
+            ];
+            self.apply_dicts_3(input, round_1, u1, round_2, u2, &round_3, u3)
+        } else {
+            let round_3 = [&self.dictionary.ts_phrases, &self.dictionary.ts_characters];
+            self.apply_dicts_3(input, round_1, u1, round_2, u2, &round_3, u3)
+        }
+    }
+
+    /// Applies two conversion rounds followed by an optional punctuation round.
+    ///
+    /// When `punctuation` is enabled, `st_punctuations` is applied as a third
+    /// round using the shared punctuation-only starter union. Otherwise, only
+    /// the first two rounds are applied.
+    #[inline]
+    fn apply_st_punctuation_only_round_3(
+        &self,
+        input: &str,
+        punctuation: bool,
+        round_1: &[&DictMaxLen],
+        u1: Arc<StarterUnion>,
+        round_2: &[&DictMaxLen],
+        u2: Arc<StarterUnion>,
+    ) -> String {
+        if punctuation {
+            let round_3 = [&self.dictionary.st_punctuations];
+            let u3 = self.dictionary.union_for(UnionKey::StPunctOnly);
+
+            self.apply_dicts_3(input, round_1, u1, round_2, u2, &round_3, u3)
+        } else {
+            self.apply_dicts_2(input, round_1, u1, round_2, u2)
         }
     }
 
@@ -1114,21 +1234,33 @@ impl OpenCC {
         )
     }
 
-    /// Converts Simplified Chinese text to Taiwanese Traditional with idioms (S → T → TWP).
+    /// Converts Simplified Chinese text to Taiwanese Traditional with idioms (S → Tw).
     ///
     /// This method performs a **two-round** dictionary-based conversion:
     ///
-    /// 1. **Round 1 (S2T core)** applies Simplified-to-Traditional phrase,
-    ///    character, and optional punctuation mappings.
-    /// 2. **Round 2 (Taiwanese phrases + variants)** applies, in priority order:
+    /// 1. **Round 1 (S2T core)**
+    ///    Converts Simplified Chinese to Traditional Chinese.
+    ///
+    ///    Applies Simplified-to-Traditional mappings using:
+    ///    - Phrase-level mappings (`st_phrases`)
+    ///    - Character-level mappings (`st_characters`)
+    ///    - Optionally punctuation-level mappings (`st_punctuations`) when
+    ///      `punctuation` is `true`
+    ///
+    /// 2. **Round 2 (Taiwan phrase/variant normalization)**
+    ///    Normalizes Traditional Chinese into Taiwan phrases and variants.
+    ///
+    ///    Adjusts the Traditional output into Taiwanese-style idioms, phrases,
+    ///    and variants using:
     ///    - Taiwanese phrase mappings (`tw_phrases`)
     ///    - Taiwanese variant phrase mappings (`tw_variants_phrases`)
-    ///    - Taiwanese variant character mappings (`tw_variants`)
+    ///    - Taiwanese variant mappings (`tw_variants`)
     ///
     /// Both rounds share precomputed starter metadata obtained via
-    /// `union_for` (`UnionKey::S2T` and `UnionKey::TwTriple`) and use
-    /// longest-match replacement.
-    ///    /// # Arguments
+    /// `union_for` (`UnionKey::S2T` and `UnionKey::TwTriple`) and run
+    /// over segmented input with longest-match replacement for high throughput.
+    ///
+    /// # Arguments
     ///
     /// * `input` - Simplified Chinese text to convert.
     /// * `punctuation` - Whether to convert punctuation symbols alongside
@@ -1148,20 +1280,31 @@ impl OpenCC {
             &self.dictionary.tw_variants,
         ];
         let u2 = self.dictionary.union_for(UnionKey::TwTriple);
+
         self.apply_st_round_2(input, punctuation, u1, &round_2, u2)
     }
 
-    /// Converts Simplified Chinese text to Hong Kong Traditional with phrases (S → T → HK-phrases/HK).
+    /// Converts Simplified Chinese text to Hong Kong Traditional with phrases (S → T → HKP).
+    ///
+    /// This mirrors [`OpenCC::s2twp`] with Hong Kong phrase and variant dictionaries:
+    ///
+    /// 1. **Round 1 (S2T core)** applies Simplified-to-Traditional mappings.
+    /// 2. **Round 2 (Hong Kong phrases + variants)** applies:
+    ///    - Hong Kong phrase mappings (`hk_phrases`)
+    ///    - Hong Kong variant phrase mappings (`hk_variants_phrases`)
+    ///    - Hong Kong variant mappings (`hk_variants`)
     pub fn s2hkp(&self, input: &str, punctuation: bool) -> String {
         let u1 = self
             .dictionary
             .union_for(UnionKey::S2T { punct: punctuation });
+
         let round_2 = [
             &self.dictionary.hk_phrases,
             &self.dictionary.hk_variants_phrases,
             &self.dictionary.hk_variants,
         ];
         let u2 = self.dictionary.union_for(UnionKey::HkTriple);
+
         self.apply_st_round_2(input, punctuation, u1, &round_2, u2)
     }
 
@@ -1212,7 +1355,16 @@ impl OpenCC {
         self.apply_ts_round_2(input, punctuation, &round_1, u1, u2)
     }
 
-    /// Converts Hong Kong Traditional text with phrases to Simplified Chinese (HK-phrases → T → S).
+    /// Converts Hong Kong Traditional text with phrases to Simplified Chinese (HKP → T → S).
+    ///
+    /// This mirrors [`OpenCC::tw2sp`] with Hong Kong reverse phrase and variant
+    /// dictionaries:
+    ///
+    /// 1. **Round 1 (Hong Kong phrase + variant reverse)** applies:
+    ///    - Hong Kong reverse phrase mappings (`hk_phrases_rev`)
+    ///    - Hong Kong reverse variant phrase mappings (`hk_variants_rev_phrases`)
+    ///    - Hong Kong reverse variant mappings (`hk_variants_rev`)
+    /// 2. **Round 2 (T2S core)** applies Traditional-to-Simplified mappings.
     pub fn hk2sp(&self, input: &str, punctuation: bool) -> String {
         let round_1 = [
             &self.dictionary.hk_phrases_rev,
@@ -1600,6 +1752,98 @@ impl OpenCC {
         self.apply_dicts_1_with_st_punctuation(input, punctuation, &round_1, u1)
     }
 
+    /// Converts Simplified Chinese to Small Seal Script.
+    ///
+    /// The conversion is performed in three sequential rounds:
+    ///
+    /// 1. Simplified → Traditional phrases and characters (`st_phrases`, `st_characters`).
+    /// 2. Same-character variant bridging → regular-script transcriptions (`seal_variants`).
+    /// 3. Regular-script transcriptions → Small Seal Script (`seal_characters_rev`).
+    ///
+    /// When `punctuation` is enabled, Simplified → Traditional punctuation
+    /// mappings (`st_punctuations`) are included in the first round.
+    ///
+    /// Variant bridging preserves character identity; it does not perform historical
+    /// 本字/假借 substitutions.
+    pub fn s2seal(&self, input: &str, punctuation: bool) -> String {
+        let u1 = self
+            .dictionary
+            .union_for(UnionKey::S2T { punct: punctuation });
+
+        let round_2 = [&self.dictionary.seal_variants];
+        let u2 = self.dictionary.union_for(UnionKey::SealVariantsOnly);
+
+        let round_3 = [&self.dictionary.seal_characters_rev];
+        let u3 = self.dictionary.union_for(UnionKey::SealCharactersRevOnly);
+
+        self.apply_st_round_3(input, punctuation, u1, &round_2, u2, &round_3, u3)
+    }
+
+    /// Converts Traditional Chinese to Small Seal Script.
+    ///
+    /// The conversion is performed in two sequential rounds:
+    ///
+    /// 1. Same-character variant bridging → regular-script transcriptions (`seal_variants`).
+    /// 2. Regular-script transcriptions → Small Seal Script (`seal_characters_rev`).
+    ///
+    /// When `punctuation` is enabled, Simplified → Traditional punctuation
+    /// mappings are applied as a third round.
+    ///
+    /// Variant bridging preserves character identity; it does not perform historical
+    /// 本字/假借 substitutions.
+    pub fn t2seal(&self, input: &str, punctuation: bool) -> String {
+        let round_1 = [&self.dictionary.seal_variants];
+        let u1 = self.dictionary.union_for(UnionKey::SealVariantsOnly);
+
+        let round_2 = [&self.dictionary.seal_characters_rev];
+        let u2 = self.dictionary.union_for(UnionKey::SealCharactersRevOnly);
+
+        self.apply_st_punctuation_only_round_3(input, punctuation, &round_1, u1, &round_2, u2)
+    }
+
+    /// Converts Small Seal Script to Simplified Chinese.
+    ///
+    /// The conversion is performed in three sequential rounds:
+    ///
+    /// 1. Small Seal Script → regular-script transcriptions (`seal_characters`).
+    /// 2. Same-character variant bridging → standard Traditional forms (`seal_variants_rev`).
+    /// 3. Traditional → Simplified phrases and characters (`ts_phrases`, `ts_characters`).
+    ///
+    /// When `punctuation` is enabled, Traditional → Simplified punctuation
+    /// mappings (`ts_punctuations`) are included in the third round.
+    pub fn seal2s(&self, input: &str, punctuation: bool) -> String {
+        let round_1 = [&self.dictionary.seal_characters];
+        let u1 = self.dictionary.union_for(UnionKey::SealCharactersOnly);
+
+        let round_2 = [&self.dictionary.seal_variants_rev];
+        let u2 = self.dictionary.union_for(UnionKey::SealVariantsRevOnly);
+
+        let u3 = self
+            .dictionary
+            .union_for(UnionKey::T2S { punct: punctuation });
+
+        self.apply_ts_round_3(input, punctuation, &round_1, u1, &round_2, u2, u3)
+    }
+
+    /// Converts Small Seal Script to Traditional Chinese.
+    ///
+    /// The conversion is performed in two sequential rounds:
+    ///
+    /// 1. Small Seal Script → regular-script transcriptions (`seal_characters`).
+    /// 2. Same-character variant bridging → standard Traditional forms (`seal_variants_rev`).
+    ///
+    /// When `punctuation` is enabled, Simplified → Traditional punctuation
+    /// mappings are applied as a third round.
+    pub fn seal2t(&self, input: &str, punctuation: bool) -> String {
+        let round_1 = [&self.dictionary.seal_characters];
+        let u1 = self.dictionary.union_for(UnionKey::SealCharactersOnly);
+
+        let round_2 = [&self.dictionary.seal_variants_rev];
+        let u2 = self.dictionary.union_for(UnionKey::SealVariantsRevOnly);
+
+        self.apply_st_punctuation_only_round_3(input, punctuation, &round_1, u1, &round_2, u2)
+    }
+
     /// Converts Chinese text using a configuration name (`&str`, case-insensitive).
     ///
     /// This is a **convenience / legacy** entry point that accepts OpenCC-style config names
@@ -1651,13 +1895,13 @@ impl OpenCC {
     ///
     /// * `input` - UTF-8 text to convert.
     /// * `config_id` - Conversion configuration.
-    /// * `punctuation` - Whether to apply punctuation conversion where supported.
-    ///   For some configs, this flag is **ignored** (see [`OpenccConfig`] table).
+    /// * `punctuation` - Whether to apply punctuation conversion for the
+    ///   selected output style.
     ///
     /// # Example
     ///
     /// ```rust
-    /// use opencc_fmmseg::{ OpenccConfig, OpenCC};
+    /// use opencc_fmmseg::{OpenccConfig, OpenCC};
     ///
     /// let converter = OpenCC::new();
     /// let out = converter.convert_with_config("汉字转换测试", OpenccConfig::S2t, false);
@@ -1690,6 +1934,10 @@ impl OpenCC {
             OpenccConfig::Hk2tp => self.hk2tp(input, punctuation),
             OpenccConfig::Jp2t => self.jp2t(input, punctuation),
             OpenccConfig::T2jp => self.t2jp(input, punctuation),
+            OpenccConfig::S2seal => self.s2seal(input, punctuation),
+            OpenccConfig::T2seal => self.t2seal(input, punctuation),
+            OpenccConfig::Seal2s => self.seal2s(input, punctuation),
+            OpenccConfig::Seal2t => self.seal2t(input, punctuation),
         }
     }
 
@@ -1825,9 +2073,8 @@ impl OpenCC {
 
     /// Normalizes CJK Compatibility Ideographs with the built-in Unicode table.
     ///
-    /// This is a convenience wrapper around
-    /// [`compat_ideographs::normalize_compat_ideographs`]. It performs an
-    /// optional Unicode compatibility normalization pre-pass and does not change
+    /// It performs an optional Unicode compatibility normalization pre-pass and
+    /// does not change
     /// this [`OpenCC`] instance, the selected OpenCC config, conversion
     /// dictionaries, segmentation behavior, script detection, or punctuation
     /// conversion.
@@ -1979,11 +2226,11 @@ impl OpenCC {
     /// platforms where non-BMP CJK extension characters may render as tofu boxes
     /// (□) or missing-glyph placeholders.
     ///
-    /// Detofu is a display compatibility pass. It does not modify OpenCC
+    /// DeTofu is a display compatibility pass. It does not modify OpenCC
     /// conversion dictionaries, phrase matching, regional variant selection,
     /// script detection, or punctuation conversion.
     ///
-    /// For converted text, apply detofu after [`OpenCC::convert`] or
+    /// For converted text, apply DeTofu after [`OpenCC::convert`] or
     /// [`OpenCC::convert_with_config`].
     ///
     /// The `level` parameter controls which CJK Extension blocks are replaced:
@@ -2012,7 +2259,7 @@ impl OpenCC {
     /// assert_eq!(converted, "俨骖𬴂于上路，访风景于崇阿");
     /// ```
     ///
-    /// Apply detofu directly when text already contains rare extension
+    /// Apply DeTofu directly when text already contains rare extension
     /// characters:
     ///
     /// ```rust
@@ -2024,7 +2271,7 @@ impl OpenCC {
     /// assert_eq!(safe, "骖騑");
     /// ```
     ///
-    /// Combine OpenCC conversion and detofu for tofu-safe display output:
+    /// Combine OpenCC conversion and DeTofu for tofu-safe display output:
     ///
     /// ```rust
     /// use opencc_fmmseg::{DetofuLevel, OpenCC};
@@ -2042,7 +2289,7 @@ impl OpenCC {
     /// assert_eq!(safe, "俨骖騑于上路，访风景于崇阿");
     /// ```
     pub fn detofu(&self, text: &str, level: DetofuLevel) -> String {
-        crate::DetofuMap::builtin(level).detofu(text)
+        detofu::detofu(text, level)
     }
 
     /// Converts built-in non-BMP CJK extension characters into
@@ -2073,10 +2320,10 @@ impl OpenCC {
     /// assert_eq!(output, "骖騑");
     /// ```
     pub fn detofu_into(&self, input: &str, level: DetofuLevel, output: &mut String) {
-        DetofuMap::builtin(level).detofu_into(input, output);
+        detofu::detofu_into(input, level, output);
     }
 
-    /// Converts non-BMP CJK extension characters using the built-in detofu
+    /// Converts non-BMP CJK extension characters using the built-in DeTofu
     /// mappings plus a user-supplied fallback file.
     ///
     /// Custom mappings are merged with the built-in table. If the same tofu-risk
@@ -2126,7 +2373,7 @@ impl OpenCC {
         Ok(map.detofu(input))
     }
 
-    /// Converts non-BMP CJK extension characters using the built-in detofu
+    /// Converts non-BMP CJK extension characters using the built-in DeTofu
     /// mappings plus user-supplied fallback pairs.
     ///
     /// Custom pairs are merged with the built-in table. If the same tofu-risk
@@ -2215,21 +2462,9 @@ impl OpenCC {
             .into_owned()
     }
 
-    /// Records an error message as the most recent OpenCC runtime error.
-    ///
-    /// This is used internally to store non-panic runtime errors, such as failed
-    /// dictionary loading or invalid conversion configurations. The stored message
-    /// can later be retrieved safely via [`Self::get_last_error()`] without
-    /// requiring exceptions or `Result<T, E>` propagation from core APIs.
-    ///
-    /// Passing an empty string clears the current error state instead of storing
-    /// `Some("")`. This keeps Rust and C API error retrieval behavior consistent
-    /// and avoids ambiguous empty error messages.
-    ///
-    /// # Arguments
-    ///
-    /// * `err_msg` - The error message to store. Passing an empty string clears
-    ///   the current error state.
+    // Records an error message as the most recent OpenCC runtime error.
+    // Passing an empty string clears the current error state. The C API has
+    // independent thread-local error storage.
     pub(crate) fn set_last_error(err_msg: &str) {
         let mut last_error = last_error_slot().lock().unwrap();
 
@@ -2242,8 +2477,11 @@ impl OpenCC {
 
     /// Retrieves the most recently recorded error message, if any.
     ///
-    /// This can be used by consumers after calling `convert()` or dictionary loaders
-    /// to inspect whether any non-fatal errors occurred (e.g., fallback to default dict).
+    /// This reports the process-wide `OpenCC` error state. It can be used after
+    /// calling [`Self::convert`] or an `OpenCC` dictionary-loading constructor to
+    /// inspect non-fatal failures, such as falling back to an empty dictionary.
+    /// Successful conversions clear this state. The C API maintains independent,
+    /// thread-local error storage and exposes it through `opencc_last_error()`.
     ///
     /// # Returns
     /// An `Option<String>` containing the error message, or `None` if no error was recorded.
@@ -2262,22 +2500,11 @@ impl OpenCC {
 
     /// Clears the most recently recorded OpenCC runtime error.
     ///
-    /// This function resets the internal error state maintained by OpenCC.
+    /// This function resets the process-wide `OpenCC` error state.
     /// After calling this, [`get_last_error`](Self::get_last_error) will return `None`
     /// until a new error is recorded.
     ///
-    /// ## Important
-    ///
-    /// - This function only clears the **internal error state**.
-    /// - It does **not** free or affect any error strings previously returned
-    ///   by the C API (e.g. via `opencc_last_error()`).
-    /// - Clearing the error state is independent of memory management.
-    ///
-    /// In other words:
-    ///
-    /// - Use `clear_last_error()` to reset the error **status**.
-    /// - Use the appropriate C API free function to release any allocated
-    ///   error message buffers.
+    /// This does not affect the C API's independent thread-local error state.
     ///
     /// ## Typical use cases
     ///
@@ -2289,10 +2516,13 @@ impl OpenCC {
     ///
     /// ```rust
     /// use opencc_fmmseg::OpenCC;
-    /// // Clear it
-    /// OpenCC::clear_last_error();
     ///
-    /// // No error remains
+    /// let converter = OpenCC::new();
+    /// let result = converter.convert("汉字", "invalid", false);
+    /// assert_eq!(result, "Invalid config: invalid");
+    /// assert!(OpenCC::get_last_error().is_some());
+    ///
+    /// OpenCC::clear_last_error();
     /// assert!(OpenCC::get_last_error().is_none());
     /// ```
     /// # Since
@@ -2301,6 +2531,24 @@ impl OpenCC {
     pub fn clear_last_error() {
         let mut last_error = last_error_slot().lock().unwrap();
         *last_error = None;
+    }
+}
+
+/// Creates an [`OpenCC`] instance using the default configuration.
+///
+/// This is equivalent to calling [`OpenCC::new`].
+///
+/// # Examples
+///
+/// ```
+/// use opencc_fmmseg::OpenCC;
+///
+/// let opencc = OpenCC::default();
+/// assert_eq!(opencc.convert("汉字", "s2t", false), "漢字");
+/// ```
+impl Default for OpenCC {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

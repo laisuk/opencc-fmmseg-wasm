@@ -6,6 +6,27 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.5.0] - Unreleased
+
+### Added
+
+- Added Small Seal Script configs: `s2seal`, `t2seal`, `seal2s`, and `seal2t`, including WASM enum IDs 21–24,
+  custom dictionary slots, demo descriptions, and CLI help.
+
+### Changed
+
+- Synced `dict-generate` and its JSON DTO with upstream 0.13.0, including Seal dictionaries
+  and `--custom-dict` support; retained WASM binary table generation flags.
+- Synced the vendored conversion core and dictionary artifacts with local upstream 0.13.0 (commit `0722839`), preserving
+  optional parallelism, CBOR/ruzstd loading, and binary normalization tables.
+- Imported conversion orchestration, BMP lookup, UTF-8 parallel chunk capacity, and DeToFu custom-overlay lookup
+  optimizations.
+- WASM text conversion now dispatches directly through its stored backend config enum.
+- npm release packages now use pure-Rust ZSTD dictionary decoding via `ruzstd`, reducing the generated WASM payload
+  while retaining fully self-contained WebAssembly operation.
+
+---
+
 ## [0.4.3] - 2026-09-30
 
 ### Changed
