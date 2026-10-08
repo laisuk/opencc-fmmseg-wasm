@@ -702,6 +702,7 @@
         try {
             const text = await navigator.clipboard.readText();
             setInputEditorText(text);
+            textEncoding.value = "utf-8";
             out.textContent = "Pasted clipboard text into input.";
         } catch (err) {
             out.textContent = "Paste failed. Browser may have blocked clipboard access.";
@@ -763,7 +764,8 @@
 
     document.getElementById("clearInputBtn").onclick = () => {
         setInputEditorText("");
-        editorLeft.focus();
+        textEncoding.value = "utf-8";
+        // editorLeft.focus();
         out.textContent = "Input cleared.";
     };
 
