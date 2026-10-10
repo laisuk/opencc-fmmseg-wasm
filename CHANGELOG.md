@@ -6,6 +6,24 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.5.1] - Unreleased
+
+### Changed
+
+- Synced the vendored library, dictionary tools, documentation, and regression tests with local upstream 0.13.0 (commit
+  `54910b9`), including code refactors and Clippy fixes; preserved optional parallelism for WASM builds.
+- Adopted upstreams built-in pure-Rust ZSTD decoder and text-based compatibility tables; retained `ruzstd` as a
+  compatibility feature alias and replaced binary table generation flags with the upstream `dictionary-build` setup.
+- Synced `dict-generate` with upstreams shared `opencc-tool-common` dependency.
+- Adapted the upstream Office converter's `TextConverter` abstraction and helper refactors while preserving existing
+  WASM APIs, conversion pipelines, and stricter ZIP validation.
+
+### Fixed
+
+- Corrected the normalization WASM test to pass the required punctuation argument to `convert()`.
+
+---
+
 ## [0.5.0] - 2026-10-09
 
 ### Added

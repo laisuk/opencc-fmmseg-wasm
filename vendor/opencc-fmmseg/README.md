@@ -6,7 +6,7 @@
 ![Crates.io](https://img.shields.io/crates/d/opencc-fmmseg)
 [![Latest Downloads](https://img.shields.io/github/downloads/laisuk/opencc-fmmseg/latest/total.svg)](https://github.com/laisuk/opencc-fmmseg/releases/latest)
 [![License](https://img.shields.io/crates/l/opencc-fmmseg)](https://github.com/laisuk/opencc-fmmseg/blob/master/LICENSE)
-![Build Status](https://github.com/laisuk/opencc-fmmseg/actions/workflows/rust.yml/badge.svg)
+![Build Status](https://github.com/laisuk/opencc-fmmseg/actions/workflows/build_test.yml/badge.svg)
 
 **opencc-fmmseg** is a high-performance Rust-based engine for Chinese text conversion.    
 It combines [OpenCC](https://github.com/BYVoid/OpenCC)'s lexicons with an
@@ -17,7 +17,7 @@ accurate, and deployment-friendly conversion — with **no runtime I/O required*
 
 - 🔁 **Traditional ↔ Simplified Chinese conversion**
 - 🔤 **Lexicon-based word segmentation (FMM)**
-- ⚡ **Zero runtime dictionary loading (embedded Zstd)**
+- ⚡ **No runtime dictionary file I/O (embedded Zstd)**
 - 🧩 **Easy integration via Rust, C/C++, and Python bindings**
 
 ### 🎯 Ideal For
@@ -70,15 +70,34 @@ include/ # C API header + C++ helper header
 - 📦 **Unified CLI & Library** — Convert between Simplified and Traditional Chinese via a single, consistent interface.
 - 🔍 **Lexicon-driven segmentation** — Uses OpenCC dictionaries with maximum-matching (FMM) and phrase-level masking for
   accurate linguistic conversion.
-- ⚡ **High performance** — Optimized with **Rayon parallelism**, **bit-mask gating** (`key_length_mask`,
-  `starter_len_mask`), and **zero-copy string views** for near-native throughput.
+- ⚡ **High performance** — Optimized with **Rayon parallelism**, private bit-mask gating, and zero-copy string views for
+  near-native throughput.
 - 🧠 **Smart gating engine** — Automatically skips impossible probes using global and per-starter length masks, ensuring
-  consistent O(n) scaling.
+  consistent O (n) scaling.
 - 🧩 **Modular integration** — Usable as a **Rust crate**, **C API (FFI)**, or **Qt/.NET/Python binding** with identical
   behavior across platforms.
 - 🛠️ **Lightweight runtime** — Pure Rust core with embedded dictionaries and no runtime dictionary I/O.
 - 📄 **Cross-platform ready** — Builds cleanly on **Windows**, **Linux**, and **macOS** (x86_64 / ARM64), with CLI and
   shared-library distributions.
+
+---
+
+## Live Demo
+
+Try **opencc-fmmseg** directly in your browser:
+
+👉 **[Open CJK Conversion Tool](https://laisuk.github.io/opencc-fmmseg-wasm)**
+
+Convert Simplified/Traditional Chinese text interactively, or process TXT, DOCX, XLSX, PPTX, and EPUB documents directly
+in the browser.
+
+Files are processed locally with WebAssembly and are not uploaded to a server.
+
+The demo is powered by
+[`opencc-fmmseg-wasm`](https://github.com/laisuk/opencc-fmmseg-wasm), which uses `opencc-fmmseg` as its conversion
+backend.
+
+---
 
 ## Installation
 
@@ -97,8 +116,77 @@ To use `opencc-fmmseg` in your project, add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-opencc-fmmseg = "0.11.1"  # or latest version
+opencc-fmmseg = "0.13.0"
 ```
+
+### v0.13.0: Small Seal Script and dictionary generation
+
+The Rust API supports all 24 configurations through `OpenccConfig`, string names,
+and direct helpers. New Seal names are `s2seal`, `t2seal`, `seal2s`, and `seal2t`.
+
+```rust
+use opencc_fmmseg::{OpenCC, OpenccConfig};
+
+fn main() {
+    let converter = OpenCC::new();
+    let seal = converter.convert_with_config("小篆", OpenccConfig::T2seal, false);
+    assert_eq!(converter.seal2t(&seal, false), "小篆");
+}
+```
+
+Unmapped characters pass through unchanged. Seal output needs a font covering
+its characters. Dictionary mappings can be many-to-one, so arbitrary round trips
+are not guaranteed to preserve the original text.
+
+**Migration from v0.12:** `DictionaryMaxlength::save_cbor_compressed` now requires
+`dictionary-build`. Enable it only when generating compressed dictionary artifacts:
+
+```toml
+opencc-fmmseg = { version = "0.13.0", features = ["dictionary-build"] }
+```
+
+Normal conversion, custom overlays, compressed dictionary loading, and uncompressed
+CBOR serialization remain available without this feature. Runtime decompression
+uses the built-in pure-Rust decoder; the feature enables the native Zstandard encoder.
+See the [public API reference](https://docs.rs/opencc-fmmseg) and
+[custom dictionary guide](CUSTOM_DICT_USER_GUIDE.md).
+
+### Public Rust API paths
+
+The crate root is the single public entry point. Import supported APIs directly from `opencc_fmmseg`, including the
+advanced dictionary types:
+
+```rust
+use opencc_fmmseg::{
+    DictMaxLen, DictionaryError, DictionaryMaxlength,
+};
+```
+
+`DictMaxLen` keeps its backing map and matching indexes private. Use
+`build_from_pairs`, `append_pairs`, and `replace_pairs` for safe updates, and
+`get`, `iter`, `len`, `is_empty`, `min_key_len`, and `max_key_len` for read-only inspection.
+
+Implementation modules and accelerators such as `dictionary_lib`,
+`dictionary_maxlength`, `starter_union`, and `StarterUnion` are private. Downstream code should not use their former
+nested paths; the crate-root re-exports above are the supported, docs.rs-visible dictionary API.
+
+All direct Rust conversion helpers use the same `(input, punctuation)` shape. For example:
+
+```rust
+use opencc_fmmseg::OpenCC;
+
+fn main() {
+    let converter = OpenCC::new();
+
+    assert_eq!(converter.s2t("“汉字”", true), "「漢字」");
+    assert_eq!(converter.t2tw("“滑鼠”", true), "「滑鼠」");
+    assert_eq!(converter.jp2t("“広国”", false), "“廣國”");
+}
+```
+
+The `punctuation` argument is required on every direct helper. Set it to `true` to normalize punctuation for the output
+style, or `false` to preserve punctuation. The configuration-based `convert(...)` and `convert_with_config(...)` APIs
+retain their existing signatures.
 
 Then use it in your code:
 
@@ -236,13 +324,36 @@ Last Error: Invalid config: what_is_this
 Last Error after clear: <none>
 ```
 
+For additional Rust examples covering custom dictionaries, Unicode compatibility normalization, DeTofu, the recommended
+normalization → conversion → DeTofu pipeline, and Small Seal Script conversion, see the full [
+`examples/use_opencc_fmmseg_test.rs`](https://raw.githubusercontent.com/laisuk/opencc-fmmseg/master/examples/use_opencc_fmmseg_test.rs)
+example.
+
+The extended example includes Tests 5–8 and demonstrates the newer APIs and configurations.
+
 ---
 
-## CJK Compatibility Ideograph normalization
+## Unicode compatibility normalization
+
+`opencc-fmmseg` provides optional Unicode compatibility normalization as a **pre-processing** step before OpenCC
+segmentation and conversion. This is useful for legacy text, extracted PDF/document text, and other input that may
+contain compatibility or presentation-oriented Unicode forms.
+
+Three Rust APIs are available:
+
+- `OpenCC::normalize_compat(...)` — normalize Unicode CJK Compatibility Ideographs only, using the built-in
+  `CJK_Compatibility_Ideographs.txt` table.
+- `OpenCC::normalize_unicode_compat(...)` — apply only the curated `Unicode_Compatibility.txt` table.
+- `OpenCC::normalize_compat_extended(...)` — apply the full compatibility pre-pass: CJK Compatibility Ideographs plus
+  the curated Unicode compatibility table.
+
+The existing `normalize_compat(...)` behavior is unchanged. Callers that want the broader normalization can opt in to
+`normalize_compat_extended(...)` without changing existing code.
+
+### CJK Compatibility Ideographs
 
 Some legacy text contains Unicode CJK Compatibility Ideographs such as `金`. These are uncommon in ordinary Chinese
-text, but callers that need upstream OpenCC-compatible behavior can run the optional compatibility pre-pass before
-segmentation and conversion.
+text, but callers that need upstream OpenCC-compatible behavior can normalize them before conversion:
 
 ```rust
 use opencc_fmmseg::OpenCC;
@@ -250,6 +361,7 @@ use opencc_fmmseg::OpenCC;
 fn main() {
     let cc = OpenCC::new();
     let normalized = cc.normalize_compat("天龍八部書裡的喬峰是契丹人");
+
     assert_eq!(normalized, "天龍八部書裡的喬峰是契丹人");
 }
 ```
@@ -269,9 +381,68 @@ fn main() {
 }
 ```
 
-This normalization is optional because it changes Unicode code points, compatibility ideographs are rare in normal text,
-and some callers need exact code-point preservation. Compatibility normalization is a pre-processing step; DeTofu is a
-post-processing/display fallback for rare CJK extension characters.
+### Extended Unicode compatibility normalization
+
+`normalize_compat_extended(...)` combines the CJK Compatibility Ideograph table with the curated
+`Unicode_Compatibility.txt` mappings. The extended table covers selected Unicode radicals, glyph variants, punctuation
+forms, and known text-extraction artifacts useful when cleaning Chinese text from documents and PDFs.
+
+```rust
+use opencc_fmmseg::OpenCC;
+
+fn main() {
+    let cc = OpenCC::new();
+
+    let normalized = cc.normalize_compat_extended("天龍八部書裡的聼眾");
+    assert_eq!(normalized, "天龍八部書裡的聽眾");
+}
+```
+
+The extended normalization can be used in the same pre-processing pipeline before conversion:
+
+```rust
+use opencc_fmmseg::{OpenCC, OpenccConfig};
+
+fn main() {
+    let cc = OpenCC::new();
+    let input = "天龍八部書裡的聼眾";
+
+    let normalized = cc.normalize_compat_extended(input);
+    let converted = cc.convert_with_config(&normalized, OpenccConfig::T2s, false);
+
+    assert_eq!(converted, "天龙八部书里的听众");
+}
+```
+
+For advanced callers that need only the curated table, `normalize_unicode_compat(...)` intentionally skips the CJK
+Compatibility Ideograph table:
+
+```rust
+use opencc_fmmseg::OpenCC;
+
+fn main() {
+    let cc = OpenCC::new();
+
+    assert_eq!(cc.normalize_unicode_compat("聼"), "聽");
+    assert_eq!(cc.normalize_unicode_compat("金"), "金");
+    assert_eq!(cc.normalize_compat_extended("金"), "金");
+}
+```
+
+All curated extended mappings are one Unicode scalar value to one Unicode scalar value. Unmapped characters are
+preserved unchanged. These APIs are independent of OpenCC conversion dictionaries, segmentation, regional variants, IDS
+handling, script detection, and punctuation conversion.
+
+Compatibility normalization remains optional because it changes Unicode code points and some callers need exact
+code-point preservation. The recommended processing order when all compatibility features are needed is:
+
+```text
+compatibility normalization -> OpenCC conversion -> DeTofu display fallback
+```
+
+Use `normalize_compat(...)` for the standard compatibility-ideograph pass, or `normalize_compat_extended(...)` when
+working with broader legacy/document-extraction forms. DeTofu remains a separate **post-processing** display fallback
+for rare CJK extension characters.
 
 ---
 
@@ -281,8 +452,8 @@ DeTofu is an optional post-conversion display-compatibility pass for rare CJK ex
 tofu boxes on some systems, fonts, browsers, document viewers, mobile devices, or e-book readers.
 
 This is an advanced compatibility feature rather than common OpenCC conversion usage. See the
-[DeTofu User Guide](DETOFU_USER_GUIDE.md) for Rust APIs, threshold behavior, custom fallback pairs, and custom
-fallback files.
+[DeTofu User Guide](DETOFU_USER_GUIDE.md) for Rust APIs, threshold behavior, custom fallback pairs, and custom fallback
+files.
 
 ---
 
@@ -400,8 +571,7 @@ Last Error: No error
 
 - `opencc_convert(...)` is the **legacy string-based API**:
     - Uses a string config such as `"s2t"`, `"t2s"`, `"s2twp"`.
-    - If the config is invalid, the conversion is **blocked** and an error string
-      (`"Invalid config: ..."`) is returned.
+    - If the config is invalid, the conversion is **blocked** and an error string (`"Invalid config: ..."`) is returned.
     - On success, any previous error state is automatically cleared.
 
 - `opencc_convert_cfg(...)` is the **recommended API** for new code:
@@ -412,15 +582,13 @@ Last Error: No error
 - `opencc_convert_cfg_mem(...)` is an **advanced buffer-based API**:
     - Designed for bindings and performance-sensitive code.
     - Uses a size-query + caller-allocated buffer pattern.
-    - Output length is **data-dependent and cannot be predicted** without
-      running a first pass of the conversion logic.
+    - Output length is **data-dependent and cannot be predicted** without running a first pass of the conversion logic.
     - The required buffer size (including `'\0'`) is reported via `out_required`.
     - The output buffer is **owned and freed by the caller**.
     - For guaranteed success, callers should first perform a **size-query**
       call with `out_buf = NULL` and `out_cap = 0`.
-    - For one-pass usage, callers may provide a buffer larger than the input
-      (e.g. input length + ~10%), but must be prepared to retry if the buffer
-      is insufficient.
+    - For one-pass usage, callers may provide a buffer larger than the input (e.g. input length + ~10%), but must be
+      prepared to retry if the buffer is insufficient.
     - This API does **not** replace the `char*`-returning APIs.
 
 - All input and output strings use **null-terminated UTF-8** encoding.
@@ -432,17 +600,19 @@ Last Error: No error
     - `opencc_convert(...)`
     - `opencc_convert_cfg(...)`
 
-- `opencc_error_free(...)` frees memory returned by `opencc_last_error()` **only**.
-  It does **not** clear the internal error state.
+- `opencc_error_free(...)` frees memory returned by `opencc_last_error()` **only**. It does **not** clear the calling
+  thread's error state.
 
-- `opencc_clear_last_error()` clears the **internal error state**:
-    - After calling this, `opencc_last_error()` will return `"No error"`.
+- `opencc_clear_last_error()` clears the **calling thread's C API error state**:
+    - It does not affect errors recorded by other threads.
+    - After calling this, `opencc_last_error()` will return `"No error"` on that thread.
     - This function **does not free** any previously returned error strings.
     - It cannot replace `opencc_error_free()`.
 
-- `opencc_last_error()` returns the most recent error message:
-    - Returns a newly allocated string.
-    - Returns `"No error"` if no error is recorded.
+- `opencc_last_error()` returns the calling thread's most recent C API error:
+    - Retrieve it on the same thread immediately after a failed call.
+    - Returns an independently allocated string; it does not expose internal thread-local storage.
+    - Returns `"No error"` if no error is recorded for that thread.
     - The returned string must always be freed with `opencc_error_free()`.
 
 - `opencc_delete(...)` destroys the OpenCC instance and frees its resources.
@@ -452,8 +622,7 @@ Last Error: No error
     - `2` = Simplified Chinese
     - `0` = Other / Undetermined
 
-- Parallel mode can be queried using `opencc_get_parallel()` and modified
-  using `opencc_set_parallel(...)`.
+- Parallel mode can be queried using `opencc_get_parallel()` and modified using `opencc_set_parallel(...)`.
 
 ---
 
@@ -483,11 +652,13 @@ Usage: opencc-rs.exe convert [OPTIONS] --config <config>
 Options:
   -i, --input <file>                  Input file (use stdin if omitted for non-office documents)
   -o, --output <file>                 Output file (use stdout if omitted for non-office documents)
-  -c, --config <config>               Conversion configuration (s2t | s2tw | s2twp | s2hk | s2hkp | t2s | t2tw | t2twp | t2hk | t2hkp | tw2s | tw2sp | tw2t | tw2tp | hk2s | hk2sp | hk2t | hk2tp | jp2t | t2jp)
+  -c, --config <config>               Conversion configuration (s2t | s2tw | s2twp | s2hk | s2hkp | t2s | t2tw | t2twp | t2hk | t2hkp | tw2s | tw2sp | tw2t | tw2tp | hk2s | hk2sp | hk2t | hk2tp | jp2t | t2jp | s2seal | t2seal | seal2s | seal2t)
   -p, --punct                         Enable punctuation conversion
-      --detofu [<LEVEL>]              Apply tofu-safe fallback after conversion: all, ext-c, ext-d, ext-e, ext-f, ext-g, ext-h, ext-i
-      --detofu-file <FILE>            Load additional detofu fallback mappings from a UTF-8 text file. Custom mappings override built-in mappings (requires --detofu)
-      --custom-dict <SLOT:MODE:FILE>  Custom dictionary file, e.g. hkphrasesrev:append:my_hk_dict.txt
+  -n, --norm-compat                   Normalize CJK Compatibility Ideographs before conversion.
+  -E, --norm-compat-extended          Normalize extended Unicode compatibility forms before conversion.
+      --detofu [<LEVEL>]              Apply tofu-safe fallback after conversion: all, ext-b, ext-c, ext-d, ext-e, ext-f, ext-g, ext-h, ext-i
+      --detofu-file <FILE>            Load additional DeTofu fallback mappings from a UTF-8 text file. Custom mappings override built-in mappings (requires --detofu)
+  -D, --custom-dict <SLOT:MODE:FILE>  Custom dictionary file, e.g. HKPhrasesRev:append:my_hk_dict.txt (slot names are ASCII case-insensitive)
       --keep-ids                      Preserve Unicode IDS expressions during conversion
       --in-enc <in_enc>               Encoding for input [default: UTF-8]
       --out-enc <out_enc>             Encoding for output [default: UTF-8]
@@ -504,15 +675,40 @@ Usage: opencc-rs.exe office [OPTIONS] --config <config>
 Options:
   -i, --input <file>                  Input file (use stdin if omitted for non-office documents)
   -o, --output <file>                 Output file (use stdout if omitted for non-office documents)
-  -c, --config <config>               Conversion configuration (s2t | s2tw | s2twp | s2hk | s2hkp | t2s | t2tw | t2twp | t2hk | t2hkp | tw2s | tw2sp | tw2t | tw2tp | hk2s | hk2sp | hk2t | hk2tp | jp2t | t2jp)
+  -c, --config <config>               Conversion configuration (s2t | s2tw | s2twp | s2hk | s2hkp | t2s | t2tw | t2twp | t2hk | t2hkp | tw2s | tw2sp | tw2t | tw2tp | hk2s | hk2sp | hk2t | hk2tp | jp2t | t2jp | s2seal | t2seal | seal2s | seal2t)
   -p, --punct                         Enable punctuation conversion
-      --detofu [<LEVEL>]              Apply tofu-safe fallback after conversion: all, ext-c, ext-d, ext-e, ext-f, ext-g, ext-h, ext-i
-      --detofu-file <FILE>            Load additional detofu fallback mappings from a UTF-8 text file. Custom mappings override built-in mappings (requires --detofu)
-      --custom-dict <SLOT:MODE:FILE>  Custom dictionary file, e.g. hkphrasesrev:append:my_hk_dict.txt
+  -n, --norm-compat                   Normalize CJK Compatibility Ideographs before conversion.
+  -E, --norm-compat-extended          Normalize extended Unicode compatibility forms before conversion.
+      --detofu [<LEVEL>]              Apply tofu-safe fallback after conversion: all, ext-b, ext-c, ext-d, ext-e, ext-f, ext-g, ext-h, ext-i
+      --detofu-file <FILE>            Load additional DeTofu fallback mappings from a UTF-8 text file. Custom mappings override built-in mappings (requires --detofu)
+  -D, --custom-dict <SLOT:MODE:FILE>  Custom dictionary file, e.g. HKPhrasesRev:append:my_hk_dict.txt (slot names are ASCII case-insensitive)
   -f, --format <ext>                  Force document format: docx, odt, epub...
   -k, --keep-font                     Preserve original font styles
-      --convert-filename              Convert the output filename using the selected OpenCC configuration
+  -F, --convert-filename              Convert the output filename using the selected OpenCC configuration
   -h, --help                          Print help
+```
+
+### `dict-generate`
+
+```
+Dict Generator: Dictionary Artifacts Generator from dictionaries in ./dicts/
+
+Usage: dict-generate.exe [OPTIONS]
+
+Options:
+  -f, --format <format>               Dictionary format: [zstd|cbor|json] [default: zstd] [possible values: zstd, cbor, json]
+      --pretty                        Pretty-print JSON when --format json
+  -o, --output <filename>             Write generated dictionary to <filename>. If not specified, a default filename is used.
+  -b, --base-dir <dir>                Base directory containing OpenCC dictionary TXT files [default: dicts]
+  -D, --custom-dict <SLOT:MODE:FILE>  Custom dictionary file, e.g. HKPhrasesRev:append:my_hk_dict.txt (slot names are ASCII case-insensitive)
+  -h, --help                          Print help
+
+Examples:
+
+dict-generate --format cbor --output dictionary_maxlength.cbor
+dict-generate --format zstd --output dictionary_maxlength.zstd
+
+The generated CBOR can be loaded with DictionaryMaxlength::deserialize_from_cbor().
 ```
 
 ### Example
@@ -523,7 +719,7 @@ Options:
 ./opencc-rs convert -c s2t -i text_simplified.txt -o text_traditional.txt
 "俨骖𬴂于上路" | ./opencc-rs convert -c t2s --detofu all
 "𣭲毛" | ./opencc-rs convert -c t2s --detofu ext-b --detofu-file custom_tofu.txt
-"這個細路哥很靈活" | ./opencc-rs convert -c hk2sp --custom-dict hkphrasesrev:append:my_hk_dict.txt
+"這個細路哥很靈活" | ./opencc-rs convert -c hk2sp --custom-dict HKPhrasesRev:append:my_hk_dict.txt
 ```
 
 Example `custom_tofu.txt`:
@@ -550,32 +746,41 @@ Example `my_hk_dict.txt`:
 - Supported conversions:
     - `s2t` – Simplified to Traditional
     - `s2tw` – Simplified to Traditional Taiwan
+    - `s2twp` – Simplified to Traditional Taiwan with regional terms
     - `s2hk` – Simplified to Traditional Hong Kong
-    - `s2hkp` – Simplified to Traditional Hong Kong with idioms
-    - `t2hkp` – Traditional to Hong Kong Traditional with idioms
-    - `s2twp` – Simplified to Traditional Taiwan with idioms
+    - `s2hkp` – Simplified to Traditional Hong Kong with regional terms
     - `t2s` – Traditional to Simplified
+    - `t2tw` – Traditional to Traditional Taiwan
+    - `t2twp` – Traditional to Traditional Taiwan with regional terms
+    - `t2hk` – Traditional to Traditional Hong Kong
+    - `t2hkp` – Traditional to Traditional Hong Kong with regional terms
     - `tw2s` – Traditional Taiwan to Simplified
-    - `tw2sp` – Traditional Taiwan to Simplified with idioms
+    - `tw2sp` – Traditional Taiwan to Simplified with regional terms
+    - `tw2t` – Traditional Taiwan to general Traditional
+    - `tw2tp` – Traditional Taiwan with regional terms to general Traditional
     - `hk2s` – Traditional Hong Kong to Simplified
-    - `hk2sp` – Traditional Hong Kong to Simplified with idioms
-    - `hk2tp` – Hong Kong Traditional with idioms to general Traditional
-    - `jp2t`, `t2jp` - Japanese Shinjitai/Kyujitai
-    - etc
+    - `hk2sp` – Traditional Hong Kong to Simplified with regional terms
+    - `hk2t` – Traditional Hong Kong to general Traditional
+    - `hk2tp` – Traditional Hong Kong with regional terms to general Traditional
+    - `jp2t` – Japanese Shinjitai to Traditional Chinese
+    - `t2jp` – Traditional Chinese to Japanese Shinjitai
+    - `s2seal` – Simplified Chinese to Seal script
+    - `t2seal` – Traditional Chinese to Seal script
+    - `seal2s` – Seal script to Simplified Chinese
+    - `seal2t` – Seal script to Traditional Chinese
 
 ### Lexicons
 
-By default, it uses **OpenCC**'s built-in lexicon paths. You can also provide your own lexicon dictionary generated by
-`dict-generate` CLI tool.
+By default, it uses bundled OpenCC-compatible lexicons embedded as Zstd, with no runtime dictionary I/O. You can also
+provide your own lexicon dictionary generated by the `dict-generate` CLI tool.
 
 For advanced custom dictionaries, `DictionaryMaxlength` supports pair-based and OpenCC plaintext file injection,
 append/override merge modes, alternate dictionary base directories, and direct `OpenCC::from_dictionary()` construction.
-Public `DictSlot` customization includes regional phrase slots such as `HKPhrases` and `HKPhrasesRev`,
-Japanese Shinjitai slots such as `JPSCharacters`, `JPSCharactersRev`, and `JPSPhrases`, plus phrase-variant
-slots such as `TWVariantsPhrases` and `HKVariantsPhrases`, which are applied before variant character fallback.
-Missing plaintext `HKPhrases.txt` / `HKPhrasesRev.txt` files are treated as
-empty slots for backward compatibility.
-See the [Custom Dictionary User Guide](CUSTOM_DICT_USER_GUIDE.md).
+Public `DictSlot` customization includes regional phrase slots such as `HKPhrases` and `HKPhrasesRev`, Japanese
+Shinjitai slots exposed as `JPSCharacters`, `JPSCharactersRev`, and `JPSPhrases`, plus phrase-variant slots such as
+`TWVariantsPhrases` and `HKVariantsPhrases`, which are applied before variant character fallback. Missing plaintext
+`HKPhrases.txt` / `HKPhrasesRev.txt` files are treated as empty slots for backward compatibility. See
+the [Custom Dictionary User Guide](CUSTOM_DICT_USER_GUIDE.md).
 
 ---
 
@@ -597,36 +802,37 @@ See the [Custom Dictionary User Guide](CUSTOM_DICT_USER_GUIDE.md).
 
 ## 🚀 Benchmark Results: `opencc-fmmseg` Conversion Speed
 
-Tested using [Criterion.rs](https://bheisler.github.io/criterion.rs/book/) on up to 1 million
-characters with punctuation disabled (`punctuation = false`), built in **release mode** with
-**Rayon enabled** via `cargo +stable bench --bench opencc_fmmseg_bench`.
+Tested using [Criterion.rs](https://bheisler.github.io/criterion.rs/book/) on up to 1 million characters with
+punctuation disabled (`punctuation = false`), built in **release mode** with **Rayon enabled** via
+`cargo +stable bench --bench opencc_fmmseg_bench`.
 
-Results from **v0.9.2**:
+Results from **v0.11.3** on a normal desktop session with background applications running:
 
 | Input Size | s2t Mean Time | t2s Mean Time |
 |------------|--------------:|--------------:|
-| 100        |       2.51 µs |       1.04 µs |
-| 1,000      |      34.67 µs |      28.45 µs |
-| 10,000     |     164.30 µs |      99.48 µs |
-| 100,000    |      0.982 ms |      0.574 ms |
-| 1,000,000  |     11.294 ms |      7.571 ms |
+| 100        |     2.6731 µs |     1.1291 µs |
+| 1,000      |     38.596 µs |     26.867 µs |
+| 10,000     |     175.94 µs |     119.13 µs |
+| 100,000    |     1.0235 ms |     623.20 µs |
+| 1,000,000  |     11.548 ms |     7.9065 ms |
 
 ---
 
 📊 **Throughput Interpretation**
 
-- **t2s:** ≈ 132 million chars/sec
-- **s2t:** ≈ 89 million chars/sec
-- Equivalent to **~265–396 MB/s** UTF-8 Chinese text throughput
-- ≈ **177–264 full-length novels** (500 k chars each) per second
+- **t2s:** ≈ 126 million chars/sec
+- **s2t:** ≈ 87 million chars/sec
+- Equivalent to **~260–379 MB/s** UTF-8 Chinese text throughput
+- ≈ **173–253 full-length novels** (500 k chars each) per second
 - ≈ **1 GB of text** converted in under **4 seconds**
 
-At this level, CPU saturation is negligible — **I/O or interop overhead** (file/clipboard/network) now dominates
+At this level, CPU saturation is negligible — **I/O or interop overhead** (file/clipboard/network) usually dominates
 runtime.  
-The new **mask-first gating** (`key_length_mask` + `starter_len_mask`) delivers perfect **O(n)** scaling and
-ultra-stable parallel throughput across large text corpora.
+The v0.11.3 result is effectively unchanged from the previous 0.9.x large-input benchmark, while carrying expanded
+dictionary coverage and additional bundled data. The **mask-first gating** (`key_length_mask` + `starter_len_mask`)
+continues to deliver stable near-linear scaling across large text corpora.
 
-![Benchmark Chart](https://raw.githubusercontent.com/laisuk/opencc-fmmseg/master/benches/opencc_fmmseg_benchmark_092.png)
+![Benchmark Chart](https://raw.githubusercontent.com/laisuk/opencc-fmmseg/master/benches/opencc_fmmseg_benchmark_0113.png)
 
 ### 🏅 Highlights
 
@@ -634,10 +840,14 @@ ultra-stable parallel throughput across large text corpora.
 
 ---
 
-## Project That Use opencc-fmmseg
+## Projects That Use opencc-fmmseg
 
-- [opencc-fmmseg-gui](https://github.com/laisuk/opencc-fmmseg-gui) : A modern cross‑platform Chinese text converter GUI
+- [opencc-fmmseg-gui](https://github.com/laisuk/opencc-fmmseg-gui) : A modern cross-platform Chinese text converter GUI
   built with `Tauri` + `Vite` and powered by the Rust `opencc-fmmseg` engine.
+
+- [opencc-fmmseg-wasm](https://github.com/laisuk/opencc-fmmseg-wasm) : WebAssembly bindings for `opencc-fmmseg`,
+  providing Chinese text conversion, compatibility normalization, DeTofu, custom dictionaries, and Office/EPUB
+  conversion for browsers and Node.js.
 
 ---
 
@@ -656,4 +866,3 @@ ultra-stable parallel throughput across large text corpora.
 
 - Issues and pull requests are welcome.
 - If you find this tool useful, please ⭐ star the repo or fork it.
-

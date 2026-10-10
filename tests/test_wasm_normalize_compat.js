@@ -33,7 +33,7 @@ expectEqual(
     "normalizeCompat() failed"
 );
 
-const converted = cc.convert(normalized);
+const converted = cc.convert(normalized, false);
 
 expectEqual(
     converted,

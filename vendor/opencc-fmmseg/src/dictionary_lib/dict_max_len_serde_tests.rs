@@ -156,7 +156,7 @@ fn slim_deserialization_preserves_starter_union_after_population() {
 
 #[test]
 fn existing_artifact_slim_roundtrip_preserves_conversion_and_reduces_size() {
-    let original = DictionaryMaxlength::from_embedded_cbor();
+    let original = DictionaryMaxlength::new().unwrap();
     let old_size = serde_cbor::to_vec(&legacy(&original.st_characters))
         .unwrap()
         .len();

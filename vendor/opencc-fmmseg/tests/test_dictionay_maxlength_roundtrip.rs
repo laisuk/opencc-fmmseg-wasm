@@ -1,0 +1,211 @@
+#![cfg(feature = "dictionary-build")]
+#[cfg(test)]
+mod tests {
+    use opencc_fmmseg::{DictMaxLen, DictionaryMaxlength};
+    use std::fs;
+    use std::io::Cursor;
+    use std::path::Path;
+
+    type TestResult<T> = Result<T, Box<dyn std::error::Error>>;
+
+    // ---------- I/O (internal CBOR only) ----------
+
+    /// Load internal DictionaryMaxlength from .zstd containing *internal* CBOR.
+    fn load_from_zstd_file<P: AsRef<Path>>(p: P) -> TestResult<DictionaryMaxlength> {
+        let bytes = fs::read(p)?;
+        let decompressed = zstd::stream::decode_all(Cursor::new(bytes))?;
+        let dicts: DictionaryMaxlength = serde_cbor::from_slice(&decompressed)?;
+        Ok(dicts.finish())
+    }
+
+    /// Save *internal* DictionaryMaxlength as internal CBOR + zstd.
+    fn save_to_zstd_file<P: AsRef<Path>>(dicts: &DictionaryMaxlength, p: P) -> TestResult<()> {
+        let cbor = serde_cbor::to_vec(dicts)?;
+        let compressed = zstd::stream::encode_all(Cursor::new(cbor), 3)?; // zstd level 3
+        fs::write(p, compressed)?;
+        Ok(())
+    }
+
+    // ---------- Utilities ----------
+
+    /// Fixed order view over all DictMaxLen tables.
+    fn all_dicts(d: &DictionaryMaxlength) -> [&DictMaxLen; 25] {
+        [
+            &d.st_characters,
+            &d.st_phrases,
+            &d.ts_characters,
+            &d.ts_phrases,
+            &d.tw_phrases,
+            &d.tw_phrases_rev,
+            &d.hk_phrases,
+            &d.hk_phrases_rev,
+            &d.tw_variants_phrases,
+            &d.tw_variants,
+            &d.tw_variants_rev,
+            &d.tw_variants_rev_phrases,
+            &d.hk_variants_phrases,
+            &d.hk_variants,
+            &d.hk_variants_rev,
+            &d.hk_variants_rev_phrases,
+            &d.jps_characters,
+            &d.jps_characters_rev,
+            &d.jps_phrases,
+            &d.seal_characters,
+            &d.seal_characters_rev,
+            &d.seal_variants,
+            &d.seal_variants_rev,
+            &d.st_punctuations,
+            &d.ts_punctuations,
+        ]
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    struct DictStats {
+        pairs: usize,
+        min_len: usize,
+        max_len: usize,
+        non_empty: bool,
+    }
+
+    fn collect_stats(d: &DictionaryMaxlength) -> Vec<DictStats> {
+        all_dicts(d)
+            .iter()
+            .map(|x| DictStats {
+                pairs: x.len(),
+                min_len: x.min_key_len(),
+                max_len: x.max_key_len(),
+                non_empty: !x.is_empty(),
+            })
+            .collect()
+    }
+
+    /// Invariants that should hold after `.finish()`.
+    fn check_invariants(d: &DictionaryMaxlength) {
+        for (i, dm) in all_dicts(d).iter().enumerate() {
+            let min_len = dm.min_key_len();
+            let max_len = dm.max_key_len();
+            assert!(
+                min_len <= max_len,
+                "Dict[{i}]: min_len {} > max_len {}",
+                min_len,
+                max_len
+            );
+            if dm.is_empty() {
+                assert_eq!((min_len, max_len), (0, 0));
+            } else {
+                assert!(
+                    min_len >= 1,
+                    "Dict[{i}]: non-empty dictionary has min_len 0"
+                );
+            }
+        }
+    }
+
+    // ---------- The test ----------
+
+    #[test]
+    #[ignore] // large asset; run with: cargo test -- --ignored
+    fn roundtrip_internal_cbor_zstd() -> TestResult<()> {
+        // 1) Write embedded blob to temp (simulates on-disk source)
+        let embedded: &[u8] = include_bytes!("dicts/dictionary_maxlength.zstd");
+        let tmp = std::env::temp_dir();
+        let src = tmp.join(format!("opencc_src_{}.zstd", std::process::id()));
+        let dst = tmp.join(format!("opencc_rt_{}.zstd", std::process::id()));
+        fs::write(&src, embedded)?;
+
+        // 2) Load from disk (internal CBOR)
+        let disk = load_from_zstd_file(&src)?;
+
+        // 3) Round-trip: save → load
+        save_to_zstd_file(&disk, &dst)?;
+        let rt = load_from_zstd_file(&dst)?;
+
+        // 4) Quick invariants
+        check_invariants(&disk);
+        check_invariants(&rt);
+
+        // 5) Compare structural stats per-dictionary
+        let s_disk = collect_stats(&disk);
+        let s_rt = collect_stats(&rt);
+
+        // totals & non-empty counts
+        let tot = |v: &[DictStats]| (v.len(), v.iter().filter(|s| s.non_empty).count());
+        let (t_disk, n_disk) = tot(&s_disk);
+        let (t_rt, n_rt) = tot(&s_rt);
+
+        println!("[disk     ] total={}, non_empty={}", t_disk, n_disk);
+        println!("[roundtrip] total={}, non_empty={}", t_rt, n_rt);
+
+        assert_eq!(t_disk, t_rt, "total DictMaxLen count mismatch");
+        assert_eq!(n_disk, n_rt, "non-empty DictMaxLen count mismatch");
+
+        // per-slot pair counts should match exactly for internal→internal round-trip
+        let pairs_disk: Vec<_> = s_disk.iter().map(|s| s.pairs).collect();
+        let pairs_rt: Vec<_> = s_rt.iter().map(|s| s.pairs).collect();
+        assert_eq!(pairs_disk, pairs_rt, "per-dict pair counts mismatch");
+
+        // Semantic bounds should also be stable under internal round-trip.
+        let bounds_disk: Vec<_> = s_disk.iter().map(|s| (s.min_len, s.max_len)).collect();
+        let bounds_rt: Vec<_> = s_rt.iter().map(|s| (s.min_len, s.max_len)).collect();
+        assert_eq!(bounds_disk, bounds_rt, "per-dict min/max mismatch");
+
+        // 6) Cleanup ( the best effort)
+        let _ = fs::remove_file(&src);
+        let _ = fs::remove_file(&dst);
+        Ok(())
+    }
+
+    #[test]
+    #[ignore] // large asset; run with: cargo test -- --ignored
+    fn roundtrip_zstd_from_disk_and_count() -> TestResult<()> {
+        // 1) Write the embedded blob to a temp file to simulate an on-disk source.
+        let embedded: &[u8] = include_bytes!("dicts/dictionary_maxlength.zstd");
+        let tmp = std::env::temp_dir();
+        let src = tmp.join(format!("opencc_dict_src_{}.zstd", std::process::id()));
+        let dst = tmp.join(format!("opencc_dict_copy_{}.zstd", std::process::id()));
+        fs::write(&src, embedded)?;
+
+        // 2) Load the embedded dictionary from disk and build a plaintext-source dictionary.
+        let disk = load_from_zstd_file(&src)?;
+        let generated = DictionaryMaxlength::from_dicts()?;
+
+        // 3) Save the generated dictionary, then load it back.
+        save_to_zstd_file(&generated, &dst)?;
+        let rt = load_from_zstd_file(&dst)?;
+
+        // 4) Compare table counts and non-empty counts across all paths.
+        let tot = |d: &DictionaryMaxlength| {
+            let stats = collect_stats(d);
+            (stats.len(), stats.iter().filter(|s| s.non_empty).count())
+        };
+
+        let (t_disk, n_disk) = tot(&disk);
+        let (t_generated, n_generated) = tot(&generated);
+        let (t_rt, n_rt) = tot(&rt);
+
+        println!("[from_disk ] total={t_disk}, non_empty={n_disk}");
+        println!("[generated ] total={t_generated}, non_empty={n_generated}");
+        println!("[roundtrip ] total={t_rt}, non_empty={n_rt}");
+
+        assert_eq!(
+            t_disk, t_rt,
+            "total DictMaxLen count mismatch between disk and round-trip"
+        );
+        assert_eq!(
+            t_generated, t_rt,
+            "total DictMaxLen count mismatch between generated and round-trip"
+        );
+        assert_eq!(
+            n_disk, n_rt,
+            "non-empty DictMaxLen count mismatch between disk and round-trip"
+        );
+        assert_eq!(
+            n_generated, n_rt,
+            "non-empty DictMaxLen count mismatch between generated and round-trip"
+        );
+
+        let _ = fs::remove_file(&src);
+        let _ = fs::remove_file(&dst);
+        Ok(())
+    }
+}

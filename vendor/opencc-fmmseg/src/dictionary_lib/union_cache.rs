@@ -539,8 +539,8 @@ fn union_cached() {
     assert!(std::ptr::eq(Arc::as_ptr(&a), Arc::as_ptr(&b)));
 }
 
-#[cfg(feature = "parallel")]
 #[test]
+#[cfg(feature = "parallel")]
 fn union_init_once_parallel() {
     use rayon::prelude::*;
     let d = DictionaryMaxlength::default();

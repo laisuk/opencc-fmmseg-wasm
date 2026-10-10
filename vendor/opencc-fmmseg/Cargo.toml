@@ -1,11 +1,3 @@
-#[workspace]
-#members = [
-#    "capi/opencc-fmmseg-capi",
-#    "tools/dict-generate",
-#    "tools/opencc-clip",
-#    "tools/opencc-rs"
-#]
-
 [package]
 name = "opencc-fmmseg"
 version = "0.13.0"
@@ -23,57 +15,51 @@ categories = ["text-processing", "localization", "command-line-utilities", "pars
 include = [
     "Cargo.toml",
     "/LICENSE",
-    # All source code
+    "/CHANGELOG.md",
+    "/CUSTOM_DICT_USER_GUIDE.md",
+    "/DETOFU_USER_GUIDE.md",
+    "/THIRD_PARTY_NOTICES.md",
+    # Source
     "src/**/*.rs",
+    # Embedded dictionaries
     "src/dictionary_lib/dicts/*.zstd",
+    # Embedded data files
     "src/data/*.txt",
-    "src/data/*.bin",
     # Public text dictionaries
     "dicts/**"
 ]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [dependencies]
-# Exact dependency pins to preserve MSRV (rustc 1.75.0):
-# rayon@1.10.0, rayon-core@1.12.1, rustc-hash@2.1.1
+# Exact direct dependency pins to preserve behavior and Rust 2021/MSRV compatibility.
 rayon = { version = "=1.10", optional = true }
 rayon-core = { version = "=1.12", optional = true }
+rustc-hash = "=2.1.1"
+
 regex = "1.13"
 serde = { version = "1.0", features = ["derive"] }
 serde_cbor = "0.11"
-zstd = { version = "0.14", optional = true }
-rustc-hash = "2.1"
+zstd = { version = "0.14.0", optional = true }
 
 [features]
-default = ["parallel", "zstd"]
+default = ["parallel"]
 parallel = ["dep:rayon", "dep:rayon-core"]
-zstd = ["dep:zstd"]
-# Pure-Rust decode-only support, ideal for WASM
+# Compatibility alias: runtime decoding is now always pure Rust.
 ruzstd = []
-
-tofu-bin = []
-compat-bin = []
-unicode-bin = []
+dictionary-build = ["dep:zstd"]
 
 [dev-dependencies]
-#tempfile = "3.27"
-#serde_json = "1.0"
+tempfile = "3.27"
+serde_json = "1.0"
 #once_cell = "1.21"
 #criterion = "0.7.0"
 
 #[[bench]]
 #name = "opencc_fmmseg_bench"
 #harness = false
-
-# Default: heavy optimization for libraries (C API performance)
-
-#[profile.release]
-#opt-level = 3            # Maximize speed (better suited for C API performance)
-#codegen-units = 1          # Optimize across the entire codebase for better performance
-#lto = "fat"                # Full Link Time Optimization for improved binary performance
-#panic = "abort"            # Prevents Rust panics from unwinding, reducing binary size
-#incremental = false        # Disable incremental builds to fully optimize the release binary
-#strip = "symbols"          # Strips debug symbols while retaining export symbols needed for the C API
-#debug = 0                  # No debug info in the final binary to reduce size
 

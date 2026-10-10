@@ -94,6 +94,11 @@ pub struct OpenCC {
 }
 
 impl OpenCC {
+    /// Load the embedded dictionary using the pure-Rust decoder.
+    pub fn new_embedded() -> Self {
+        Self::new()
+    }
+
     /// Creates a new `OpenCC` instance using the embedded dictionary artifact.
     ///
     /// This is the recommended method for most users. It loads the bundled
@@ -125,11 +130,11 @@ impl OpenCC {
         Self::from_dictionary(dictionary)
     }
 
-    /// Creates an `OpenCC` instance using plaintext OpenCC dictionary objects.
+    /// Creates an `OpenCC` instance from the bundled plaintext dictionaries.
     ///
-    /// This method is useful for unit testing or embedding custom dictionaries directly
-    /// in code. It bypasses any file loading or embedded CBOR/JSON files, relying instead
-    /// on raw dictionaries defined in `DictionaryMaxlength::from_dicts()`.
+    /// Parses the plaintext dictionary data embedded in the crate, without runtime
+    /// file I/O. Prefer [`Self::new`] for the compressed embedded artifact, or
+    /// [`Self::from_dictionary`] for custom data.
     ///
     /// # Returns
     /// An `OpenCC` instance built from in-memory data.
@@ -172,10 +177,8 @@ impl OpenCC {
     /// ```rust
     /// use opencc_fmmseg::OpenCC;
     ///
-    /// fn main() {
-    ///     let cc = OpenCC::from_cbor("./dicts.s2t.cbor");
-    ///     println!("{}", cc.convert("汉字", "s2t", false));
-    /// }
+    /// let cc = OpenCC::from_cbor("./dicts.s2t.cbor");
+    /// println!("{}", cc.convert("汉字", "s2t", false));
     /// ```
     pub fn from_cbor<P: AsRef<Path>>(filename: P) -> Self {
         let dictionary =
@@ -185,11 +188,6 @@ impl OpenCC {
             });
 
         Self::from_dictionary(dictionary)
-    }
-
-    /// Loads the WASM embedded dictionary (CBOR or pure-Rust Zstd).
-    pub fn new_embedded() -> Self {
-        Self::from_dictionary(DictionaryMaxlength::from_embedded_cbor())
     }
 
     /// Creates an `OpenCC` instance from an existing [`DictionaryMaxlength`].
@@ -238,7 +236,7 @@ impl OpenCC {
     pub fn from_dictionary(dictionary: DictionaryMaxlength) -> Self {
         Self {
             dictionary,
-            is_parallel: true,
+            is_parallel: cfg!(feature = "parallel"),
             is_preserve_ids: false,
         }
     }
@@ -361,6 +359,7 @@ impl OpenCC {
     /// If `self.is_parallel` is `true`:
     /// - Input chars are collected using a parallel iterator.
     /// - Each segment is converted in parallel (`into_par_iter()`).
+    ///
     /// This can significantly improve throughput on large inputs with many segments.
     ///
     /// # Behavior
@@ -414,7 +413,7 @@ impl OpenCC {
             // Build delimiter-safe ranges (no cross-phrase splits)
             let ranges = self.get_chars_range(&chars, true, self.is_preserve_ids);
             let desired_chunks = threads * 6;
-            let chunk_ranges = (ranges.len() / desired_chunks).max(128).min(2048);
+            let chunk_ranges = (ranges.len() / desired_chunks).clamp(128, 2048);
 
             // Small-input guard: fall back to serial if we'd get ≤ 1 chunk anyway
             if ranges.len() <= chunk_ranges {
@@ -796,7 +795,7 @@ impl OpenCC {
     /// assert!(!cc.get_parallel());
     /// ```
     pub fn set_parallel(&mut self, is_parallel: bool) {
-        self.is_parallel = is_parallel;
+        self.is_parallel = is_parallel && cfg!(feature = "parallel");
     }
 
     /// Returns whether Unicode Ideographic Description Sequences (IDS) are preserved
@@ -879,6 +878,7 @@ impl OpenCC {
     }
 
     /// Applies a three-round conversion pipeline with shared orchestration.
+    #[allow(clippy::too_many_arguments)]
     #[inline]
     fn apply_dicts_3(
         &self,
@@ -978,6 +978,7 @@ impl OpenCC {
     /// This helper selects either the 2-dictionary (`st_phrases`,
     /// `st_characters`) or 3-dictionary (`+ st_punctuations`) first-round stack
     /// based on `punctuation`, then forwards to [`apply_dicts_3`].
+    #[allow(clippy::too_many_arguments)]
     #[inline]
     fn apply_st_round_3(
         &self,
@@ -1007,6 +1008,7 @@ impl OpenCC {
     /// This helper selects either the 2-dictionary (`ts_phrases`,
     /// `ts_characters`) or 3-dictionary (`+ ts_punctuations`) third-round stack
     /// based on `punctuation`, then forwards to [`apply_dicts_3`].
+    #[allow(clippy::too_many_arguments)]
     #[inline]
     fn apply_ts_round_3(
         &self,
@@ -2054,20 +2056,20 @@ impl OpenCC {
         if input.is_empty() {
             return 0;
         }
-        // pick the smaller of (1000, stripped length)
+
+        // Pick the smaller of (1000, input length).
         let check_len = find_max_utf8_length(input, 1000);
 
-        let _strip_text = strip_regex().replace_all(&input[..check_len], "");
-        let max_bytes = find_max_utf8_length(&_strip_text, 200);
-        let strip_text = &_strip_text[..max_bytes];
+        let stripped = strip_regex().replace_all(&input[..check_len], "");
+        let max_bytes = find_max_utf8_length(&stripped, 200);
+        let strip_text = &stripped[..max_bytes];
 
-        match (
-            strip_text != &self.ts(strip_text),
-            strip_text != &self.st(strip_text),
-        ) {
-            (true, _) => 1,
-            (_, true) => 2,
-            _ => 0,
+        if strip_text != self.ts(strip_text) {
+            1
+        } else if strip_text != self.st(strip_text) {
+            2
+        } else {
+            0
         }
     }
 
@@ -2220,7 +2222,7 @@ impl OpenCC {
 
     /// Converts non-BMP CJK extension characters to display-safe fallbacks.
     ///
-    /// This is a convenience wrapper around [`detofu::detofu`]. It is intended
+    /// This applies the shared built-in DeTofu fallback table. It is intended
     /// for environments with incomplete rare-character font coverage, such as
     /// some systems, browsers, e-book readers, document viewers, or mobile
     /// platforms where non-BMP CJK extension characters may render as tofu boxes
@@ -2549,191 +2551,5 @@ impl OpenCC {
 impl Default for OpenCC {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::OpenCC;
-    use crate::dictionary_lib::{
-        CustomDictMode, CustomDictSpec, DictMaxLen, DictSlot, DictionaryMaxlength,
-    };
-    use crate::{dictionary_lib, DetofuLevel, DetofuMap, OpenccConfig};
-    use std::path::PathBuf;
-
-    fn test_dicts_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("dicts")
-    }
-
-    #[test]
-    fn convert_clears_stale_last_error_on_success() {
-        let cc = OpenCC::new();
-
-        let invalid = cc.convert("汉字", "invalid", false);
-        assert_eq!(invalid, "Invalid config: invalid");
-        assert_eq!(
-            OpenCC::get_last_error().as_deref(),
-            Some("Invalid config: invalid")
-        );
-
-        let converted = cc.convert("汉字", "s2t", false);
-        assert_eq!(converted, "漢字");
-        assert!(OpenCC::get_last_error().is_none());
-    }
-
-    #[test]
-    fn tw_variant_phrases_apply_before_variant_chars() {
-        let mut dictionary = DictionaryMaxlength::default();
-        dictionary.tw_variants_phrases =
-            DictMaxLen::build_from_pairs(vec![("甲乙".to_string(), "TW_PHRASE".to_string())]);
-        dictionary.tw_variants =
-            DictMaxLen::build_from_pairs(vec![("甲乙".to_string(), "TW_CHAR".to_string())]);
-
-        let opencc = OpenCC::from_dictionary(dictionary);
-
-        assert_eq!(opencc.t2tw("甲乙", false), "TW_PHRASE");
-    }
-
-    #[test]
-    fn hk_variant_phrases_apply_before_variant_chars() {
-        let mut dictionary = DictionaryMaxlength::default();
-        dictionary.hk_variants_phrases =
-            DictMaxLen::build_from_pairs(vec![("甲乙".to_string(), "HK_PHRASE".to_string())]);
-        dictionary.hk_variants =
-            DictMaxLen::build_from_pairs(vec![("甲乙".to_string(), "HK_CHAR".to_string())]);
-
-        let opencc = OpenCC::from_dictionary(dictionary);
-
-        assert_eq!(opencc.t2hk("甲乙", false), "HK_PHRASE");
-    }
-
-    #[test]
-    fn direct_conversion_clears_stale_last_error_on_success() {
-        let cc = OpenCC::new();
-
-        OpenCC::set_last_error("stale error");
-        let converted = cc.convert_with_config("汉字", OpenccConfig::S2t, false);
-        assert_eq!(converted, "漢字");
-        assert!(OpenCC::get_last_error().is_none());
-
-        OpenCC::set_last_error("stale error");
-        let converted = cc.s2t("汉字", false);
-        assert_eq!(converted, "漢字");
-        assert!(OpenCC::get_last_error().is_none());
-    }
-
-    #[test]
-    fn convert_preserves_original_line_endings() {
-        let cc = OpenCC::new();
-
-        assert_eq!(cc.convert("汉字\r\n转换", "s2t", false), "漢字\r\n轉換");
-        assert_eq!(cc.convert("汉字\n转换", "s2t", false), "漢字\n轉換");
-        assert_eq!(
-            cc.convert("汉字\r\n转换\n测试\r完成", "s2t", false),
-            "漢字\r\n轉換\n測試\r完成"
-        );
-    }
-
-    #[test]
-    fn convert_preserves_original_line_endings_in_serial_mode() {
-        let mut cc = OpenCC::new();
-        cc.set_parallel(false);
-
-        assert_eq!(cc.convert("汉字\r\n转换", "s2t", false), "漢字\r\n轉換");
-        assert_eq!(cc.convert("汉字\n转换", "s2t", false), "漢字\n轉換");
-        assert_eq!(
-            cc.convert("汉字\r\n转换\n测试\r完成", "s2t", false),
-            "漢字\r\n轉換\n測試\r完成"
-        );
-    }
-
-    #[test]
-    fn test_opencc_from_dictionary_custom_palantir() {
-        let dictionary = dictionary_lib::DictionaryMaxlength::from_dicts_at(test_dicts_dir())
-            .expect("Failed to load test dictionaries")
-            .with_custom_dicts(&[CustomDictSpec {
-                slot: DictSlot::STPhrases,
-                pairs: vec![("帕兰蒂尔".to_string(), "柏蘭蒂爾".to_string())],
-                mode: CustomDictMode::Append,
-            }])
-            .expect("Failed to create custom dictionary");
-
-        let opencc = OpenCC::from_dictionary(dictionary);
-
-        assert_eq!(
-            opencc.convert("帕兰蒂尔是一家人工智能公司", "s2tw", false),
-            "柏蘭蒂爾是一家人工智能公司"
-        );
-    }
-
-    #[test]
-    fn test_opencc_detofu() {
-        let cc = OpenCC::new();
-        let input = "𠉂𪠟𫝈𫬐";
-
-        assert_eq!(cc.detofu(input, DetofuLevel::ExtE), "𠉂𪠟𫝈㘔");
-        assert_eq!(cc.detofu(input, DetofuLevel::ExtB), "㒓㓄㑮㘔");
-    }
-
-    #[test]
-    fn test_opencc_t2s_detofu() {
-        let cc = OpenCC::new();
-
-        let output = cc.detofu(
-            &cc.convert("儼驂騑於上路，訪風景於崇阿", "t2s", false),
-            DetofuLevel::ExtB,
-        );
-
-        assert_eq!(output, "俨骖騑于上路，访风景于崇阿");
-    }
-
-    #[test]
-    fn test_opencc_t2s_detofu_preserves_unmapped_character() {
-        let cc = OpenCC::new();
-
-        let converted = cc.convert("儼驂騑於上路，訪風景於崇阿，𱁬", "t2s", false);
-
-        let output = cc.detofu(&converted, DetofuLevel::ExtB);
-
-        assert_eq!(output, "俨骖騑于上路，访风景于崇阿，𱁬");
-    }
-
-    #[test]
-    fn test_detofu_custom_pairs_override_builtin_mapping() {
-        let input = "這隻小狗有𣭲毛";
-
-        assert_eq!(
-            DetofuMap::builtin(DetofuLevel::ExtB).detofu(input),
-            "這隻小狗有氄毛"
-        );
-
-        let map = DetofuMap::builtin(DetofuLevel::ExtB).with_custom_pairs(&[('𣭲', '氂')]);
-
-        assert_eq!(map.detofu(input), "這隻小狗有氂毛");
-    }
-
-    #[test]
-    fn detofu_with_custom_file_loads_user_mapping() {
-        use std::fs;
-        use std::time::{SystemTime, UNIX_EPOCH};
-
-        let mut path = std::env::temp_dir();
-        let unique = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
-
-        path.push(format!("opencc_fmmseg_custom_tofu_{unique}.txt"));
-
-        fs::write(&path, "𣭲\t氄\tB\n").unwrap();
-
-        let cc = OpenCC::new();
-        let result = cc
-            .detofu_with_custom_file("𣭲毛", DetofuLevel::ExtB, &path)
-            .unwrap();
-
-        fs::remove_file(&path).ok();
-
-        assert_eq!(result, "氄毛");
     }
 }

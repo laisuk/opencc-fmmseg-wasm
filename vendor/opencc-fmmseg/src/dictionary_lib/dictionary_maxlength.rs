@@ -13,14 +13,10 @@ use serde::{Deserialize, Serialize};
 use serde_cbor::{from_reader, from_slice};
 use std::error::Error;
 use std::fs::File;
-#[cfg(feature = "zstd")]
-use std::io::Cursor;
 use std::io::{BufRead, BufReader, Write};
 use std::path::Path;
 use std::sync::Mutex;
 use std::{fs, io};
-#[cfg(feature = "zstd")]
-use zstd::Decoder;
 
 use super::union_cache::Unions;
 use crate::dictionary_lib::{DictMaxLen, DictSlot};
@@ -164,6 +160,11 @@ pub struct DictionaryMaxlength {
 }
 
 impl DictionaryMaxlength {
+    /// Load the bundled dictionary (compatibility API for the WASM bindings).
+    pub fn from_embedded_cbor() -> Self {
+        Self::from_zstd().unwrap_or_default()
+    }
+
     /// Loads the default embedded Zstd-compressed dictionary.
     ///
     /// This constructor initializes a [`DictionaryMaxlength`] instance using the
@@ -190,24 +191,11 @@ impl DictionaryMaxlength {
     /// This method is a thin wrapper around [`from_zstd`](Self::from_zstd),
     /// preserving its error while adding richer diagnostics.
     pub fn new() -> Result<Self, DictionaryError> {
-        #[cfg(any(feature = "zstd", feature = "ruzstd"))]
-        {
-            Self::from_zstd().map_err(|err| {
-                let msg = format!("Failed to load dictionary from Zstd: {}", err);
-                Self::set_last_error(&msg);
-                err
-            })
-        }
-
-        #[cfg(not(any(feature = "zstd", feature = "ruzstd")))]
-        {
-            let err = DictionaryError::IoError(io::Error::new(
-                io::ErrorKind::Unsupported,
-                "default embedded dictionary loading requires the zstd or ruzstd feature",
-            ));
-            Self::set_last_error(&err.to_string());
-            Err(err)
-        }
+        Self::from_zstd().map_err(|err| {
+            let msg = format!("Failed to load dictionary from Zstd: {}", err);
+            Self::set_last_error(&msg);
+            err
+        })
     }
 
     /// Loads the default dictionary from an **embedded Zstd-compressed CBOR blob**.
@@ -246,26 +234,13 @@ impl DictionaryMaxlength {
     ///
     /// # See also
     /// - [`from_dicts`](#method.from_dicts) — loads from plaintext `.txt` files.
-    #[cfg(any(feature = "zstd", feature = "ruzstd"))]
     pub fn from_zstd() -> Result<Self, DictionaryError> {
         let compressed_data = include_bytes!("dicts/dictionary_maxlength.zstd");
 
-        #[cfg(feature = "zstd")]
-        let mut decoder = {
-            let cursor = Cursor::new(compressed_data);
-            Decoder::new(cursor).map_err(DictionaryError::IoError)?
-        };
-
-        #[cfg(feature = "zstd")]
-        let dictionary: DictionaryMaxlength =
-            from_reader(&mut decoder).map_err(DictionaryError::CborParseError)?;
-
-        #[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
         let decompressed = crate::zstd::decompress(compressed_data).map_err(|err| {
             DictionaryError::IoError(io::Error::new(io::ErrorKind::InvalidData, err.to_string()))
         })?;
 
-        #[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
         let dictionary: DictionaryMaxlength =
             from_slice(&decompressed).map_err(DictionaryError::CborParseError)?;
 
@@ -505,7 +480,16 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     ///
     /// # Examples
     ///
-    /// Not shown here (internal helper).
+    /// ```rust
+    /// use opencc_fmmseg::{DictMaxLen, DictionaryMaxlength};
+    ///
+    /// let mut dictionary = DictionaryMaxlength::from_zstd()?;
+    /// dictionary.st_phrases = DictMaxLen::build_from_pairs([
+    ///     ("自定义词".to_string(), "自訂詞".to_string()),
+    /// ]);
+    /// let dictionary = dictionary.finish();
+    /// # Ok::<(), opencc_fmmseg::DictionaryError>(())
+    /// ```
     #[inline]
     pub fn finish(mut self) -> Self {
         self.populate_all();
@@ -1235,25 +1219,8 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
         Ok(dictionary.finish())
     }
 
-    #[cfg(not(any(feature = "zstd", feature = "ruzstd")))]
-    pub fn from_embedded_cbor() -> Self {
-        Self::from_cbor_bytes(include_bytes!("dicts/dictionary_maxlength.cbor")).unwrap_or_default()
-    }
-
-    #[cfg(not(any(feature = "zstd", feature = "ruzstd")))]
-    pub fn from_cbor_bytes(bytes: &[u8]) -> Result<Self, DictionaryError> {
-        let dictionary: DictionaryMaxlength =
-            from_slice(bytes).map_err(DictionaryError::CborParseError)?;
-
-        Ok(dictionary.finish())
-    }
-
-    #[cfg(any(feature = "zstd", feature = "ruzstd"))]
-    pub fn from_embedded_cbor() -> Self {
-        Self::from_zstd().unwrap()
-    }
-
-    // Stores a dictionary error independently of the C API error slot.
+    // Stores a dictionary error in the process-wide DictionaryMaxlength error slot.
+    // This storage is independent of the C API's thread-local error slot.
     pub(crate) fn set_last_error(err_msg: &str) {
         let mut last_error = LAST_ERROR.lock().unwrap();
         *last_error = Some(err_msg.to_string());
@@ -1312,7 +1279,13 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     ///
     /// The dictionary is written **as-is** without calling [`finish`](Self::finish),
     /// assuming it is already in a finalized state.
-    #[cfg(feature = "zstd")]
+    ///
+    /// # Feature
+    ///
+    /// Requires the `dictionary-build` Cargo feature, which enables the native
+    /// Zstandard encoder. Runtime dictionary loading does not require it.
+    #[cfg(feature = "dictionary-build")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "dictionary-build")))]
     pub fn save_cbor_compressed(
         dictionary: &DictionaryMaxlength,
         path: &str,
@@ -1328,7 +1301,11 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
 
     /// Loads the dictionary from a Zstd-compressed CBOR file.
     ///
-    /// This function reverses [`save_cbor_compressed`](Self::save_cbor_compressed) by:
+    /// Reads artifacts produced by `save_cbor_compressed` (available with the
+    /// `dictionary-build` feature) or the `dict-generate` CLI. Loading does not
+    /// require that feature and uses the built-in pure-Rust Zstandard decoder.
+    ///
+    /// This function loads the dictionary by:
     ///
     /// 1. Opening the specified file
     /// 2. Decompressing its Zstd stream
@@ -1352,16 +1329,15 @@ Generate it via dict-generate or use deserialize_from_cbor(path).",
     ///
     /// Zstd compression makes large dictionary bundles highly compact while
     /// maintaining fast load times.
-    #[cfg(feature = "zstd")]
     pub fn load_cbor_compressed(path: &str) -> Result<DictionaryMaxlength, DictionaryError> {
-        let file = File::open(path).map_err(DictionaryError::IoError)?;
-        let reader = BufReader::new(file);
+        let compressed = fs::read(path).map_err(DictionaryError::IoError)?;
 
-        // `zstd::Decoder::new` returns an `io::Error` internally, so `IoError` is fine here.
-        let mut decoder = Decoder::new(reader).map_err(DictionaryError::IoError)?;
+        let decompressed = crate::zstd::decompress(&compressed).map_err(|err| {
+            DictionaryError::IoError(io::Error::new(io::ErrorKind::InvalidData, err.to_string()))
+        })?;
 
         let dictionary: DictionaryMaxlength =
-            from_reader(&mut decoder).map_err(DictionaryError::CborParseError)?;
+            from_slice(&decompressed).map_err(DictionaryError::CborParseError)?;
 
         Ok(dictionary.finish())
     }
@@ -1648,541 +1624,5 @@ impl From<io::Error> for DictionaryError {
 impl From<serde_cbor::Error> for DictionaryError {
     fn from(err: serde_cbor::Error) -> Self {
         DictionaryError::CborParseError(err)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::dictionary_lib::dict_max_len::DictMaxLen;
-    use std::path::PathBuf;
-
-    fn test_dicts_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("dicts")
-    }
-
-    #[test]
-    #[ignore]
-    fn test_dictionary_from_dicts_then_to_cbor() {
-        // Assuming you have a method `from_dicts` to create a dictionary
-        let dictionary = DictionaryMaxlength::from_dicts().unwrap();
-        // Verify that the Dictionary contains the expected data
-        let expected = 14;
-        assert_eq!(dictionary.st_phrases.max_len, expected);
-
-        let filename = "dictionary_maxlength.cbor";
-        dictionary.serialize_to_cbor(filename).unwrap();
-        let file_contents = fs::read(filename).unwrap();
-        let expected_cbor_size = 1359720; // Update this with the actual expected size
-        assert_eq!(file_contents.len(), expected_cbor_size);
-        // Clean up: Delete the test file
-        fs::remove_file(filename).unwrap();
-    }
-
-    #[test]
-    #[cfg(feature = "zstd")]
-    #[ignore]
-    fn test_dictionary_from_dicts_then_to_zstd() {
-        use std::fs;
-        use std::io::Write;
-        use zstd::stream::Encoder;
-
-        // Create dictionary
-        let dictionary = DictionaryMaxlength::from_dicts().unwrap();
-
-        // Serialize to CBOR
-        let cbor_filename = "dictionary_maxlength.cbor";
-        dictionary.serialize_to_cbor(cbor_filename).unwrap();
-
-        // Read the CBOR file
-        let cbor_data = fs::read(cbor_filename).unwrap();
-
-        // Compress with Zstd
-        let zstd_filename = "dictionary_maxlength.zstd";
-        let zstd_file = File::create(zstd_filename).expect("Failed to create zstd file");
-        let mut encoder = Encoder::new(&zstd_file, 19).expect("Failed to create zstd encoder");
-        encoder
-            .write_all(&cbor_data)
-            .expect("Failed to write compressed data");
-        encoder.finish().expect("Failed to finish compression");
-
-        // Verify file size within a reasonable range
-        let compressed_size = fs::metadata(zstd_filename).unwrap().len();
-        let min_size = 480000; // Lower bound
-        let max_size = 600000; // Upper bound
-        assert!(
-            compressed_size >= min_size && compressed_size <= max_size,
-            "Unexpected compressed size: {}",
-            compressed_size
-        );
-
-        // Clean up: Remove test files
-        fs::remove_file(cbor_filename).unwrap();
-        fs::remove_file(zstd_filename).unwrap();
-    }
-
-    #[test]
-    #[cfg(feature = "zstd")]
-    fn test_dictionary_from_zstd() {
-        let dictionary =
-            DictionaryMaxlength::from_zstd().expect("Failed to load dictionary from zstd");
-
-        // Verify a known field
-        let expected = 12;
-        assert_eq!(dictionary.st_phrases.max_len, expected);
-    }
-
-    #[test]
-    fn old_cbor_without_forward_variant_phrase_fields_deserializes() {
-        #[derive(serde::Serialize)]
-        struct LegacyDictionaryMaxlength {
-            st_characters: DictMaxLen,
-            st_phrases: DictMaxLen,
-            ts_characters: DictMaxLen,
-            ts_phrases: DictMaxLen,
-            tw_phrases: DictMaxLen,
-            tw_phrases_rev: DictMaxLen,
-            tw_variants: DictMaxLen,
-            tw_variants_rev: DictMaxLen,
-            tw_variants_rev_phrases: DictMaxLen,
-            hk_variants: DictMaxLen,
-            hk_variants_rev: DictMaxLen,
-            hk_variants_rev_phrases: DictMaxLen,
-            jps_characters: DictMaxLen,
-            jps_characters_rev: DictMaxLen,
-            jps_phrases: DictMaxLen,
-            st_punctuations: DictMaxLen,
-            ts_punctuations: DictMaxLen,
-        }
-
-        let legacy = LegacyDictionaryMaxlength {
-            st_characters: DictMaxLen::default(),
-            st_phrases: DictMaxLen::default(),
-            ts_characters: DictMaxLen::default(),
-            ts_phrases: DictMaxLen::default(),
-            tw_phrases: DictMaxLen::default(),
-            tw_phrases_rev: DictMaxLen::default(),
-            tw_variants: DictMaxLen::default(),
-            tw_variants_rev: DictMaxLen::default(),
-            tw_variants_rev_phrases: DictMaxLen::default(),
-            hk_variants: DictMaxLen::default(),
-            hk_variants_rev: DictMaxLen::default(),
-            hk_variants_rev_phrases: DictMaxLen::default(),
-            jps_characters: DictMaxLen::default(),
-            jps_characters_rev: DictMaxLen::default(),
-            jps_phrases: DictMaxLen::default(),
-            st_punctuations: DictMaxLen::default(),
-            ts_punctuations: DictMaxLen::default(),
-        };
-        let bytes = serde_cbor::to_vec(&legacy).expect("legacy CBOR should serialize");
-        let dictionary: DictionaryMaxlength =
-            from_slice(&bytes).expect("legacy CBOR should deserialize");
-
-        assert!(dictionary.tw_variants_phrases.map.is_empty());
-        assert!(dictionary.hk_variants_phrases.map.is_empty());
-    }
-
-    #[test]
-    fn from_dicts_at_missing_forward_variant_phrase_files_defaults_empty() {
-        use std::fs;
-
-        let dir = std::env::temp_dir().join(format!(
-            "opencc_fmmseg_missing_variant_phrases_{}",
-            std::process::id()
-        ));
-        let _ = fs::remove_dir_all(&dir);
-        fs::create_dir_all(&dir).expect("temp dict dir should be created");
-
-        for file in [
-            "SealCharacters.txt",
-            "SealCharactersRev.txt",
-            "SealVariants.txt",
-            "SealVariantsRev.txt",
-            "STCharacters.txt",
-            "STPhrases.txt",
-            "TSCharacters.txt",
-            "TSPhrases.txt",
-            "TWPhrases.txt",
-            "TWPhrasesRev.txt",
-            "TWVariants.txt",
-            "TWVariantsRev.txt",
-            "TWVariantsRevPhrases.txt",
-            "HKVariants.txt",
-            "HKVariantsRev.txt",
-            "HKVariantsRevPhrases.txt",
-            "JPShinjitaiCharacters.txt",
-            "JPShinjitaiCharactersRev.txt",
-            "JPShinjitaiPhrases.txt",
-            "STPunctuations.txt",
-            "TSPunctuations.txt",
-        ] {
-            fs::write(dir.join(file), "").expect("temp dictionary file should be written");
-        }
-
-        let dictionary =
-            DictionaryMaxlength::from_dicts_at(&dir).expect("old plaintext dict set should load");
-
-        assert!(dictionary.tw_variants_phrases.map.is_empty());
-        assert!(dictionary.hk_variants_phrases.map.is_empty());
-
-        fs::remove_dir_all(&dir).expect("temp dict dir should be removed");
-    }
-
-    #[test]
-    #[cfg(feature = "zstd")]
-    #[ignore]
-    fn test_save_compressed() {
-        use crate::dictionary_lib::dictionary_maxlength::DictionaryMaxlength;
-        use std::fs;
-
-        let dictionary = DictionaryMaxlength::from_dicts().expect("Failed to create dictionary");
-
-        let compressed_file = "test_dictionary.zstd";
-
-        // Attempt to save the dictionary in compressed form
-        let result = DictionaryMaxlength::save_cbor_compressed(&dictionary, compressed_file);
-        assert!(
-            result.is_ok(),
-            "Failed to save compressed dictionary: {:?}",
-            result
-        );
-
-        // Ensure the compressed file exists and is non-empty
-        let metadata = fs::metadata(compressed_file).expect("Failed to get file metadata");
-        assert!(metadata.len() > 0, "Compressed file should not be empty");
-
-        // Clean up after test
-        fs::remove_file(compressed_file).expect("Failed to remove test file");
-    }
-
-    #[test]
-    #[cfg(feature = "zstd")]
-    #[ignore]
-    fn test_save_and_load_compressed() {
-        use crate::dictionary_lib::dictionary_maxlength::DictionaryMaxlength;
-        use std::fs;
-
-        let dictionary = DictionaryMaxlength::from_dicts().expect("Failed to create dictionary");
-
-        let compressed_file = "test2_dictionary.zstd";
-
-        // Save the dictionary in compressed form
-        let save_result = DictionaryMaxlength::save_cbor_compressed(&dictionary, compressed_file);
-        assert!(
-            save_result.is_ok(),
-            "Failed to save compressed dictionary: {:?}",
-            save_result
-        );
-
-        // Load the dictionary from the compressed file
-        let load_result = DictionaryMaxlength::load_cbor_compressed(compressed_file);
-        assert!(
-            load_result.is_ok(),
-            "Failed to load compressed dictionary: {:?}",
-            load_result
-        );
-
-        let loaded_dictionary = load_result.unwrap();
-
-        // Verify the loaded dictionary is equivalent to the original
-        assert_eq!(
-            dictionary.st_phrases.max_len, loaded_dictionary.st_phrases.max_len,
-            "Loaded dictionary does not match the original"
-        );
-
-        // Clean up: Remove the test file
-        fs::remove_file(compressed_file).expect("Failed to remove test file");
-    }
-
-    #[ignore]
-    #[test]
-    fn test_to_dicts_writes_expected_txt_files() -> Result<(), Box<dyn Error>> {
-        let output_dir = "test_output_dicts";
-
-        // Clean output_dir if exists from previous runs
-        if Path::new(output_dir).exists() {
-            fs::remove_dir_all(output_dir)?;
-        }
-
-        // Build DictMaxLen from (String, String) pairs
-        let pairs = vec![
-            ("测试".to_string(), "測試".to_string()),
-            ("语言".to_string(), "語言".to_string()),
-        ];
-
-        let st_chars: DictMaxLen = DictMaxLen::build_from_pairs(pairs.clone());
-        let st_phrases: DictMaxLen = DictMaxLen::build_from_pairs(pairs.clone());
-
-        let dicts = DictionaryMaxlength {
-            st_characters: st_chars,
-            st_phrases,
-            ts_characters: DictMaxLen::default(),
-            ts_phrases: DictMaxLen::default(),
-            tw_phrases: DictMaxLen::default(),
-            tw_phrases_rev: DictMaxLen::default(),
-            hk_phrases: DictMaxLen::default(),
-            hk_phrases_rev: DictMaxLen::default(),
-            tw_variants_phrases: DictMaxLen::default(),
-            tw_variants: DictMaxLen::default(),
-            tw_variants_rev: DictMaxLen::default(),
-            tw_variants_rev_phrases: DictMaxLen::default(),
-            hk_variants_phrases: DictMaxLen::default(),
-            hk_variants: DictMaxLen::default(),
-            hk_variants_rev: DictMaxLen::default(),
-            hk_variants_rev_phrases: DictMaxLen::default(),
-            jps_characters: DictMaxLen::default(),
-            jps_characters_rev: DictMaxLen::default(),
-            jps_phrases: DictMaxLen::default(),
-            st_punctuations: DictMaxLen::default(),
-            ts_punctuations: DictMaxLen::default(),
-            seal_characters: DictMaxLen::default(),
-            seal_characters_rev: DictMaxLen::default(),
-            seal_variants: DictMaxLen::default(),
-            seal_variants_rev: DictMaxLen::default(),
-            // runtime-only cache (serde-skipped)
-            unions: Default::default(),
-        };
-
-        dicts.to_dicts(output_dir)?;
-
-        // Check a few output files
-        let stc_path = format!("{}/STCharacters.txt", output_dir);
-        let stp_path = format!("{}/STPhrases.txt", output_dir);
-
-        let content_stc = fs::read_to_string(&stc_path)?;
-        let content_stp = fs::read_to_string(&stp_path)?;
-
-        assert!(content_stc.contains("测试\t測試"));
-        assert!(content_stc.contains("语言\t語言"));
-        assert!(content_stp.contains("测试\t測試"));
-        assert!(content_stp.contains("语言\t語言"));
-
-        // Cleanup
-        fs::remove_dir_all(output_dir)?;
-
-        Ok(())
-    }
-
-    // Custom Dictionary Tests
-
-    #[test]
-    fn test_from_dicts_custom_append_st_phrases_palantir() {
-        let dictionary = DictionaryMaxlength::from_dicts_at(test_dicts_dir())
-            .expect("Failed to load test dictionaries")
-            .with_custom_dicts(&[CustomDictSpec {
-                slot: DictSlot::STPhrases,
-                pairs: vec![("帕兰蒂尔".to_string(), "柏蘭蒂爾".to_string())],
-                mode: CustomDictMode::Append,
-            }])
-            .expect("Failed to create custom dictionary");
-
-        assert_eq!(
-            dictionary
-                .st_phrases
-                .map
-                .get("帕兰蒂尔".chars().collect::<Vec<_>>().as_slice()),
-            Some(&"柏蘭蒂爾".into())
-        );
-    }
-
-    #[test]
-    fn test_from_dicts_custom_override_st_phrases_ai_company() {
-        let dictionary = DictionaryMaxlength::from_dicts_at(test_dicts_dir())
-            .expect("Failed to load test dictionaries")
-            .with_custom_dicts(&[CustomDictSpec {
-                slot: DictSlot::STPhrases,
-                pairs: vec![("人工智能公司".to_string(), "AI公司".to_string())],
-                mode: CustomDictMode::Override,
-            }])
-            .expect("Failed to create custom dictionary");
-
-        assert_eq!(
-            dictionary
-                .st_phrases
-                .map
-                .get("人工智能公司".chars().collect::<Vec<_>>().as_slice()),
-            Some(&"AI公司".into())
-        );
-    }
-
-    #[test]
-    fn test_from_dicts_custom_multiple_slots() {
-        let dictionary = DictionaryMaxlength::from_dicts_at(test_dicts_dir())
-            .expect("Failed to load test dictionaries")
-            .with_custom_dicts(&[
-                CustomDictSpec {
-                    slot: DictSlot::STPhrases,
-                    pairs: vec![("帕兰蒂尔".to_string(), "柏蘭蒂爾".to_string())],
-                    mode: CustomDictMode::Append,
-                },
-                CustomDictSpec {
-                    slot: DictSlot::TSPhrases,
-                    pairs: vec![("柏蘭蒂爾".to_string(), "帕兰蒂尔".to_string())],
-                    mode: CustomDictMode::Append,
-                },
-            ])
-            .expect("Failed to create custom dictionary");
-
-        assert_eq!(
-            dictionary
-                .st_phrases
-                .map
-                .get("帕兰蒂尔".chars().collect::<Vec<_>>().as_slice()),
-            Some(&"柏蘭蒂爾".into())
-        );
-        assert_eq!(
-            dictionary
-                .ts_phrases
-                .map
-                .get("柏蘭蒂爾".chars().collect::<Vec<_>>().as_slice()),
-            Some(&"帕兰蒂尔".into())
-        );
-    }
-
-    #[test]
-    fn test_from_dicts_custom_files_st_phrases_palantir() {
-        use std::fs;
-
-        let dir = std::env::temp_dir();
-        let file_path = dir.join("opencc_fmmseg_custom_st_phrases_test.txt");
-
-        fs::write(&file_path, "帕兰蒂尔\t柏蘭蒂爾\n").expect("Failed to write custom dict file");
-
-        let dictionary = DictionaryMaxlength::from_dicts_at(test_dicts_dir())
-            .expect("Failed to load test dictionaries")
-            .with_custom_dict_files(&[CustomDictFileSpec {
-                slot: DictSlot::STPhrases,
-                files: vec![file_path.clone()],
-                mode: CustomDictMode::Override,
-            }])
-            .expect("Failed to create custom dictionary from files");
-
-        let opencc = crate::OpenCC::from_dictionary(dictionary);
-
-        assert_eq!(
-            opencc.convert("帕兰蒂尔是一家人工智能公司", "s2t", false),
-            "柏蘭蒂爾是一家人工智能公司"
-        );
-
-        let _ = fs::remove_file(file_path);
-    }
-
-    // New: Dynamically update pairs tests
-
-    #[test]
-    #[cfg(feature = "zstd")]
-    fn test_with_custom_dicts_append_st_phrases_palantir() {
-        let dictionary = DictionaryMaxlength::from_zstd()
-            .expect("Failed to load default dictionary")
-            .with_custom_dicts(&[CustomDictSpec {
-                slot: DictSlot::STPhrases,
-                pairs: vec![("帕兰蒂尔".to_string(), "柏蘭蒂爾".to_string())],
-                mode: CustomDictMode::Append,
-            }])
-            .expect("Failed to apply custom dictionary");
-
-        let opencc = crate::OpenCC::from_dictionary(dictionary);
-
-        assert_eq!(
-            opencc.convert("帕兰蒂尔是一家人工智能公司", "s2t", false),
-            "柏蘭蒂爾是一家人工智能公司"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "zstd")]
-    fn test_with_custom_dicts_override_st_phrases_only_custom_pairs_remain() {
-        let dictionary = DictionaryMaxlength::from_zstd()
-            .expect("Failed to load default dictionary")
-            .with_custom_dicts(&[CustomDictSpec {
-                slot: DictSlot::STPhrases,
-                pairs: vec![("人工智能公司".to_string(), "AI公司".to_string())],
-                mode: CustomDictMode::Override,
-            }])
-            .expect("Failed to apply custom dictionary");
-
-        assert_eq!(
-            dictionary
-                .st_phrases
-                .map
-                .get("人工智能公司".chars().collect::<Vec<_>>().as_slice()),
-            Some(&"AI公司".into())
-        );
-
-        assert_eq!(dictionary.st_phrases.map.len(), 1);
-    }
-
-    #[test]
-    #[cfg(feature = "zstd")]
-    fn test_with_custom_dicts_multiple_slots() {
-        let dictionary = DictionaryMaxlength::from_zstd()
-            .expect("Failed to load default dictionary")
-            .with_custom_dicts(&[
-                CustomDictSpec {
-                    slot: DictSlot::STPhrases,
-                    pairs: vec![
-                        ("帕兰蒂尔".to_string(), "柏蘭蒂爾".to_string()),
-                        ("人工智能公司".to_string(), "AI公司".to_string()),
-                    ],
-                    mode: CustomDictMode::Append,
-                },
-                CustomDictSpec {
-                    slot: DictSlot::TSPhrases,
-                    pairs: vec![
-                        ("柏蘭蒂爾".to_string(), "帕兰蒂尔".to_string()),
-                        ("AI公司".to_string(), "人工智能公司".to_string()),
-                    ],
-                    mode: CustomDictMode::Append,
-                },
-            ])
-            .expect("Failed to apply custom dictionaries");
-
-        assert_eq!(
-            dictionary
-                .st_phrases
-                .map
-                .get("帕兰蒂尔".chars().collect::<Vec<_>>().as_slice()),
-            Some(&"柏蘭蒂爾".into())
-        );
-
-        assert_eq!(
-            dictionary
-                .ts_phrases
-                .map
-                .get("柏蘭蒂爾".chars().collect::<Vec<_>>().as_slice()),
-            Some(&"帕兰蒂尔".into())
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "zstd")]
-    fn test_with_custom_dict_files_multiple_files_later_wins() {
-        use std::fs;
-
-        let dir = std::env::temp_dir();
-        let file1 = dir.join("opencc_fmmseg_custom_file_1.txt");
-        let file2 = dir.join("opencc_fmmseg_custom_file_2.txt");
-
-        fs::write(&file1, "帕兰蒂尔\t帕蘭蒂爾\n").expect("Failed to write custom dict file 1");
-        fs::write(&file2, "帕兰蒂尔\t柏蘭蒂爾\n").expect("Failed to write custom dict file 2");
-
-        let dictionary = DictionaryMaxlength::from_zstd()
-            .expect("Failed to load default dictionary")
-            .with_custom_dict_files(&[CustomDictFileSpec {
-                slot: DictSlot::STPhrases,
-                files: vec![file1.clone(), file2.clone()],
-                mode: CustomDictMode::Append,
-            }])
-            .expect("Failed to apply custom dictionary files");
-
-        let opencc = crate::OpenCC::from_dictionary(dictionary);
-
-        assert_eq!(
-            opencc.convert("帕兰蒂尔是一家人工智能公司", "s2t", false),
-            "柏蘭蒂爾是一家人工智能公司"
-        );
-
-        let _ = fs::remove_file(file1);
-        let _ = fs::remove_file(file2);
     }
 }

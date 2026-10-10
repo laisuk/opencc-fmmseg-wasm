@@ -1,4 +1,5 @@
 mod converter;
+mod text_converter;
 pub use converter::OfficeConverter;
 
 use opencc_fmmseg::{
@@ -197,6 +198,7 @@ fn parse_wasm_config(config: Option<String>) -> Result<OpenccConfig, JsValue> {
 /// The Office package layer owns only ZIP/package mechanics. Text-processing
 /// policy is composed here in the fixed order normalization -> OpenCC -> DeTofu
 /// and supplied to [`OfficeConverter`] as a generic `&str -> String` closure.
+#[allow(clippy::too_many_arguments)]
 fn convert_office_bytes_pipeline_core(
     input: &[u8],
     format: &str,

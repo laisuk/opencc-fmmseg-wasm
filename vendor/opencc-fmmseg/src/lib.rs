@@ -1,7 +1,163 @@
-/// Unicode CJK Compatibility Ideograph normalization utilities.
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
+//! Fast Chinese text conversion with OpenCC dictionaries and forward maximum
+//! matching segmentation.
+//!
+//! `opencc-fmmseg` converts between Simplified Chinese, Traditional Chinese,
+//! Taiwan, Hong Kong, and Japanese kanji variants using bundled OpenCC-style
+//! dictionaries. The default constructor loads a compressed dictionary embedded
+//! in the crate, so normal use does not require runtime dictionary files.
+//!
+//! # Quick Start
+//!
+//! ```rust
+//! use opencc_fmmseg::{OpenCC, OpenccConfig};
+//!
+//! let converter = OpenCC::new();
+//!
+//! let traditional = converter.convert_with_config(
+//!     "汉字转换测试",
+//!     OpenccConfig::S2t,
+//!     false,
+//! );
+//!
+//! assert_eq!(traditional, "漢字轉換測試");
+//! ```
+//!
+//! # Choosing an API
+//!
+//! - [`OpenCC`] is the main converter type.
+//! - [`OpenccConfig`] is the recommended Rust configuration API.
+//! - [`OpenCC::convert`] accepts OpenCC-style strings such as `"s2t"` and is
+//!   useful for CLI/config-file compatibility.
+//! - Direct helpers such as [`OpenCC::s2t`] and [`OpenCC::t2tw`] accept the
+//!   same `punctuation` flag as the configuration-based APIs.
+//! - [`OpenCC::normalize_compat`], [`OpenCC::normalize_unicode_compat`], and
+//!   [`OpenCC::normalize_compat_extended`] provide optional Unicode
+//!   compatibility normalization before conversion.
+//! - [`OpenCC::detofu`] provides optional display-compatibility fallback for
+//!   rare non-BMP CJK extension characters after conversion.
+//! - [`DetofuMap`] is the advanced reusable/customizable DeTofu map API.
+//! - [`DictionaryMaxlength`] and [`CustomDictSpec`] are for advanced users who
+//!   need custom dictionaries or externally generated dictionary artifacts.
+//! - [`DictMaxLen`] exposes the low-level dictionary representation for
+//!   advanced integrations.
+//!
+//! Public types and functions are exported directly from this crate root. The
+//! implementation modules are intentionally private, so use paths such as
+//! `opencc_fmmseg::DictionaryMaxlength` rather than internal module paths.
+//!
+//! # Supported Configurations
+//!
+//! | Config | Method | Meaning |
+//! | --- | --- | --- |
+//! | `s2t` | [`OpenCC::s2t`] | Simplified to Traditional |
+//! | `t2s` | [`OpenCC::t2s`] | Traditional to Simplified |
+//! | `s2tw` / `s2twp` | [`OpenCC::s2tw`] / [`OpenCC::s2twp`] | Simplified to Taiwan Traditional |
+//! | `tw2s` / `tw2sp` | [`OpenCC::tw2s`] / [`OpenCC::tw2sp`] | Taiwan Traditional to Simplified |
+//! | `s2hk` / `s2hkp` / `t2hk` / `t2hkp` | [`OpenCC::s2hk`] / [`OpenCC::s2hkp`] / [`OpenCC::t2hk`] / [`OpenCC::t2hkp`] | To Hong Kong Traditional variants |
+//! | `hk2s` / `hk2sp` / `hk2t` / `hk2tp` | [`OpenCC::hk2s`] / [`OpenCC::hk2sp`] / [`OpenCC::hk2t`] / [`OpenCC::hk2tp`] | Hong Kong variants to Simplified/Traditional |
+//! | `t2tw` / `t2twp` | [`OpenCC::t2tw`] / [`OpenCC::t2twp`] | Traditional to Taiwan variants |
+//! | `tw2t` / `tw2tp` | [`OpenCC::tw2t`] / [`OpenCC::tw2tp`] | Taiwan variants to Traditional |
+//! | `t2jp` / `jp2t` | [`OpenCC::t2jp`] / [`OpenCC::jp2t`] | Traditional and Japanese kanji variants |
+//!
+//! | `s2seal` / `t2seal` | [`OpenCC::s2seal`] / [`OpenCC::t2seal`] | Simplified/Traditional to Small Seal Script |
+//! | `seal2s` / `seal2t` | [`OpenCC::seal2s`] / [`OpenCC::seal2t`] | Small Seal Script to Simplified/Traditional |
+//!
+//! All direct conversion methods take `(input, punctuation)`. Enabling
+//! punctuation converts curly Simplified-style quotation marks (`“”‘’`) to
+//! Traditional-style corner brackets (`「」『』`) for Traditional, regional, and
+//! Japanese outputs; conversions to Simplified use the reverse mapping.
+//!
+//! ```rust
+//! use opencc_fmmseg::OpenCC;
+//!
+//! let converter = OpenCC::new();
+//! assert_eq!(converter.t2tw("“滑鼠”", true), "「滑鼠」");
+//! assert_eq!(converter.t2tw("“滑鼠”", false), "“滑鼠”");
+//! ```
+//!
+//! # Small Seal Script (v0.13.0)
+//!
+//! The four Seal configurations use bundled character and variant dictionaries.
+//! Characters without a mapping pass through unchanged. Displaying Seal output
+//! requires a font that covers the output characters; conversion does not install
+//! fonts. Dictionary conversion can be many-to-one, so arbitrary round trips are
+//! not guaranteed to reproduce the original text.
+//!
+//! ```rust
+//! use opencc_fmmseg::{OpenCC, OpenccConfig};
+//!
+//! let converter = OpenCC::new();
+//! let seal = converter.convert_with_config("小篆", OpenccConfig::T2seal, false);
+//! assert_eq!(converter.seal2t(&seal, false), "小篆");
+//! ```
+//!
+//! # Cargo Features
+//!
+//! Normal conversion, embedded dictionary loading, custom dictionary overlays,
+//! and external dictionary loading require no optional features.
+//!
+//! Enable `dictionary-build` to use `DictionaryMaxlength::save_cbor_compressed`
+//! when generating Zstandard-compressed CBOR artifacts. This feature adds the
+//! native Zstandard encoder; runtime decompression uses the built-in pure-Rust
+//! decoder. Uncompressed CBOR serialization remains available without it.
+//!
+//! ```toml
+//! [dependencies]
+//! opencc-fmmseg = { version = "0.13.0", features = ["dictionary-build"] }
+//! ```
+//!
+//! # Custom Dictionaries
+//!
+//! ```rust
+//! use opencc_fmmseg::{
+//!     CustomDictMode, CustomDictSpec, DictSlot, DictionaryMaxlength, OpenCC,
+//! };
+//!
+//! let dictionary = DictionaryMaxlength::from_zstd()?
+//!     .with_custom_dicts(&[CustomDictSpec {
+//!         slot: DictSlot::STPhrases,
+//!         pairs: vec![("帕兰蒂尔".to_string(), "柏蘭蒂爾".to_string())],
+//!         mode: CustomDictMode::Append,
+//!     }])?;
+//!
+//! let converter = OpenCC::from_dictionary(dictionary);
+//! assert_eq!(
+//!     converter.convert("帕兰蒂尔", "s2t", false),
+//!     "柏蘭蒂爾"
+//! );
+//!
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! # Error Reporting
+//!
+//! Most high-level conversion methods return a [`String`] for compatibility with
+//! the C and scripting-language bindings. Non-fatal setup or configuration
+//! errors are recorded in [`OpenCC::get_last_error`]. Dictionary construction
+//! APIs return [`Result`] with [`DictionaryError`]. An invalid string config
+//! returns `"Invalid config: {config}"` as the output and records that message;
+//! validate user-supplied names with [`OpenccConfig::parse`] before conversion.
+//!
+//! The Rust last-error slots are process-wide. Valid conversions clear the
+//! `OpenCC` slot; successful dictionary operations do not necessarily clear the
+//! separate dictionary slot. These diagnostics are shared across threads. For fallible setup, load a [`DictionaryMaxlength`] with a
+//! `Result`-returning constructor and pass it to [`OpenCC::from_dictionary`].
+//! [`OpenCC::new`] falls back to empty dictionaries if loading fails.
+//!
+//! # Optional Text Processing
+//!
+//! Compatibility normalization and DeTofu are explicit operations; conversion
+//! does not apply them automatically. If needed, normalize first, convert, then
+//! apply DeTofu. DeTofu changes code points for display compatibility.
+//! [`OpenCC::set_preserve_ids`] can preserve Unicode Ideographic Description
+//! Sequences during conversion; it is disabled by default.
+//!
 mod compat_ideographs;
 /// Delimiters helper for splitting and matching delimiters.
 mod delimiter_set;
+/// Display compatibility fallback utilities for rare CJK extension characters.
 mod detofu;
 /// Bridge helper for conversion plan and core converter functions.
 mod dict_refs;
@@ -15,22 +171,21 @@ mod opencc_config;
 mod unicode_compat;
 /// Common helpers for opencc-fmmseg.
 mod utils;
-#[cfg(all(feature = "ruzstd", not(feature = "zstd")))]
+#[allow(clippy::upper_case_acronyms)]
 mod zstd;
 
-pub use crate::delimiter_set::{is_delimiter, DelimiterSet};
-pub use crate::dictionary_lib::{CustomDictFileSpec, CustomDictMode, CustomDictSpec, DictSlot};
-pub use crate::dictionary_lib::{DictMaxLen, DictionaryError, DictionaryMaxlength};
+// Text utilities
+pub use crate::delimiter_set::is_delimiter;
+
+// Dictionary API
+pub use crate::dictionary_lib::{
+    CustomDictFileSpec, CustomDictMode, CustomDictSpec, DictMaxLen, DictSlot, DictionaryError,
+    DictionaryMaxlength,
+};
+
+// Conversion API
 pub use crate::opencc::OpenCC;
 pub use crate::opencc_config::OpenccConfig;
-#[cfg(feature = "compat-bin")]
-pub use compat_ideographs::write_compat_bin_from_txt_file;
-/// Converts rare non-BMP CJK extension characters to compatibility fallbacks.
-#[cfg(feature = "tofu-bin")]
-pub use detofu::write_tofu_bin_from_txt_file;
-/// Threshold level used by detofu display-compatibility fallback.
-pub use detofu::DetofuLevel;
-/// Reusable and customizable detofu fallback map.
-pub use detofu::DetofuMap;
-#[cfg(feature = "unicode-bin")]
-pub use unicode_compat::write_unicode_compat_bin_from_txt_file;
+
+// DeTofu API
+pub use crate::detofu::{DetofuLevel, DetofuMap};

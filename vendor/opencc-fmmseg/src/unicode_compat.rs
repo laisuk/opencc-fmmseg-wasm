@@ -3,35 +3,12 @@
 //! This is not general-purpose NFC, NFD, NFKC, or NFKD normalization. Public
 //! callers use [`crate::OpenCC::normalize_unicode_compat`] or
 //! [`crate::OpenCC::normalize_compat_extended`].
-//!
-//! The canonical built-in source is `data/Unicode_Compatibility.txt`.
-//! Enabling the optional `unicode-bin` Cargo feature switches the built-in
-//! runtime loader to the generated `data/Unicode_Compatibility.bin` artifact.
-//! Regenerate the binary whenever the canonical text table changes.
 
 use crate::compat_ideographs::CompatIdeographs;
 use rustc_hash::FxHashMap;
-#[cfg(feature = "unicode-bin")]
-use std::io::{self, Write};
-#[cfg(feature = "unicode-bin")]
-use std::path::Path;
 use std::sync::OnceLock;
 
-#[cfg(feature = "unicode-bin")]
-static UNICODE_COMPAT_DATA: &[u8] = include_bytes!("data/Unicode_Compatibility.bin");
-
-#[cfg(not(feature = "unicode-bin"))]
-static UNICODE_COMPAT_DATA: &str = include_str!("data/Unicode_Compatibility.txt");
-
-#[cfg(feature = "unicode-bin")]
-const UNICODE_BIN_MAGIC: &[u8; 8] = b"OCUNICOD";
-#[cfg(feature = "unicode-bin")]
-const UNICODE_BIN_VERSION: u8 = 1;
-#[cfg(feature = "unicode-bin")]
-const UNICODE_BIN_HEADER_LEN: usize = 13;
-#[cfg(feature = "unicode-bin")]
-const UNICODE_BIN_RECORD_LEN: usize = 8;
-
+static UNICODE_COMPAT_DATA: &[u8] = include_bytes!("data/Unicode_Compatibility.txt");
 static UNICODE_COMPAT_TABLE: OnceLock<UnicodeCompat> = OnceLock::new();
 
 /// Curated Unicode compatibility normalizer.
@@ -40,8 +17,7 @@ static UNICODE_COMPAT_TABLE: OnceLock<UnicodeCompat> = OnceLock::new();
 ///
 /// - the existing [`CompatIdeographs`] table for Unicode CJK Compatibility
 ///   Ideographs; and
-/// - a sparse curated table loaded from `data/Unicode_Compatibility.txt`, or
-///   from its generated binary artifact when `unicode-bin` is enabled.
+/// - a sparse curated table loaded from `data/Unicode_Compatibility.txt`.
 ///
 /// The curated table is stored in an [`FxHashMap`] because its source characters
 /// are sparse and are not confined to one compact Unicode range.
@@ -57,19 +33,23 @@ pub(crate) struct UnicodeCompat {
 impl UnicodeCompat {
     /// Returns the cached built-in Unicode compatibility normalizer.
     ///
-    /// Without `unicode-bin`, the canonical `data/Unicode_Compatibility.txt`
-    /// table is embedded with [`include_str!`] and parsed once per process.
-    /// With `unicode-bin`, the generated `data/Unicode_Compatibility.bin`
-    /// artifact is embedded with [`include_bytes!`] and decoded once instead.
-    /// Subsequent calls reuse the same immutable table.
+    /// `data/Unicode_Compatibility.txt` is embedded in the crate binary with
+    /// [`include_bytes!`] and parsed at most once per process. Subsequent calls
+    /// reuse the same immutable table.
     ///
     /// # Panics
     ///
-    /// Panics if the bundled TXT or BIN data violates the documented mapping
-    /// format. Such a failure indicates invalid crate data rather than invalid
-    /// user input.
+    /// Panics if the bundled table is not valid UTF-8 or violates the mapping
+    /// format documented by [`UnicodeCompat::from_text`]. Such a failure
+    /// indicates invalid crate data rather than invalid user input.
     pub(crate) fn builtin() -> &'static Self {
-        UNICODE_COMPAT_TABLE.get_or_init(load_builtin_unicode_compat)
+        UNICODE_COMPAT_TABLE.get_or_init(|| {
+            let text = std::str::from_utf8(UNICODE_COMPAT_DATA)
+                .expect("Unicode_Compatibility.txt must be valid UTF-8");
+
+            Self::from_text(text)
+                .unwrap_or_else(|err| panic!("invalid Unicode_Compatibility.txt: {err}"))
+        })
     }
 
     /// Builds a Unicode compatibility normalizer from mapping text.
@@ -104,27 +84,50 @@ impl UnicodeCompat {
     /// - has an empty source or target;
     /// - has a source or target containing more than one Unicode scalar; or
     /// - uses an ASCII source character.
-    #[allow(dead_code)]
-    pub(crate) fn from_text(text: &str) -> Result<Self, String> {
-        let entries = parse_unicode_compat_entries(text)?;
-        Ok(Self::from_entries(&entries))
-    }
-
-    /// Builds the runtime lookup map from already validated mapping entries.
     ///
-    /// Entry order is deliberately preserved so duplicate sources remain
-    /// last-wins for both TXT and BIN loading paths.
-    fn from_entries(entries: &[(char, char)]) -> Self {
+    pub(crate) fn from_text(text: &str) -> Result<Self, String> {
         let mut extended = FxHashMap::default();
 
-        for &(src, dst) in entries {
+        for (index, raw_line) in text.lines().enumerate() {
+            let line_no = index + 1;
+
+            if raw_line.trim().is_empty() || raw_line.trim_start().starts_with('#') {
+                continue;
+            }
+
+            let mut parts = raw_line.split('\t');
+
+            let src_text = parts
+                .next()
+                .map(str::trim)
+                .ok_or_else(|| format!("line {line_no}: missing source"))?;
+
+            let dst_text = parts
+                .next()
+                .map(str::trim)
+                .ok_or_else(|| format!("line {line_no}: missing target"))?;
+
+            if parts.next().is_some() {
+                return Err(format!("line {line_no}: too many columns"));
+            }
+
+            let src = single_char(src_text, line_no, "source")?;
+            if src.is_ascii() {
+                return Err(format!(
+                    "line {line_no}: source must not be an ASCII character"
+                ));
+            }
+
+            let dst = single_char(dst_text, line_no, "target")?;
+
+            // Deliberately last-wins, matching the stable C# implementation.
             extended.insert(src, dst);
         }
 
-        Self {
+        Ok(Self {
             compat: CompatIdeographs::builtin(),
             extended,
-        }
+        })
     }
 
     /// Normalizes one character using only the curated extended table.
@@ -134,6 +137,7 @@ impl UnicodeCompat {
     /// tables should participate.
     ///
     /// Characters without an extended mapping are returned unchanged.
+    ///
     #[inline(always)]
     pub(crate) fn normalize_char(&self, ch: char) -> char {
         if ch.is_ascii() {
@@ -153,6 +157,7 @@ impl UnicodeCompat {
     ///
     /// This precedence matches the stable OpenccNet `UnicodeCompat.NormalizeAll`
     /// behavior and avoids accidental chained remapping between the two tables.
+    ///
     #[inline(always)]
     pub(crate) fn normalize_all_char(&self, ch: char) -> char {
         if ch.is_ascii() {
@@ -168,7 +173,7 @@ impl UnicodeCompat {
     }
 
     /// Normalizes text using only the curated mappings from
-    /// `Unicode_Compatibility.txt` or its generated BIN equivalent.
+    /// `Unicode_Compatibility.txt`.
     ///
     /// This method does not apply [`CompatIdeographs`]. It allocates one output
     /// [`String`] and preserves every unmapped character unchanged.
@@ -176,6 +181,7 @@ impl UnicodeCompat {
     /// Because every mapping is one Unicode scalar to one Unicode scalar, the
     /// number of Unicode scalar values in the output is identical to the input,
     /// although the UTF-8 byte length may differ.
+    ///
     pub(crate) fn normalize(&self, input: &str) -> String {
         self.normalize_impl(input, false)
     }
@@ -190,6 +196,7 @@ impl UnicodeCompat {
     ///
     /// This is the intended low-level implementation for a higher-level
     /// `normalize_compat_extended()` API.
+    ///
     pub(crate) fn normalize_all(&self, input: &str) -> String {
         self.normalize_impl(input, true)
     }
@@ -213,6 +220,7 @@ impl UnicodeCompat {
     ///
     /// This is useful when callers already own a reusable `Vec<char>` before
     /// segmentation or conversion.
+    ///
     #[cfg(test)]
     pub(crate) fn normalize_in_place(&self, chars: &mut [char]) {
         for ch in chars {
@@ -224,252 +232,13 @@ impl UnicodeCompat {
     ///
     /// [`CompatIdeographs`] has precedence over the curated extended table for
     /// each character, exactly as in [`normalize_all`](Self::normalize_all).
+    ///
     #[cfg(test)]
     pub(crate) fn normalize_all_in_place(&self, chars: &mut [char]) {
         for ch in chars {
             *ch = self.normalize_all_char(*ch);
         }
     }
-}
-
-/// Parses canonical tab-separated Unicode compatibility entries.
-///
-/// `Unicode_Compatibility.txt` is the source of truth. The parser is kept
-/// unconditional because `dict-generate --unicode` also uses it to create the
-/// optional generated runtime binary artifact.
-///
-/// Duplicate sources are preserved in the returned vector. Last-wins behavior
-/// is applied later by [`UnicodeCompat::from_entries`], so TXT and BIN loading
-/// have identical semantics.
-pub(crate) fn parse_unicode_compat_entries(text: &str) -> Result<Vec<(char, char)>, String> {
-    let mut entries = Vec::new();
-
-    for (index, raw_line) in text.lines().enumerate() {
-        let line_no = index + 1;
-
-        if raw_line.trim().is_empty() || raw_line.trim_start().starts_with('#') {
-            continue;
-        }
-
-        let mut parts = raw_line.split('\t');
-
-        let src_text = parts
-            .next()
-            .map(str::trim)
-            .ok_or_else(|| format!("line {line_no}: missing source"))?;
-
-        let dst_text = parts
-            .next()
-            .map(str::trim)
-            .ok_or_else(|| format!("line {line_no}: missing target"))?;
-
-        if parts.next().is_some() {
-            return Err(format!("line {line_no}: too many columns"));
-        }
-
-        let src = single_char(src_text, line_no, "source")?;
-        validate_unicode_source(src, line_no)?;
-        let dst = single_char(dst_text, line_no, "target")?;
-
-        entries.push((src, dst));
-    }
-
-    Ok(entries)
-}
-
-/// Parses generated Unicode compatibility binary data.
-///
-/// Binary format:
-///
-/// - magic: `OCUNICOD`
-/// - version: `1`
-/// - record count: `u32` little-endian
-/// - records: `source: u32`, `target: u32`
-///
-/// The binary artifact is generated from canonical `Unicode_Compatibility.txt`
-/// and preserves entry order so duplicate sources retain last-wins semantics.
-#[cfg(feature = "unicode-bin")]
-pub fn parse_unicode_compat_bin(bytes: &[u8]) -> io::Result<Vec<(char, char)>> {
-    if bytes.len() < UNICODE_BIN_HEADER_LEN {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!(
-                "unicode compatibility binary is too short: expected at least {UNICODE_BIN_HEADER_LEN} bytes, got {}",
-                bytes.len()
-            ),
-        ));
-    }
-
-    if &bytes[..UNICODE_BIN_MAGIC.len()] != UNICODE_BIN_MAGIC {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "invalid unicode compatibility binary magic",
-        ));
-    }
-
-    let version = bytes[UNICODE_BIN_MAGIC.len()];
-    if version != UNICODE_BIN_VERSION {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!("unsupported unicode compatibility binary version: {version}"),
-        ));
-    }
-
-    let count_start = UNICODE_BIN_MAGIC.len() + 1;
-    let count = u32::from_le_bytes(
-        bytes[count_start..count_start + 4]
-            .try_into()
-            .expect("count slice length is fixed"),
-    ) as usize;
-
-    let expected_len = UNICODE_BIN_HEADER_LEN
-        .checked_add(count.checked_mul(UNICODE_BIN_RECORD_LEN).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                "unicode compatibility binary record count overflows",
-            )
-        })?)
-        .ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                "unicode compatibility binary length overflows",
-            )
-        })?;
-
-    if bytes.len() != expected_len {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            format!(
-                "invalid unicode compatibility binary length: expected {expected_len} bytes for {count} records, got {}",
-                bytes.len()
-            ),
-        ));
-    }
-
-    let mut entries = Vec::with_capacity(count);
-    let mut pos = UNICODE_BIN_HEADER_LEN;
-
-    for index in 0..count {
-        let src_u32 = u32::from_le_bytes(
-            bytes[pos..pos + 4]
-                .try_into()
-                .expect("source slice length is fixed"),
-        );
-        let dst_u32 = u32::from_le_bytes(
-            bytes[pos + 4..pos + 8]
-                .try_into()
-                .expect("target slice length is fixed"),
-        );
-        pos += UNICODE_BIN_RECORD_LEN;
-
-        let src = char::from_u32(src_u32).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("record {index}: invalid source Unicode scalar: U+{src_u32:04X}"),
-            )
-        })?;
-
-        let dst = char::from_u32(dst_u32).ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("record {index}: invalid target Unicode scalar: U+{dst_u32:04X}"),
-            )
-        })?;
-
-        if let Err(err) = validate_unicode_source(src, index + 1) {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, err));
-        }
-
-        entries.push((src, dst));
-    }
-
-    Ok(entries)
-}
-
-/// Writes Unicode compatibility entries in the compact generated binary format.
-///
-/// Entry order is preserved deliberately so duplicate source rows retain the
-/// canonical TXT table's last-wins behavior when loaded into the runtime map.
-#[cfg(feature = "unicode-bin")]
-pub fn write_unicode_compat_bin<W: Write>(
-    entries: &[(char, char)],
-    mut writer: W,
-) -> io::Result<()> {
-    let count = u32::try_from(entries.len()).map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!(
-                "too many unicode compatibility entries for binary format: {}",
-                entries.len()
-            ),
-        )
-    })?;
-
-    writer.write_all(UNICODE_BIN_MAGIC)?;
-    writer.write_all(&[UNICODE_BIN_VERSION])?;
-    writer.write_all(&count.to_le_bytes())?;
-
-    for &(src, dst) in entries {
-        writer.write_all(&(src as u32).to_le_bytes())?;
-        writer.write_all(&(dst as u32).to_le_bytes())?;
-    }
-
-    Ok(())
-}
-
-/// Writes Unicode compatibility entries to a generated binary file.
-///
-/// Prefer [`write_unicode_compat_bin_from_txt_file`] when regenerating the
-/// checked-in runtime artifact from canonical text data.
-#[cfg(feature = "unicode-bin")]
-pub fn write_unicode_compat_bin_file<P: AsRef<Path>>(
-    entries: &[(char, char)],
-    path: P,
-) -> io::Result<()> {
-    let file = std::fs::File::create(path)?;
-    let mut writer = io::BufWriter::new(file);
-    write_unicode_compat_bin(entries, &mut writer)?;
-    writer.flush()
-}
-
-/// Generates `Unicode_Compatibility.bin` from canonical text data.
-///
-/// This is the public helper intended for `dict-generate --unicode`. The input
-/// TXT file remains the source of truth; the BIN file is only a generated
-/// runtime artifact consumed when the optional `unicode-bin` feature is enabled.
-#[cfg(feature = "unicode-bin")]
-pub fn write_unicode_compat_bin_from_txt_file<P: AsRef<Path>, Q: AsRef<Path>>(
-    input_txt: P,
-    output_bin: Q,
-) -> io::Result<()> {
-    let text = std::fs::read_to_string(input_txt)?;
-    let entries = parse_unicode_compat_entries(&text)
-        .map_err(|err| io::Error::new(io::ErrorKind::InvalidData, err))?;
-    write_unicode_compat_bin_file(&entries, output_bin)
-}
-
-#[cfg(feature = "unicode-bin")]
-fn load_builtin_unicode_compat() -> UnicodeCompat {
-    let entries = parse_unicode_compat_bin(UNICODE_COMPAT_DATA)
-        .unwrap_or_else(|err| panic!("invalid built-in Unicode_Compatibility.bin: {err}"));
-
-    UnicodeCompat::from_entries(&entries)
-}
-
-#[cfg(not(feature = "unicode-bin"))]
-fn load_builtin_unicode_compat() -> UnicodeCompat {
-    UnicodeCompat::from_text(UNICODE_COMPAT_DATA)
-        .unwrap_or_else(|err| panic!("invalid built-in Unicode_Compatibility.txt: {err}"))
-}
-
-fn validate_unicode_source(src: char, line_no: usize) -> Result<(), String> {
-    if src.is_ascii() {
-        return Err(format!(
-            "line {line_no}: source must not be an ASCII character"
-        ));
-    }
-
-    Ok(())
 }
 
 fn single_char(text: &str, line_no: usize, field: &str) -> Result<char, String> {
@@ -489,17 +258,18 @@ fn single_char(text: &str, line_no: usize, field: &str) -> Result<char, String> 
 }
 
 /// Normalizes text using only the built-in curated
-/// `Unicode_Compatibility.txt` table or its generated BIN equivalent.
+/// `Unicode_Compatibility.txt` table.
 ///
 /// This convenience wrapper does **not** apply CJK Compatibility Ideograph
 /// normalization. Use [`normalize_unicode_compat_all`] when both tables are
 /// desired.
+///
 pub(crate) fn normalize_unicode_compat(input: &str) -> String {
     UnicodeCompat::builtin().normalize(input)
 }
 
 /// Normalizes text using both the built-in CJK Compatibility Ideograph table
-/// and the curated Unicode compatibility table.
+/// and the curated `Unicode_Compatibility.txt` table.
 ///
 /// CJK Compatibility Ideograph mappings have precedence for each input
 /// character. The extended table is consulted only when the compatibility
@@ -507,52 +277,9 @@ pub(crate) fn normalize_unicode_compat(input: &str) -> String {
 ///
 /// This function is useful as the implementation behind a higher-level
 /// `OpenCC::normalize_compat_extended()` method.
+///
 pub(crate) fn normalize_unicode_compat_all(input: &str) -> String {
     UnicodeCompat::builtin().normalize_all(input)
-}
-
-#[cfg(all(test, feature = "unicode-bin"))]
-mod unicode_bin_tests {
-    use super::{parse_unicode_compat_bin, parse_unicode_compat_entries};
-
-    #[test]
-    fn builtin_unicode_bin_matches_builtin_unicode_txt() {
-        let txt_entries =
-            parse_unicode_compat_entries(include_str!("data/Unicode_Compatibility.txt"))
-                .expect("built-in Unicode_Compatibility.txt should parse");
-
-        let bin_entries =
-            parse_unicode_compat_bin(include_bytes!("data/Unicode_Compatibility.bin"))
-                .expect("built-in Unicode_Compatibility.bin should parse");
-
-        for (index, (txt, bin)) in txt_entries.iter().zip(&bin_entries).enumerate() {
-            assert_eq!(
-                txt, bin,
-                "Unicode_Compatibility.bin differs at entry {index}; \
-         regenerate Unicode_Compatibility.bin"
-            );
-        }
-
-        assert_eq!(
-            txt_entries.len(),
-            bin_entries.len(),
-            "Unicode_Compatibility.bin entry count differs; \
-     regenerate Unicode_Compatibility.bin"
-        );
-    }
-
-    #[test]
-    fn unicode_bin_round_trip_preserves_duplicate_order_and_astral_scalars() {
-        use super::write_unicode_compat_bin;
-
-        let entries = vec![('聼', '听'), ('𠮷', '𠮟'), ('聼', '聽')];
-        let mut bytes = Vec::new();
-
-        write_unicode_compat_bin(&entries, &mut bytes).unwrap();
-        let decoded = parse_unicode_compat_bin(&bytes).unwrap();
-
-        assert_eq!(decoded, entries);
-    }
 }
 
 #[cfg(test)]
@@ -572,19 +299,6 @@ mod tests {
         .unwrap();
 
         assert_eq!(table.normalize("⺙聼"), "攵聽");
-    }
-
-    #[test]
-    fn parser_preserves_duplicate_entries_in_source_order() {
-        let entries = parse_unicode_compat_entries(
-            "\
-聼\t听
-聼\t聽
-",
-        )
-        .unwrap();
-
-        assert_eq!(entries, vec![('聼', '听'), ('聼', '聽')]);
     }
 
     #[test]
