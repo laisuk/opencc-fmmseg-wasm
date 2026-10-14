@@ -116,7 +116,7 @@ To use `opencc-fmmseg` in your project, add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-opencc-fmmseg = "0.13.0"
+opencc-fmmseg = "0.13.1"
 ```
 
 ### v0.13.0: Small Seal Script and dictionary generation
@@ -142,7 +142,7 @@ are not guaranteed to preserve the original text.
 `dictionary-build`. Enable it only when generating compressed dictionary artifacts:
 
 ```toml
-opencc-fmmseg = { version = "0.13.0", features = ["dictionary-build"] }
+opencc-fmmseg = { version = "0.13.1", features = ["dictionary-build"] }
 ```
 
 Normal conversion, custom overlays, compressed dictionary loading, and uncompressed
