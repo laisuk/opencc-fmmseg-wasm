@@ -17,6 +17,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - Synced `dict-generate` with upstreams shared `opencc-tool-common` dependency.
 - Adapted the upstream Office converter's `TextConverter` abstraction and helper refactors while preserving existing
   WASM APIs, conversion pipelines, and stricter ZIP validation.
+- Updated dictionary data.
+- Update vendored `opencc-fmmseg` to v0.13.1.
 
 ### Fixed
 
