@@ -521,32 +521,32 @@ time, not during conversion.
 
 ## Supported Configs
 
-| Config  | Enum                     | Description                                           |
-|---------|--------------------------|-------------------------------------------------------|
-| `s2t`   | `OpenccConfigWasm.S2t`   | Simplified Chinese → Traditional Chinese              |
-| `s2tw`  | `OpenccConfigWasm.S2tw`  | Simplified Chinese → Taiwan Traditional               |
-| `s2twp` | `OpenccConfigWasm.S2twp` | Simplified Chinese → Taiwan Traditional (phrases)     |
-| `s2hk`  | `OpenccConfigWasm.S2hk`  | Simplified Chinese → Hong Kong Traditional            |
-| `s2hkp` | `OpenccConfigWasm.S2hkp` | Simplified Chinese → Hong Kong Traditional (phrases)  |
-| `t2s`   | `OpenccConfigWasm.T2s`   | Traditional Chinese → Simplified Chinese              |
-| `t2tw`  | `OpenccConfigWasm.T2tw`  | Traditional Chinese → Taiwan Traditional              |
-| `t2twp` | `OpenccConfigWasm.T2twp` | Traditional Chinese → Taiwan Traditional (phrases)    |
-| `t2hk`  | `OpenccConfigWasm.T2hk`  | Traditional Chinese → Hong Kong Traditional           |
-| `t2hkp` | `OpenccConfigWasm.T2hkp` | Traditional Chinese → Hong Kong Traditional (phrases) |
-| `tw2s`  | `OpenccConfigWasm.Tw2s`  | Taiwan Traditional → Simplified Chinese               |
-| `tw2sp` | `OpenccConfigWasm.Tw2sp` | Taiwan Traditional → Simplified Chinese (phrases)     |
-| `tw2t`  | `OpenccConfigWasm.Tw2t`  | Taiwan Traditional → Traditional Chinese              |
-| `tw2tp` | `OpenccConfigWasm.Tw2tp` | Taiwan Traditional → Traditional Chinese (phrases)    |
-| `hk2s`  | `OpenccConfigWasm.Hk2s`  | Hong Kong Traditional → Simplified Chinese            |
-| `hk2sp` | `OpenccConfigWasm.Hk2sp` | Hong Kong Traditional → Simplified Chinese (phrases)  |
-| `hk2t`  | `OpenccConfigWasm.Hk2t`  | Hong Kong Traditional → Traditional Chinese           |
-| `hk2tp` | `OpenccConfigWasm.Hk2tp` | Hong Kong Traditional → Traditional Chinese (phrases) |
-| `jp2t`  | `OpenccConfigWasm.Jp2t`  | Japanese Shinjitai → Traditional Chinese              |
-| `t2jp`  | `OpenccConfigWasm.T2jp`  | Traditional Chinese → Japanese Shinjitai              |
-| `s2seal` | `OpenccConfigWasm.S2seal` | Simplified Chinese → Small Seal Script |
-| `t2seal` | `OpenccConfigWasm.T2seal` | Traditional Chinese → Small Seal Script |
-| `seal2s` | `OpenccConfigWasm.Seal2s` | Small Seal Script → Simplified Chinese |
-| `seal2t` | `OpenccConfigWasm.Seal2t` | Small Seal Script → Traditional Chinese |
+| Config   | Enum                      | Description                                           |
+|----------|---------------------------|-------------------------------------------------------|
+| `s2t`    | `OpenccConfigWasm.S2t`    | Simplified Chinese → Traditional Chinese              |
+| `s2tw`   | `OpenccConfigWasm.S2tw`   | Simplified Chinese → Taiwan Traditional               |
+| `s2twp`  | `OpenccConfigWasm.S2twp`  | Simplified Chinese → Taiwan Traditional (phrases)     |
+| `s2hk`   | `OpenccConfigWasm.S2hk`   | Simplified Chinese → Hong Kong Traditional            |
+| `s2hkp`  | `OpenccConfigWasm.S2hkp`  | Simplified Chinese → Hong Kong Traditional (phrases)  |
+| `t2s`    | `OpenccConfigWasm.T2s`    | Traditional Chinese → Simplified Chinese              |
+| `t2tw`   | `OpenccConfigWasm.T2tw`   | Traditional Chinese → Taiwan Traditional              |
+| `t2twp`  | `OpenccConfigWasm.T2twp`  | Traditional Chinese → Taiwan Traditional (phrases)    |
+| `t2hk`   | `OpenccConfigWasm.T2hk`   | Traditional Chinese → Hong Kong Traditional           |
+| `t2hkp`  | `OpenccConfigWasm.T2hkp`  | Traditional Chinese → Hong Kong Traditional (phrases) |
+| `tw2s`   | `OpenccConfigWasm.Tw2s`   | Taiwan Traditional → Simplified Chinese               |
+| `tw2sp`  | `OpenccConfigWasm.Tw2sp`  | Taiwan Traditional → Simplified Chinese (phrases)     |
+| `tw2t`   | `OpenccConfigWasm.Tw2t`   | Taiwan Traditional → Traditional Chinese              |
+| `tw2tp`  | `OpenccConfigWasm.Tw2tp`  | Taiwan Traditional → Traditional Chinese (phrases)    |
+| `hk2s`   | `OpenccConfigWasm.Hk2s`   | Hong Kong Traditional → Simplified Chinese            |
+| `hk2sp`  | `OpenccConfigWasm.Hk2sp`  | Hong Kong Traditional → Simplified Chinese (phrases)  |
+| `hk2t`   | `OpenccConfigWasm.Hk2t`   | Hong Kong Traditional → Traditional Chinese           |
+| `hk2tp`  | `OpenccConfigWasm.Hk2tp`  | Hong Kong Traditional → Traditional Chinese (phrases) |
+| `jp2t`   | `OpenccConfigWasm.Jp2t`   | Japanese Shinjitai → Traditional Chinese              |
+| `t2jp`   | `OpenccConfigWasm.T2jp`   | Traditional Chinese → Japanese Shinjitai              |
+| `s2seal` | `OpenccConfigWasm.S2seal` | Simplified Chinese → Small Seal Script                |
+| `t2seal` | `OpenccConfigWasm.T2seal` | Traditional Chinese → Small Seal Script               |
+| `seal2s` | `OpenccConfigWasm.Seal2s` | Small Seal Script → Simplified Chinese                |
+| `seal2t` | `OpenccConfigWasm.Seal2t` | Small Seal Script → Traditional Chinese               |
 
 The numeric enum values match the vendored Rust backend. Existing values are unchanged; `S2hkp = 17`, `Hk2sp = 18`,
 `T2hkp = 19`, and `Hk2tp = 20`. Small Seal Script configs use `S2seal = 21`, `T2seal = 22`,
