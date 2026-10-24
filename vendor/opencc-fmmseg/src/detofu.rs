@@ -15,10 +15,15 @@
 //! creating one does not clone the built-in table.
 
 use rustc_hash::FxHashMap;
+#[cfg(any(feature = "tofu-bin", test))]
+use std::io;
 use std::path::Path;
 use std::sync::OnceLock;
 
+#[cfg(not(feature = "tofu-bin"))]
 static TOFU_DATA: &[u8] = include_bytes!("data/CharactersTofu.txt");
+#[cfg(feature = "tofu-bin")]
+static TOFU_DATA: &[u8] = include_bytes!("data/CharactersTofu.bin");
 
 /// Controls which CJK extension ranges are replaced by DeTofu.
 ///
@@ -55,6 +60,21 @@ pub enum DetofuLevel {
 }
 
 impl DetofuLevel {
+    #[cfg(any(feature = "tofu-bin", test))]
+    pub(crate) fn from_bin_id(id: u8) -> Option<Self> {
+        match id {
+            0 => Some(Self::ExtB),
+            1 => Some(Self::ExtC),
+            2 => Some(Self::ExtD),
+            3 => Some(Self::ExtE),
+            4 => Some(Self::ExtF),
+            5 => Some(Self::ExtG),
+            6 => Some(Self::ExtH),
+            7 => Some(Self::ExtI),
+            _ => None,
+        }
+    }
+
     /// Parses a DeTofu threshold level.
     ///
     /// Parsing is ASCII case-insensitive and ignores surrounding whitespace.
@@ -97,7 +117,7 @@ impl DetofuLevel {
 /// The table is initialized once and then remains immutable.
 static TOFU_MAP: OnceLock<FxHashMap<char, (char, DetofuLevel)>> = OnceLock::new();
 
-fn parse_tofu_entries(text: &str) -> Result<Vec<(char, char, DetofuLevel)>, String> {
+pub(crate) fn parse_tofu_entries(text: &str) -> Result<Vec<(char, char, DetofuLevel)>, String> {
     let mut entries = Vec::new();
 
     for (index, raw_line) in text.lines().enumerate() {
@@ -136,10 +156,16 @@ fn parse_tofu_entries(text: &str) -> Result<Vec<(char, char, DetofuLevel)>, Stri
 
 fn tofu_map() -> &'static FxHashMap<char, (char, DetofuLevel)> {
     TOFU_MAP.get_or_init(|| {
+        #[cfg(not(feature = "tofu-bin"))]
         let text = std::str::from_utf8(TOFU_DATA).expect("CharactersTofu.txt must be valid UTF-8");
 
-        parse_tofu_entries(text)
-            .unwrap_or_else(|err| panic!("invalid built-in CharactersTofu.txt: {err}"))
+        #[cfg(not(feature = "tofu-bin"))]
+        let entries = parse_tofu_entries(text)
+            .unwrap_or_else(|err| panic!("invalid built-in CharactersTofu.txt: {err}"));
+        #[cfg(feature = "tofu-bin")]
+        let entries = parse_tofu_bin(TOFU_DATA)
+            .unwrap_or_else(|err| panic!("invalid built-in CharactersTofu.bin: {err}"));
+        entries
             .into_iter()
             .map(|(tofu, fallback, level)| (tofu, (fallback, level)))
             .collect()
@@ -461,5 +487,168 @@ mod tests {
         let map = DetofuMap::builtin(DetofuLevel::ExtB);
         assert!(map.custom.is_empty());
         assert_eq!(map.detofu("骖𬴂"), "骖騑");
+    }
+}
+
+#[cfg(any(feature = "tofu-bin", test))]
+const TOFU_BIN_MAGIC: &[u8; 8] = b"OCTFTOFU";
+#[cfg(any(feature = "tofu-bin", test))]
+const TOFU_BIN_VERSION: u8 = 1;
+#[cfg(any(feature = "tofu-bin", test))]
+const TOFU_BIN_HEADER_LEN: usize = 13;
+#[cfg(any(feature = "tofu-bin", test))]
+const TOFU_BIN_RECORD_LEN: usize = 9;
+
+/// Decodes the original version-1 auxiliary BIN format with strict validation.
+#[cfg(any(feature = "tofu-bin", test))]
+pub fn parse_tofu_bin(bytes: &[u8]) -> io::Result<Vec<(char, char, DetofuLevel)>> {
+    if bytes.len() < TOFU_BIN_HEADER_LEN {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "tofu binary is too short: expected at least {TOFU_BIN_HEADER_LEN} bytes, got {}",
+                bytes.len()
+            ),
+        ));
+    }
+
+    if &bytes[..TOFU_BIN_MAGIC.len()] != TOFU_BIN_MAGIC {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid tofu binary magic",
+        ));
+    }
+
+    let version = bytes[TOFU_BIN_MAGIC.len()];
+    if version != TOFU_BIN_VERSION {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("unsupported tofu binary version: {version}"),
+        ));
+    }
+
+    let count_start = TOFU_BIN_MAGIC.len() + 1;
+    let count = u32::from_le_bytes(
+        bytes[count_start..count_start + 4]
+            .try_into()
+            .expect("count slice length is fixed"),
+    ) as usize;
+
+    let expected_len = TOFU_BIN_HEADER_LEN
+        .checked_add(count.checked_mul(TOFU_BIN_RECORD_LEN).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "tofu binary record count overflows",
+            )
+        })?)
+        .ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidData, "tofu binary length overflows")
+        })?;
+
+    if bytes.len() != expected_len {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "invalid tofu binary length: expected {expected_len} bytes for {count} records, got {}",
+                bytes.len()
+            ),
+        ));
+    }
+
+    let mut entries = Vec::with_capacity(count);
+    let mut pos = TOFU_BIN_HEADER_LEN;
+
+    for index in 0..count {
+        let tofu_u32 = u32::from_le_bytes(
+            bytes[pos..pos + 4]
+                .try_into()
+                .expect("tofu slice length is fixed"),
+        );
+        let fallback_u32 = u32::from_le_bytes(
+            bytes[pos + 4..pos + 8]
+                .try_into()
+                .expect("fallback slice length is fixed"),
+        );
+        let level_id = bytes[pos + 8];
+        pos += TOFU_BIN_RECORD_LEN;
+
+        let tofu = char::from_u32(tofu_u32).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("record {index}: invalid tofu Unicode scalar: U+{tofu_u32:04X}"),
+            )
+        })?;
+
+        let fallback = char::from_u32(fallback_u32).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("record {index}: invalid fallback Unicode scalar: U+{fallback_u32:04X}"),
+            )
+        })?;
+
+        let level = DetofuLevel::from_bin_id(level_id).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("record {index}: invalid detofu level id: {level_id}"),
+            )
+        })?;
+
+        entries.push((tofu, fallback, level));
+    }
+
+    Ok(entries)
+}
+
+#[cfg(test)]
+mod bin_tests {
+    use super::*;
+    const BIN: &[u8] = include_bytes!("data/CharactersTofu.bin");
+    const TXT: &str = include_str!("data/CharactersTofu.txt");
+
+    #[test]
+    fn artifact_matches_txt_and_all_thresholds() {
+        let entries = parse_tofu_bin(BIN).unwrap();
+        assert_eq!(
+            entries,
+            parse_tofu_entries(TXT).unwrap(),
+            "stale tofu BIN; regenerate it"
+        );
+        let expected: FxHashMap<_, _> = entries
+            .iter()
+            .map(|&(src, dst, level)| (src, (dst, level)))
+            .collect();
+        assert_eq!(tofu_map(), &expected);
+        assert!(std::ptr::eq(tofu_map(), tofu_map()));
+        for id in 0..=7 {
+            let threshold = DetofuLevel::from_bin_id(id).unwrap();
+            let map = DetofuMap::builtin(threshold);
+            for (&src, &(dst, level)) in &expected {
+                let want = if level >= threshold { dst } else { src };
+                assert_eq!(map.detofu(&src.to_string()), want.to_string());
+            }
+            assert_eq!(
+                map.with_custom_pairs(&[('𬴂', '馬'), ('A', 'B')])
+                    .detofu("A𬴂"),
+                "B馬"
+            );
+        }
+    }
+
+    #[test]
+    fn custom_file_overlay_keeps_threshold_and_precedence() {
+        let file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), "𬴂\t馬\tF\n𣭲\t毛\tB\n").unwrap();
+        let map = DetofuMap::builtin(DetofuLevel::ExtF)
+            .with_custom_file(file.path())
+            .unwrap();
+        assert_eq!(map.detofu("𬴂𣭲"), "馬𣭲");
+        assert_eq!(map.with_custom_pairs(&[('𬴂', '牛')]).detofu("𬴂"), "牛");
+    }
+
+    #[test]
+    fn rejects_invalid_bins() {
+        crate::auxiliary_bin_tests::rejects_corruption(BIN, 9, |bytes| {
+            parse_tofu_bin(bytes).map(|_| ())
+        });
     }
 }

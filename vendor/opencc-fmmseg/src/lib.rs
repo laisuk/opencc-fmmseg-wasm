@@ -189,3 +189,23 @@ pub use crate::opencc_config::OpenccConfig;
 
 // DeTofu API
 pub use crate::detofu::{DetofuLevel, DetofuMap};
+
+#[cfg(feature = "dictionary-build")]
+mod auxiliary_bin;
+#[cfg(feature = "dictionary-build")]
+pub use auxiliary_bin::{
+    write_compat_bin_from_txt_file, write_tofu_bin_from_txt_file,
+    write_unicode_compat_bin_from_txt_file,
+};
+
+#[cfg(feature = "tofu-bin")]
+pub use detofu::parse_tofu_bin;
+
+#[cfg(feature = "compat-bin")]
+pub use compat_ideographs::parse_compat_bin;
+
+#[cfg(feature = "unicode-bin")]
+pub use unicode_compat::parse_unicode_compat_bin;
+
+#[cfg(test)]
+mod auxiliary_bin_tests;

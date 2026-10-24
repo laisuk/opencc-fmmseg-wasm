@@ -711,6 +711,37 @@ dict-generate --format zstd --output dictionary_maxlength.zstd
 The generated CBOR can be loaded with DictionaryMaxlength::deserialize_from_cbor().
 ```
 
+The WASM repository also restores three auxiliary BIN generators. Run these
+from the `opencc-fmmseg-wasm` repository root:
+
+```bash
+cargo run -p dict-generate -- --tofu
+cargo run -p dict-generate -- --compat
+cargo run -p dict-generate -- --unicode --output Unicode_Compatibility.bin
+```
+
+Each reads its corresponding TXT file under `vendor/opencc-fmmseg/src/data/`
+and defaults to writing the same basename with a `.bin` extension there.
+Multiple flags generate all selected files at their default paths; `--output`
+is accepted only for a single generator. Auxiliary generation skips the main
+dictionary workflow, so it does not require `--base-dir` or the main dictionaries.
+These artifacts retain their original version-1 BIN formats. The native library defaults to TXT loading. Enable `compat-bin`, `tofu-bin`, or
+`unicode-bin` independently to embed and decode the corresponding BIN instead.
+The WASM dependency enables all three, matching its pre-sync configuration.
+BIN data feeds the same cached, optimized lookup tables as TXT; there is no
+TXT fallback for missing or invalid BIN data.
+
+After changing a canonical TXT table, regenerate the artifacts from the WASM
+repository root with:
+
+```bash
+cargo run -p dict-generate -- --tofu --compat --unicode
+```
+
+Commit the updated TXT and BIN files together. Library tests compare all records
+against the canonical TXT files even in TXT-only builds, so stale BIN files fail
+tests. Rust crate packaging includes both TXT and BIN sources.
+
 ### Example
 
 #### Plain Text

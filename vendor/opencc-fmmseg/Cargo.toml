@@ -25,6 +25,7 @@ include = [
     "src/dictionary_lib/dicts/*.zstd",
     # Embedded data files
     "src/data/*.txt",
+    "src/data/*.bin",
     # Public text dictionaries
     "dicts/**"
 ]
@@ -52,6 +53,11 @@ parallel = ["dep:rayon", "dep:rayon-core"]
 # Compatibility alias: runtime decoding is now always pure Rust.
 ruzstd = []
 dictionary-build = ["dep:zstd"]
+
+# Alternative embedded sources for auxiliary tables; independent and opt-in.
+compat-bin = []
+tofu-bin = []
+unicode-bin = []
 
 [dev-dependencies]
 tempfile = "3.27"

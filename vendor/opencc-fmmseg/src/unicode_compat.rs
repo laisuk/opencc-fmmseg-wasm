@@ -6,9 +6,14 @@
 
 use crate::compat_ideographs::CompatIdeographs;
 use rustc_hash::FxHashMap;
+#[cfg(any(feature = "unicode-bin", test))]
+use std::io;
 use std::sync::OnceLock;
 
+#[cfg(not(feature = "unicode-bin"))]
 static UNICODE_COMPAT_DATA: &[u8] = include_bytes!("data/Unicode_Compatibility.txt");
+#[cfg(feature = "unicode-bin")]
+static UNICODE_COMPAT_DATA: &[u8] = include_bytes!("data/Unicode_Compatibility.bin");
 static UNICODE_COMPAT_TABLE: OnceLock<UnicodeCompat> = OnceLock::new();
 
 /// Curated Unicode compatibility normalizer.
@@ -33,22 +38,42 @@ pub(crate) struct UnicodeCompat {
 impl UnicodeCompat {
     /// Returns the cached built-in Unicode compatibility normalizer.
     ///
-    /// `data/Unicode_Compatibility.txt` is embedded in the crate binary with
-    /// [`include_bytes!`] and parsed at most once per process. Subsequent calls
-    /// reuse the same immutable table.
+    /// With `unicode-bin`, embeds and decodes `data/Unicode_Compatibility.bin`;
+    /// otherwise embeds and parses the canonical TXT table. Initialization
+    /// happens at most once per process and reuses the same immutable table.
     ///
     /// # Panics
     ///
-    /// Panics if the bundled table is not valid UTF-8 or violates the mapping
-    /// format documented by [`UnicodeCompat::from_text`]. Such a failure
+    /// Panics if the bundled TXT or BIN table is invalid. Such a failure
     /// indicates invalid crate data rather than invalid user input.
     pub(crate) fn builtin() -> &'static Self {
         UNICODE_COMPAT_TABLE.get_or_init(|| {
-            let text = std::str::from_utf8(UNICODE_COMPAT_DATA)
-                .expect("Unicode_Compatibility.txt must be valid UTF-8");
+            #[cfg(feature = "unicode-bin")]
+            {
+                let entries = parse_unicode_compat_bin(UNICODE_COMPAT_DATA).unwrap_or_else(|err| {
+                    panic!("invalid built-in Unicode_Compatibility.bin: {err}")
+                });
+                Self::from_entries(&entries).unwrap_or_else(|err| {
+                    panic!("invalid built-in Unicode_Compatibility.bin: {err}")
+                })
+            }
+            #[cfg(not(feature = "unicode-bin"))]
+            {
+                let text = std::str::from_utf8(UNICODE_COMPAT_DATA)
+                    .expect("Unicode_Compatibility.txt must be valid UTF-8");
 
-            Self::from_text(text)
-                .unwrap_or_else(|err| panic!("invalid Unicode_Compatibility.txt: {err}"))
+                Self::from_text(text)
+                    .unwrap_or_else(|err| panic!("invalid Unicode_Compatibility.txt: {err}"))
+            }
+        })
+    }
+
+    #[cfg(any(feature = "unicode-bin", test))]
+    fn from_entries(entries: &[(char, char)]) -> Result<Self, String> {
+        // Decode in source order: later duplicate rows replace earlier ones.
+        Ok(Self {
+            compat: CompatIdeographs::builtin(),
+            extended: entries.iter().copied().collect(),
         })
     }
 
@@ -85,6 +110,7 @@ impl UnicodeCompat {
     /// - has a source or target containing more than one Unicode scalar; or
     /// - uses an ASCII source character.
     ///
+    #[cfg(any(not(feature = "unicode-bin"), feature = "dictionary-build", test))]
     pub(crate) fn from_text(text: &str) -> Result<Self, String> {
         let mut extended = FxHashMap::default();
 
@@ -241,6 +267,7 @@ impl UnicodeCompat {
     }
 }
 
+#[cfg(any(not(feature = "unicode-bin"), feature = "dictionary-build", test))]
 fn single_char(text: &str, line_no: usize, field: &str) -> Result<char, String> {
     let mut chars = text.chars();
 
@@ -433,5 +460,180 @@ mod tests {
         let b = UnicodeCompat::builtin();
 
         assert!(std::ptr::eq(a, b));
+    }
+}
+
+#[cfg(any(feature = "unicode-bin", test))]
+const UNICODE_BIN_MAGIC: &[u8; 8] = b"OCUNICOD";
+#[cfg(any(feature = "unicode-bin", test))]
+const UNICODE_BIN_VERSION: u8 = 1;
+#[cfg(any(feature = "unicode-bin", test))]
+const UNICODE_BIN_HEADER_LEN: usize = 13;
+#[cfg(any(feature = "unicode-bin", test))]
+const UNICODE_BIN_RECORD_LEN: usize = 8;
+
+/// Decodes the original version-1 auxiliary BIN format with strict validation.
+#[cfg(any(feature = "unicode-bin", test))]
+pub fn parse_unicode_compat_bin(bytes: &[u8]) -> io::Result<Vec<(char, char)>> {
+    if bytes.len() < UNICODE_BIN_HEADER_LEN {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "unicode compatibility binary is too short: expected at least {UNICODE_BIN_HEADER_LEN} bytes, got {}",
+                bytes.len()
+            ),
+        ));
+    }
+
+    if &bytes[..UNICODE_BIN_MAGIC.len()] != UNICODE_BIN_MAGIC {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid unicode compatibility binary magic",
+        ));
+    }
+
+    let version = bytes[UNICODE_BIN_MAGIC.len()];
+    if version != UNICODE_BIN_VERSION {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("unsupported unicode compatibility binary version: {version}"),
+        ));
+    }
+
+    let count_start = UNICODE_BIN_MAGIC.len() + 1;
+    let count = u32::from_le_bytes(
+        bytes[count_start..count_start + 4]
+            .try_into()
+            .expect("count slice length is fixed"),
+    ) as usize;
+
+    let expected_len = UNICODE_BIN_HEADER_LEN
+        .checked_add(count.checked_mul(UNICODE_BIN_RECORD_LEN).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unicode compatibility binary record count overflows",
+            )
+        })?)
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "unicode compatibility binary length overflows",
+            )
+        })?;
+
+    if bytes.len() != expected_len {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!(
+                "invalid unicode compatibility binary length: expected {expected_len} bytes for {count} records, got {}",
+                bytes.len()
+            ),
+        ));
+    }
+
+    let mut entries = Vec::with_capacity(count);
+    let mut pos = UNICODE_BIN_HEADER_LEN;
+
+    for index in 0..count {
+        let src_u32 = u32::from_le_bytes(
+            bytes[pos..pos + 4]
+                .try_into()
+                .expect("source slice length is fixed"),
+        );
+        let dst_u32 = u32::from_le_bytes(
+            bytes[pos + 4..pos + 8]
+                .try_into()
+                .expect("target slice length is fixed"),
+        );
+        pos += UNICODE_BIN_RECORD_LEN;
+
+        let src = char::from_u32(src_u32).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("record {index}: invalid source Unicode scalar: U+{src_u32:04X}"),
+            )
+        })?;
+
+        let dst = char::from_u32(dst_u32).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("record {index}: invalid target Unicode scalar: U+{dst_u32:04X}"),
+            )
+        })?;
+
+        if let Err(err) = validate_unicode_source(src, index + 1) {
+            return Err(io::Error::new(io::ErrorKind::InvalidData, err));
+        }
+
+        entries.push((src, dst));
+    }
+
+    Ok(entries)
+}
+
+#[cfg(any(feature = "unicode-bin", test))]
+fn validate_unicode_source(src: char, line_no: usize) -> Result<(), String> {
+    if src.is_ascii() {
+        return Err(format!(
+            "line {line_no}: source must not be an ASCII character"
+        ));
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod bin_tests {
+    use super::*;
+    const BIN: &[u8] = include_bytes!("data/Unicode_Compatibility.bin");
+    const TXT: &str = include_str!("data/Unicode_Compatibility.txt");
+
+    #[test]
+    fn artifact_matches_txt_and_normalization() {
+        let entries = parse_unicode_compat_bin(BIN).unwrap();
+        assert_eq!(
+            entries,
+            crate::auxiliary_bin_tests::pairs(TXT),
+            "stale Unicode BIN; regenerate it"
+        );
+        let txt = UnicodeCompat::from_text(TXT).unwrap();
+        let bin = UnicodeCompat::from_entries(&entries).unwrap();
+        assert_eq!(txt.extended, bin.extended);
+        let sample: String = entries
+            .iter()
+            .map(|(src, _)| *src)
+            .chain("ASCII金丽".chars())
+            .collect();
+        assert_eq!(txt.normalize(&sample), bin.normalize(&sample));
+        assert_eq!(txt.normalize_all(&sample), bin.normalize_all(&sample));
+        assert_eq!(
+            UnicodeCompat::builtin().normalize_all(&sample),
+            bin.normalize_all(&sample)
+        );
+    }
+
+    #[test]
+    fn bin_duplicate_sources_are_last_wins() {
+        let entries = [('聼', '听'), ('𠮷', '𠮟'), ('聼', '聽')];
+        let mut bytes = b"OCUNICOD\x01\x03\x00\x00\x00".to_vec();
+        for (src, dst) in entries {
+            bytes.extend_from_slice(&(src as u32).to_le_bytes());
+            bytes.extend_from_slice(&(dst as u32).to_le_bytes());
+        }
+        let decoded = parse_unicode_compat_bin(&bytes).unwrap();
+        assert_eq!(decoded, entries);
+        let table = UnicodeCompat::from_entries(&decoded).unwrap();
+        assert_eq!(table.normalize("聼𠮷"), "聽𠮟");
+        assert_eq!(table.normalize_all("金聼"), "金聽");
+    }
+
+    #[test]
+    fn rejects_invalid_bins() {
+        crate::auxiliary_bin_tests::rejects_corruption(BIN, 8, |bytes| {
+            parse_unicode_compat_bin(bytes).map(|_| ())
+        });
+        let mut bad = BIN.to_vec();
+        bad[13..17].copy_from_slice(&('A' as u32).to_le_bytes());
+        assert!(parse_unicode_compat_bin(&bad).is_err());
     }
 }

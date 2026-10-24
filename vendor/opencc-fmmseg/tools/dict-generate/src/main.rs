@@ -2,7 +2,10 @@ mod json_io;
 
 use crate::json_io::DictionaryMaxlengthSerde;
 use clap::{Arg, Command};
-use opencc_fmmseg::DictionaryMaxlength;
+use opencc_fmmseg::{
+    write_compat_bin_from_txt_file, write_tofu_bin_from_txt_file,
+    write_unicode_compat_bin_from_txt_file, DictionaryMaxlength,
+};
 use opencc_tool_common::parse_custom_dict_spec;
 use std::fs::File;
 use std::io;
@@ -63,7 +66,123 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .action(clap::ArgAction::Append)
                 .help("Custom dictionary file, e.g. HKPhrasesRev:append:my_hk_dict.txt (slot names are ASCII case-insensitive)"),
         )
+        .arg(
+            Arg::new("tofu")
+                .long("tofu")
+                .action(clap::ArgAction::SetTrue)
+                .help("Generate built-in CharactersTofu.bin from CharactersTofu.txt"),
+        )
+        .arg(
+            Arg::new("compat")
+                .long("compat")
+                .action(clap::ArgAction::SetTrue)
+                .help("Generate built-in CJK_Compatibility_Ideographs.bin from CJK_Compatibility_Ideographs.txt"),
+        )
+        .arg(
+            Arg::new("unicode")
+                .long("unicode")
+                .action(clap::ArgAction::SetTrue)
+                .help(
+                    "Generate built-in Unicode_Compatibility.bin \
+             from Unicode_Compatibility.txt"
+                ),
+        )
         .get_matches();
+
+    let mut generated_artifact = false;
+
+    let artifact_count = matches.get_flag("tofu") as u8
+        + matches.get_flag("compat") as u8
+        + matches.get_flag("unicode") as u8;
+
+    if artifact_count > 1 && matches.contains_id("output") {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "--output cannot be used with multiple artifact generators.",
+        )
+        .into());
+    }
+
+    if matches.get_flag("tofu") {
+        let input = Path::new("vendor/opencc-fmmseg/src/data/CharactersTofu.txt");
+
+        let output = matches
+            .get_one::<String>("output")
+            .map(String::as_str)
+            .unwrap_or("vendor/opencc-fmmseg/src/data/CharactersTofu.bin");
+
+        write_tofu_bin_from_txt_file(input, output)?;
+
+        eprintln!(
+            "{BLUE}Built-in tofu dictionary generated successfully:{RESET}\n\
+         \n\
+         Input  : {}\n\
+         Output : {}\n\
+         Status : OK",
+            input.display(),
+            output
+        );
+
+        generated_artifact = true;
+    }
+
+    if matches.get_flag("compat") {
+        let input = Path::new("vendor/opencc-fmmseg/src/data/CJK_Compatibility_Ideographs.txt");
+
+        let output = matches
+            .get_one::<String>("output")
+            .map(String::as_str)
+            .unwrap_or("vendor/opencc-fmmseg/src/data/CJK_Compatibility_Ideographs.bin");
+
+        write_compat_bin_from_txt_file(input, output)?;
+
+        if generated_artifact {
+            eprintln!()
+        }
+
+        eprintln!(
+            "{BLUE}Built-in compatibility ideograph table generated successfully:{RESET}\n\
+         \n\
+         Input  : {}\n\
+         Output : {}\n\
+         Status : OK",
+            input.display(),
+            output
+        );
+
+        generated_artifact = true;
+    }
+
+    if matches.get_flag("unicode") {
+        let input = Path::new("vendor/opencc-fmmseg/src/data/Unicode_Compatibility.txt");
+
+        let output = matches
+            .get_one::<String>("output")
+            .map(String::as_str)
+            .unwrap_or("vendor/opencc-fmmseg/src/data/Unicode_Compatibility.bin");
+
+        write_unicode_compat_bin_from_txt_file(input, output)?;
+
+        if generated_artifact {
+            eprintln!();
+        }
+
+        eprintln!(
+            "{BLUE}Built-in Unicode compatibility table generated successfully:{RESET}\n\
+         \n\
+         Input  : {}\n\
+         Output : {}\n\
+         Status : OK",
+            input.display(),
+            output
+        );
+
+        generated_artifact = true;
+    }
+
+    if generated_artifact {
+        return Ok(());
+    }
 
     let base_dir = matches
         .get_one::<String>("base-dir")
