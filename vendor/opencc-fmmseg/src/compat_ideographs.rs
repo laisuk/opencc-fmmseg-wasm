@@ -3,6 +3,7 @@
 //! The built-in UnicodeData-derived table is parsed once and cached in dense
 //! lookup tables. Public callers use [`crate::OpenCC::normalize_compat`].
 
+use std::borrow::Cow;
 #[cfg(any(feature = "compat-bin", test))]
 use std::io;
 use std::sync::OnceLock;
@@ -184,13 +185,16 @@ impl CompatIdeographs {
     /// This returns a new string and leaves ordinary Chinese text unchanged.
     ///
     pub(crate) fn normalize(&self, input: &str) -> String {
-        let mut output = String::with_capacity(input.len());
-
-        for ch in input.chars() {
-            output.push(self.normalize_char(ch));
+        self.normalize_cow(input).into_owned()
+    }
+    /// Normalizes mapped characters, borrowing unchanged input.
+    pub(crate) fn normalize_cow<'a>(&self, input: &'a str) -> Cow<'a, str> {
+        // This table can only contain sources in the two CJK compatibility
+        // ranges. Byte scanning avoids scalar decoding for all-ASCII input.
+        if input.is_ascii() {
+            return Cow::Borrowed(input);
         }
-
-        output
+        crate::lazy_replace::replace_chars(input, |ch| self.normalize_char(ch))
     }
 }
 

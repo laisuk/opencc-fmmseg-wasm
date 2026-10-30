@@ -591,6 +591,30 @@ preservation is supported with the `keepFont` option.
 Use the instance methods when possible. They reuse the converter configuration, custom dictionaries, and other converter
 state already held by the `OpenccWasm` instance.
 
+The ZIP layer is a private vendored module with Stored and DEFLATE support. It validates local and central headers
+before processing entries and rejects inconsistent names/metadata, duplicate effective names, and overlapping entries.
+Unsafe archive paths (including traversal, Windows drive-relative paths, alternate data streams, and NUL bytes) fail
+conversion. Rebuilt archives are reopened and fully read before being returned.
+
+ZIP support uses this Rust dependency tree; these crates are compiled into WASM and add no npm runtime dependencies:
+
+```text
+opencc-fmmseg-wasm
+└── private src/zip module (adapted zip 3.0.0)
+    ├── crc32fast 1.5
+    ├── flate2 =1.1.1 [rust_backend, no default features]
+    │   ├── crc32fast
+    │   └── miniz_oxide → adler2
+    ├── indexmap =2.7.1 → equivalent, hashbrown
+    └── memchr 2.7
+```
+
+The support crates are direct Cargo dependencies because the ZIP module is compiled as part of this crate. The external
+`zip`, `zopfli`, and `zlib-rs` dependencies have been removed. DEFLATE bytes may differ from earlier builds while retaining
+the same decoded content. See [ZIP vendoring notes](src/zip/VENDOR_NOTES.md) for provenance, validation limits, and
+maintenance guidance. Inspect the resolved graph with
+`cargo tree -p opencc-fmmseg-wasm --target wasm32-unknown-unknown`.
+
 ### Basic Office Conversion
 
 For normal OpenCC conversion, use:

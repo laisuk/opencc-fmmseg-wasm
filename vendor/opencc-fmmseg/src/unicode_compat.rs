@@ -6,6 +6,7 @@
 
 use crate::compat_ideographs::CompatIdeographs;
 use rustc_hash::FxHashMap;
+use std::borrow::Cow;
 #[cfg(any(feature = "unicode-bin", test))]
 use std::io;
 use std::sync::OnceLock;
@@ -209,7 +210,7 @@ impl UnicodeCompat {
     /// although the UTF-8 byte length may differ.
     ///
     pub(crate) fn normalize(&self, input: &str) -> String {
-        self.normalize_impl(input, false)
+        self.normalize_cow(input).into_owned()
     }
 
     /// Normalizes text using both the built-in CJK Compatibility Ideograph
@@ -224,21 +225,15 @@ impl UnicodeCompat {
     /// `normalize_compat_extended()` API.
     ///
     pub(crate) fn normalize_all(&self, input: &str) -> String {
-        self.normalize_impl(input, true)
+        self.normalize_all_cow(input).into_owned()
     }
 
-    fn normalize_impl(&self, input: &str, include_compat: bool) -> String {
-        let mut output = String::with_capacity(input.len());
+    pub(crate) fn normalize_cow<'a>(&self, input: &'a str) -> Cow<'a, str> {
+        crate::lazy_replace::replace_chars(input, |ch| self.normalize_char(ch))
+    }
 
-        for ch in input.chars() {
-            output.push(if include_compat {
-                self.normalize_all_char(ch)
-            } else {
-                self.normalize_char(ch)
-            });
-        }
-
-        output
+    pub(crate) fn normalize_all_cow<'a>(&self, input: &'a str) -> Cow<'a, str> {
+        crate::lazy_replace::replace_chars(input, |ch| self.normalize_all_char(ch))
     }
 
     /// Normalizes a mutable character slice using only the curated extended

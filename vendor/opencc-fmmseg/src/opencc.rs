@@ -21,13 +21,14 @@ use crate::dict_refs::DictRefs;
 use crate::dictionary_lib::UnionKey;
 use crate::dictionary_lib::{DictMaxLen, DictionaryMaxlength, StarterUnion};
 use crate::utils::{find_max_utf8_length, for_each_len_dec};
-use crate::{compat_ideographs, detofu, ids, DetofuLevel, DetofuMap, OpenccConfig};
+use crate::{DetofuLevel, DetofuMap, OpenccConfig, compat_ideographs, detofu, ids};
 #[cfg(feature = "parallel")]
 use rayon::iter::ParallelIterator;
 #[cfg(feature = "parallel")]
 use rayon::prelude::ParallelSlice;
 use regex::Regex;
 use rustc_hash::FxHashMap;
+use std::borrow::Cow;
 use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 
@@ -94,6 +95,26 @@ pub struct OpenCC {
 }
 
 impl OpenCC {
+    /// Like [`Self::normalize_compat`], borrowing unchanged input.
+    pub fn normalize_compat_cow<'a>(&self, text: &'a str) -> Cow<'a, str> {
+        compat_ideographs::CompatIdeographs::builtin().normalize_cow(text)
+    }
+
+    /// Like [`Self::normalize_unicode_compat`], borrowing unchanged input.
+    pub fn normalize_unicode_compat_cow<'a>(&self, text: &'a str) -> Cow<'a, str> {
+        crate::unicode_compat::UnicodeCompat::builtin().normalize_cow(text)
+    }
+
+    /// Like [`Self::normalize_compat_extended`], borrowing unchanged input.
+    pub fn normalize_compat_extended_cow<'a>(&self, text: &'a str) -> Cow<'a, str> {
+        crate::unicode_compat::UnicodeCompat::builtin().normalize_all_cow(text)
+    }
+
+    /// Like [`Self::detofu`], borrowing input when no eligible mapping changes it.
+    pub fn detofu_cow<'a>(&self, text: &'a str, level: DetofuLevel) -> Cow<'a, str> {
+        detofu::detofu_cow(text, level)
+    }
+
     /// Load the embedded dictionary using the pure-Rust decoder.
     pub fn new_embedded() -> Self {
         Self::new()

@@ -1,11 +1,13 @@
 mod converter;
 mod text_converter;
+mod zip;
 pub use converter::OfficeConverter;
 
 use opencc_fmmseg::{
     CustomDictMode, CustomDictSpec, DetofuLevel, DictSlot, DictionaryMaxlength, OpenCC,
     OpenccConfig,
 };
+use std::borrow::Cow;
 use wasm_bindgen::prelude::*;
 
 /// OpenCC conversion configurations exposed to JavaScript/WebAssembly callers.
@@ -210,29 +212,29 @@ fn convert_office_bytes_pipeline_core(
     detofu_level: Option<DetofuLevelWasm>,
 ) -> std::io::Result<(Vec<u8>, usize)> {
     let text_converter = |text: &str| {
-        let converted = match norm_mode {
-            NormalizeModeWasm::None => inner.convert(text, config, punctuation),
-            NormalizeModeWasm::Compat => {
-                let normalized = inner.normalize_compat(text);
-                inner.convert(&normalized, config, punctuation)
-            }
-            NormalizeModeWasm::UnicodeCompat => {
-                let normalized = inner.normalize_unicode_compat(text);
-                inner.convert(&normalized, config, punctuation)
-            }
-            NormalizeModeWasm::CompatExtended => {
-                let normalized = inner.normalize_compat_extended(text);
-                inner.convert(&normalized, config, punctuation)
-            }
+        let normalized = match norm_mode {
+            NormalizeModeWasm::None => Cow::Borrowed(text),
+            NormalizeModeWasm::Compat => inner.normalize_compat_cow(text),
+            NormalizeModeWasm::UnicodeCompat => inner.normalize_unicode_compat_cow(text),
+            NormalizeModeWasm::CompatExtended => inner.normalize_compat_extended_cow(text),
         };
+        let converted = inner.convert(&normalized, config, punctuation);
 
         match detofu_level {
-            Some(level) => inner.detofu(&converted, level.into()),
+            Some(level) => detofu_converted(inner, converted, level.into()),
             None => converted,
         }
     };
 
     OfficeConverter::convert_bytes_with(input, format, keep_font, &text_converter)
+}
+
+// Keep the conversion allocation when DeTofu leaves its contents unchanged.
+fn detofu_converted(inner: &OpenCC, converted: String, level: DetofuLevel) -> String {
+    match inner.detofu_cow(&converted, level) {
+        Cow::Borrowed(_) => converted,
+        Cow::Owned(output) => output,
+    }
 }
 
 #[wasm_bindgen]
@@ -430,16 +432,11 @@ impl OpenccWasm {
     /// Converts text and then applies DeTofu fallback processing.
     ///
     /// This is equivalent to calling [`Self::convert`] followed by [`Self::detofu`],
-    /// while reusing an internal output buffer for the DeTofu pass.
+    /// while retaining the conversion buffer when DeTofu makes no changes.
     #[wasm_bindgen(js_name = convertDetofu)]
     pub fn convert_detofu(&self, text: &str, punctuation: bool, level: DetofuLevelWasm) -> String {
         let converted = self.convert(text, punctuation);
-        let mut output = String::with_capacity(converted.len());
-
-        self.inner
-            .detofu_into(&converted, level.into(), &mut output);
-
-        output
+        detofu_converted(&self.inner, converted, level.into())
     }
 
     /// Converts a ZIP-based Office or EPUB document entirely in memory.
@@ -566,11 +563,11 @@ pub fn convert_office_bytes_pipeline(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::{Cursor, Read, Write};
-    use zip::{
+    use crate::zip::{
         CompressionMethod, ZipArchive, ZipWriter,
         write::{ExtendedFileOptions, FileOptions},
     };
+    use std::io::{Cursor, Read, Write};
 
     fn make_test_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
         let mut cursor = Cursor::new(Vec::<u8>::new());
@@ -689,9 +686,9 @@ mod tests {
 
     #[test]
     fn test_convert_bytes_docx_real_file() {
+        use crate::zip::ZipArchive;
         use std::fs;
         use std::io::{Cursor, Read};
-        use zip::ZipArchive;
 
         let input_path = "tests/OneDay.docx";
 
@@ -887,5 +884,60 @@ mod tests {
             read_test_zip_entry(&legacy, "word/document.xml"),
             read_test_zip_entry(&pipeline, "word/document.xml")
         );
+    }
+    #[test]
+    fn detofu_keeps_conversion_allocation_when_unchanged() {
+        let cc = OpenccWasm::new(None).unwrap();
+        for text in ["", "ASCII 普通汉字𠀀😀"] {
+            let converted = cc.convert(text, false);
+            let ptr = converted.as_ptr();
+            let capacity = converted.capacity();
+            let output = detofu_converted(&cc.inner, converted, DetofuLevel::ExtB);
+            assert_eq!(output.as_ptr(), ptr);
+            assert_eq!(output.capacity(), capacity);
+        }
+        for text in ["普通汉字", "漢𬴂😀", "儼驂騑於上路"] {
+            for level in [DetofuLevelWasm::ExtB, DetofuLevelWasm::ExtI] {
+                assert_eq!(
+                    cc.convert_detofu(text, true, level),
+                    cc.detofu(&cc.convert(text, true), level)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn office_cow_pipeline_matches_owned_stages() {
+        let cc = OpenccWasm::new(Some("t2s".into())).unwrap();
+        for text in ["ASCII 普通漢字𠀀😀", "天龍聼𬴂😀"] {
+            let input = make_test_zip(&[("word/document.xml", text.as_bytes())]);
+            for mode in [
+                NormalizeModeWasm::None,
+                NormalizeModeWasm::Compat,
+                NormalizeModeWasm::UnicodeCompat,
+                NormalizeModeWasm::CompatExtended,
+            ] {
+                let normalized = match mode {
+                    NormalizeModeWasm::None => text.to_owned(),
+                    NormalizeModeWasm::Compat => cc.normalize_compat(text),
+                    NormalizeModeWasm::UnicodeCompat => cc.normalize_unicode_compat(text),
+                    NormalizeModeWasm::CompatExtended => cc.normalize_compat_extended(text),
+                };
+                for level in [
+                    None,
+                    Some(DetofuLevelWasm::ExtB),
+                    Some(DetofuLevelWasm::ExtI),
+                ] {
+                    let converted = cc.convert(&normalized, true);
+                    let expected = level
+                        .map_or_else(|| converted.clone(), |level| cc.detofu(&converted, level));
+                    let (output, _) = convert_office_bytes_pipeline_core(
+                        &input, "docx", &cc.inner, "t2s", true, true, mode, level,
+                    )
+                    .unwrap();
+                    assert_eq!(read_test_zip_entry(&output, "word/document.xml"), expected);
+                }
+            }
+        }
     }
 }

@@ -15,6 +15,7 @@
 //! creating one does not clone the built-in table.
 
 use rustc_hash::FxHashMap;
+use std::borrow::Cow;
 #[cfg(any(feature = "tofu-bin", test))]
 use std::io;
 use std::path::Path;
@@ -404,6 +405,25 @@ impl DetofuMap {
         self.detofu_into(input, &mut output);
         output
     }
+    /// Applies this map, borrowing unchanged input; custom entries take precedence.
+    pub fn detofu_cow<'a>(&self, input: &'a str) -> Cow<'a, str> {
+        if self.custom.is_empty() {
+            return detofu_cow(input, self.level);
+        }
+        let builtins = tofu_map();
+        let first = crate::lazy_replace::first_replacement(input, |ch| {
+            if let Some(&fallback) = self.custom.get(&ch) {
+                return fallback;
+            }
+            builtin_fallback(ch, self.level, builtins)
+        });
+        let Some(first) = first else {
+            return Cow::Borrowed(input);
+        };
+        let mut output = first.start_output();
+        self.detofu_into(first.rest, &mut output);
+        Cow::Owned(output)
+    }
 }
 
 /// Applies the built-in DeTofu table and appends the result to `output`.
@@ -419,9 +439,7 @@ pub(crate) fn detofu_into(input: &str, level: DetofuLevel, output: &mut String) 
 /// This is the internal built-in-only convenience path used by higher-level
 /// APIs.
 pub(crate) fn detofu(input: &str, level: DetofuLevel) -> String {
-    let mut output = String::with_capacity(input.len());
-    detofu_builtin_into(input, level, &mut output);
-    output
+    detofu_cow(input, level).into_owned()
 }
 
 #[cfg(test)]
@@ -650,5 +668,31 @@ mod bin_tests {
         crate::auxiliary_bin_tests::rejects_corruption(BIN, 9, |bytes| {
             parse_tofu_bin(bytes).map(|_| ())
         });
+    }
+}
+
+pub(crate) fn detofu_cow(input: &str, level: DetofuLevel) -> Cow<'_, str> {
+    let builtins = tofu_map();
+    let first =
+        crate::lazy_replace::first_replacement(input, |ch| builtin_fallback(ch, level, builtins));
+    let Some(first) = first else {
+        return Cow::Borrowed(input);
+    };
+    let mut output = first.start_output();
+    detofu_builtin_into(first.rest, level, &mut output);
+    Cow::Owned(output)
+}
+
+fn builtin_fallback(
+    ch: char,
+    level: DetofuLevel,
+    builtins: &FxHashMap<char, (char, DetofuLevel)>,
+) -> char {
+    if ch < '\u{20000}' {
+        return ch;
+    }
+    match builtins.get(&ch) {
+        Some(&(fallback, entry_level)) if entry_level >= level => fallback,
+        _ => ch,
     }
 }

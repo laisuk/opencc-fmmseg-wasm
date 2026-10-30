@@ -209,3 +209,5 @@ pub use unicode_compat::parse_unicode_compat_bin;
 
 #[cfg(test)]
 mod auxiliary_bin_tests;
+
+mod lazy_replace;

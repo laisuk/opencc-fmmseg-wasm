@@ -11,6 +11,17 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ### Changed
 
 - Updated dictionary data
+- Synced the private ZIP 3.0.0 module and header-validation regressions from the local `opencc-rs` Office converter.
+- Replaced the external `zip` dependency with direct support crates and pure-Rust DEFLATE (`flate2` 1.1.1 /
+  `miniz_oxide`), removing `zopfli` and `zlib-rs` from the dependency graph.
+- Documented ZIP provenance, licensing, dependency structure, and maintenance requirements.
+- Reduce WASM conversion pipeline allocations
+
+### Fixed
+
+- Reject inconsistent ZIP local/central headers, duplicate effective names, and overlapping entries before conversion.
+- Reject Windows drive-relative archive names, alternate data streams, and embedded NULs in addition to existing unsafe
+  path checks; retain the WASM converter's fail-on-unsafe-path policy.
 
 ---
 

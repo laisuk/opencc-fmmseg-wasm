@@ -56,11 +56,11 @@ use std::io::{self, Cursor, Read, Seek, Write};
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::{Path, PathBuf};
 
-use regex::{Captures, Regex};
-use zip::{
+use crate::zip::{
     CompressionMethod, ZipArchive, ZipWriter,
     write::{ExtendedFileOptions, FileOptions},
 };
+use regex::{Captures, Regex};
 
 use crate::text_converter::TextConverter;
 use opencc_fmmseg::OpenCC;
@@ -660,14 +660,9 @@ impl OfficeConverter {
         Ok(None)
     }
 
-    /// Detect unsafe ZIP entry names (zip-slip, `..`, root dirs).
+    /// Detect unsafe ZIP entry names, including Windows drive-relative paths and ADS.
     fn is_unsafe_zip_name(name: &str) -> bool {
-        name.starts_with('/')
-            || name.starts_with('\\')
-            || (name.len() >= 3
-                && name.as_bytes()[1] == b':'
-                && matches!(name.as_bytes()[2], b'/' | b'\\'))
-            || name.split(['/', '\\']).any(|part| part == "..")
+        crate::zip::unsafe_path(name)
     }
 
     /// Replace font declarations with markers, storing originals in `font_map`.
@@ -808,11 +803,11 @@ fn replace_with_temp(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Cursor;
-    use zip::{
+    use crate::zip::{
         CompressionMethod, ZipArchive, ZipWriter,
         write::{ExtendedFileOptions, FileOptions},
     };
+    use std::io::Cursor;
 
     #[cfg(not(target_arch = "wasm32"))]
     mod native_output {
@@ -854,6 +849,54 @@ mod tests {
         }
 
         #[test]
+        fn header_mismatch_in_target_or_raw_asset_preserves_output() {
+            let dir = TestDirectory::new();
+            let input_path = dir.0.join("input.docx");
+            let output_path = dir.0.join("output.docx");
+            let converter = |text: &str| text.to_owned();
+            for malformed_name in [
+                b"word/document.xml".as_slice(),
+                b"assets/image.bin".as_slice(),
+            ] {
+                let mut input = make_zip(&[
+                    ("word/document.xml", b"<t>text</t>"),
+                    ("assets/image.bin", b"inert"),
+                ]);
+                let name = input
+                    .windows(malformed_name.len())
+                    .position(|v| v == malformed_name)
+                    .unwrap();
+                input[name] = b'x';
+                assert!(
+                    OfficeConverter::convert_bytes_with(&input, "docx", false, &converter).is_err()
+                );
+                fs::write(&input_path, &input).unwrap();
+                for existing in [false, true] {
+                    if existing {
+                        fs::write(&output_path, b"original destination").unwrap();
+                    }
+                    assert!(
+                        OfficeConverter::convert_path_stream_with(
+                            input_path.to_str().unwrap(),
+                            output_path.to_str().unwrap(),
+                            "docx",
+                            false,
+                            &converter,
+                        )
+                        .is_err()
+                    );
+                    if existing {
+                        assert_eq!(fs::read(&output_path).unwrap(), b"original destination");
+                        fs::remove_file(&output_path).unwrap();
+                    } else {
+                        assert!(!output_path.exists());
+                    }
+                    dir.assert_entries(1);
+                }
+            }
+        }
+
+        #[test]
         fn path_conversion_creates_and_replaces_destination() {
             let dir = TestDirectory::new();
             let input = dir.0.join("input.docx");
@@ -885,8 +928,7 @@ mod tests {
             fs::write(&output, b"original").unwrap();
             let error = replace_with_temp(&output, |writer| {
                 write_test_zip(writer)?;
-                Err(io::Error::new(
-                    io::ErrorKind::Other,
+                Err(io::Error::other(
                     "injected write failure",
                 ))
             })
@@ -1049,6 +1091,73 @@ mod tests {
             );
             OfficeConverter::validate_zip_file(&output).unwrap();
             dir.assert_entries(2);
+        }
+    }
+
+    #[test]
+    fn all_document_formats_rebuild_and_validate_with_raw_assets() {
+        for (format, part) in [
+            ("docx", "word/document.xml"),
+            ("xlsx", "xl/sharedStrings.xml"),
+            ("pptx", "ppt/slides/slide1.xml"),
+            ("odt", "content.xml"),
+            ("ods", "content.xml"),
+            ("odp", "content.xml"),
+            ("epub", "OEBPS/chapter.xhtml"),
+        ] {
+            let mut entries = vec![
+                (part, "<t>汉语</t>".as_bytes()),
+                ("assets/image.bin", &b"inert binary\0data"[..]),
+            ];
+            if format == "epub" {
+                entries.push(("mimetype", b"application/epub+zip"));
+            }
+            let input = make_zip(&entries);
+            let converter = |text: &str| text.replace("汉语", "漢語");
+            let (output, count) =
+                OfficeConverter::convert_bytes_with(&input, format, true, &converter).unwrap();
+            assert_eq!(count, 1, "{format}");
+            assert_eq!(read_zip_entry(&output, part), "<t>漢語</t>");
+            assert_eq!(
+                read_zip_entry(&output, "assets/image.bin"),
+                "inert binary\0data"
+            );
+            let mut rebuilt = ZipArchive::new(Cursor::new(&output)).unwrap();
+            for i in 0..rebuilt.len() {
+                io::copy(&mut rebuilt.by_index(i).unwrap(), &mut io::sink()).unwrap();
+            }
+            if format == "epub" {
+                let first = rebuilt.by_index(0).unwrap();
+                assert_eq!(first.name(), "mimetype");
+                assert_eq!(first.compression(), CompressionMethod::Stored);
+            }
+        }
+    }
+
+    #[test]
+    fn portable_unsafe_paths_are_rejected() {
+        let converter = |text: &str| text.to_owned();
+        for name in [
+            "../outside",
+            "a/../../outside",
+            "a\\..\\outside",
+            "/rooted",
+            "\\rooted",
+            "C:/absolute",
+            "C:relative",
+            "safe:stream",
+            "nul\0suffix",
+            "//server/share",
+        ] {
+            assert!(OfficeConverter::is_unsafe_zip_name(name), "{name:?}");
+            let input = make_zip(&[("word/document.xml", b"<t>text</t>"), (name, b"inert")]);
+            let error = OfficeConverter::convert_bytes_with(&input, "docx", false, &converter)
+                .expect_err("unsafe archive path must fail conversion");
+            assert_eq!(error.kind(), io::ErrorKind::InvalidData, "{name:?}");
+            assert!(
+                error.to_string().contains("Unsafe ZIP entry path"),
+                "{name:?}"
+            );
         }
     }
 
