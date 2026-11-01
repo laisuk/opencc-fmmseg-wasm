@@ -6,6 +6,24 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [0.5.3] - Unreleased
+
+### Performance
+
+- Optimized font placeholder restoration during Office and EPUB document conversion.
+- Replaced repeated whole-document string replacements with a single-pass restoration algorithm, avoiding quadratic
+  performance degradation when processing documents containing numerous font declarations.
+- Reduced unnecessary string allocations and repeated scans of XML/XHTML content.
+- Preserved existing font declarations, placeholder formats, conversion behavior, and public APIs.
+- Improved performance for font-heavy documents, particularly large EPUB files with thousands of font declarations.
+
+### Tests
+
+- Added regression coverage for font placeholder restoration, including known and unknown placeholders and non-recursive
+  replacement behavior.
+
+---
+
 ## [0.5.2] - 2026-10-30
 
 ### Changed
