@@ -43,6 +43,13 @@
             border: 1px solid #ccc;
         }
 
+        .char-count {
+            font-size: 0.8em;
+            font-weight: normal;
+            color: #888;
+            white-space: nowrap;
+        }
+
         .cm-editor {
             height: 360px;
             font-size: 16px;
@@ -140,7 +147,9 @@
 
 <div class="editor-grid">
     <div>
-        <h3>Input (<span id="inputCount">0</span> characters)</h3>
+        <h3>
+            Input <span class="char-count">(<span id="inputCount">0</span> characters)</span>
+        </h3>
         <button id="pasteBtn">Paste</button>
         <button id="normalizeBtn">Normalize</button>
         <button id="gbMojibakeBtn">GB Mojibake</button>
@@ -149,7 +158,9 @@
     </div>
 
     <div>
-        <h3>Output (<span id="outputCount">0</span> characters)</h3>
+        <h3>
+            Output <span class="char-count">(<span id="outputCount">0</span> characters)</span>
+        </h3>
         <button id="copyBtn">Copy</button>
         <button id="deTofuBtn">DeTofu</button>
         <button id="clearOutputBtn">Clear</button>
