@@ -6,63 +6,352 @@
     <title>Opencc-Fmmseg — CJK Conversion Tool</title>
 
     <style>
+        :root {
+            color-scheme: light;
+            --page: #f5f7fb;
+            --surface: #ffffff;
+            --surface-soft: #f8faff;
+            --text: #17243a;
+            --muted: #65748b;
+            --border: #dfe5ee;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --accent-soft: #eaf1ff;
+            --shadow: 0 8px 28px rgba(28, 47, 83, .055);
+            --editor-bg: #fff;
+            --editor-gutter: #f8faff;
+            --editor-line: #a0aec0;
+            --focus: rgba(37, 99, 235, .24);
+        }
+
+        :root[data-theme="dark"] {
+            color-scheme: dark;
+            --page: #0d1421;
+            --surface: #151f30;
+            --surface-soft: #1b2940;
+            --text: #e8eef9;
+            --muted: #a2b1c8;
+            --border: #304158;
+            --accent: #80aaff;
+            --accent-hover: #a4c2ff;
+            --accent-soft: #213a60;
+            --shadow: 0 8px 30px rgba(0, 0, 0, .18);
+            --editor-bg: #151f30;
+            --editor-gutter: #19273a;
+            --editor-line: #8194af;
+            --focus: rgba(128, 170, 255, .3);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: sans-serif;
-            margin: 20px;
-        }
-
-        input, select, button {
-            margin-top: 10px;
-            padding: 6px;
+            margin: 0;
+            min-height: 100vh;
+            background: var(--page);
+            color: var(--text);
+            font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
             font-size: 14px;
+            line-height: 1.5;
         }
 
-        .row {
-            margin-top: 10px;
+        .app-shell {
+            max-width: 1480px;
+            margin: 0 auto;
+            padding: 28px clamp(14px, 3vw, 42px) 48px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 18px;
+            margin-bottom: 24px;
+        }
+
+        .brand h1 {
+            margin: 0;
+            font-size: clamp(23px, 2.6vw, 30px);
+            letter-spacing: -.035em;
+            line-height: 1.25;
+        }
+
+        .brand p {
+            margin: 5px 0 0;
+            color: var(--muted);
+        }
+
+        .brand-mark {
+            color: var(--accent);
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: var(--shadow);
+        }
+
+        .section-heading {
+            margin: 0 0 14px;
+            font-size: 16px;
+            font-weight: 650;
         }
 
         .config-row {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 12px;
             flex-wrap: wrap;
         }
 
         .config-row select {
-            margin-top: 0;
+            min-width: 160px;
+        }
+
+        .config-description {
+            color: var(--muted);
+        }
+
+        .supported-line {
+            margin-top: 12px;
+            color: var(--muted);
+            font-size: 12px;
+            overflow-wrap: anywhere;
         }
 
         .editor-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            margin-top: 10px;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 18px;
+            margin: 18px 0;
         }
 
-        .editor-box {
-            border: 1px solid #ccc;
+        .editor-grid > .panel + .panel {
+            margin-top: 0;
+        }
+
+        .editor-panel {
+            min-width: 0;
+        }
+
+        .editor-header {
+            display: flex;
+            align-items: baseline;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .editor-header h3 {
+            margin: 0;
+            font-size: 17px;
         }
 
         .char-count {
-            font-size: 0.8em;
-            font-weight: normal;
-            color: #888;
+            color: var(--muted);
+            font-weight: 400;
+            font-size: 12px;
             white-space: nowrap;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 7px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        button, select {
+            font: inherit;
+        }
+
+        button {
+            cursor: pointer;
+            padding: 8px 12px;
+            border-radius: 9px;
+            border: 1px solid var(--border);
+            background: var(--surface-soft);
+            color: var(--text);
+            font-weight: 550;
+            transition: background .15s, border-color .15s;
+        }
+
+        button:hover:not(:disabled) {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        button:disabled {
+            opacity: .45;
+            cursor: not-allowed;
+        }
+
+        button.primary {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+            padding-inline: 24px;
+        }
+
+        button.primary:hover:not(:disabled) {
+            background: #1d4ed8;
+            border-color: #1d4ed8;
+        }
+
+        .theme-toggle {
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+
+        select {
+            padding: 8px 30px 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            color: var(--text);
+            background: var(--surface);
+            max-width: 100%;
+        }
+
+        button:focus-visible, select:focus-visible, input:focus-visible, .office-drop:focus-visible {
+            outline: 3px solid var(--focus);
+            outline-offset: 2px;
+        }
+
+        .editor-box {
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            background: var(--editor-bg);
         }
 
         .cm-editor {
             height: 360px;
             font-size: 16px;
+            background: var(--editor-bg) !important;
+            color: var(--text) !important;
+        }
+
+        .cm-editor.cm-focused {
+            outline: 2px solid var(--accent);
+            outline-offset: -2px;
         }
 
         .cm-scroller {
             overflow: auto;
-            font-family: Consolas, "Courier New", monospace;
+            font-family: Consolas, "Cascadia Code", "Microsoft YaHei", monospace;
+        }
+
+        .cm-editor .cm-content {
+            caret-color: var(--text);
+        }
+
+        .cm-editor .cm-cursor {
+            border-left-color: var(--text);
+        }
+
+        .cm-editor .cm-gutters {
+            background: var(--editor-gutter);
+            color: var(--editor-line);
+            border-right: 1px solid var(--border);
+        }
+
+        .cm-editor .cm-activeLine, .cm-editor .cm-activeLineGutter {
+            background: var(--accent-soft);
+        }
+
+        .cm-editor .cm-selectionBackground, .cm-editor.cm-focused .cm-selectionBackground,
+        .cm-editor .cm-content ::selection {
+            background: var(--focus) !important;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px 16px;
+        }
+
+        .controls label {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        input[type="checkbox"] {
+            accent-color: var(--accent);
+            width: 16px;
+            height: 16px;
+        }
+
+        .file-name {
+            color: var(--muted);
+            overflow-wrap: anywhere;
+        }
+
+        .file-actions {
+            margin-top: 14px;
+        }
+
+        .encoding-row {
+            margin-top: 14px;
+        }
+
+        .office-drop {
+            margin-top: 18px;
+            padding: 28px 16px;
+            border: 2px dashed var(--border);
+            border-radius: 12px;
+            text-align: center;
+            cursor: pointer;
+            user-select: none;
+            background: var(--surface-soft);
+            transition: background .15s, border-color .15s;
+        }
+
+        .office-drop:hover:not(.disabled), .office-drop.dragover {
+            border-color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .office-drop.disabled {
+            opacity: .55;
+            cursor: default;
+            pointer-events: none;
+        }
+
+        .office-drop small {
+            display: block;
+            margin-top: 6px;
+            color: var(--muted);
+        }
+
+        .office-result {
+            margin-top: 14px;
+            text-align: center;
+        }
+
+        .office-result[hidden], [hidden] {
+            display: none !important;
+        }
+
+        pre {
+            margin: 0;
+            background: var(--surface-soft);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 15px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            color: var(--text);
+            font: 13px/1.6 Consolas, "Cascadia Code", monospace;
         }
 
         @media (max-width: 900px) {
             .editor-grid {
-                grid-template-columns: 1fr;
+                grid-template-columns: minmax(0, 1fr);
             }
 
             .cm-editor {
@@ -71,154 +360,175 @@
         }
 
         @media (max-width: 480px) {
-            body {
-                margin: 10px;
+            .app-shell {
+                padding: 16px 10px 30px;
+            }
+
+            .panel {
+                padding: 14px;
+                border-radius: 12px;
+            }
+
+            .topbar {
+                align-items: flex-start;
             }
 
             .cm-editor {
                 height: 240px;
             }
+
+            .toolbar button {
+                padding: 7px 10px;
+            }
+
+            .brand h1 {
+                font-size: 21px;
+            }
         }
 
-        pre {
-            background: #f3f3f3;
-            padding: 12px;
-            white-space: pre-wrap;
-        }
-
-        .office-drop {
-            margin-top: 16px;
-            padding: 24px;
-            border: 2px dashed #aaa;
-            border-radius: 8px;
-            text-align: center;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .office-drop.dragover {
-            border-color: #555;
-            background: #f7f7f7;
-        }
-
-        .office-drop.disabled {
-            opacity: 0.55;
-            cursor: default;
-            pointer-events: none;
-        }
-
-        .office-drop small {
-            display: block;
-            margin-top: 6px;
-        }
-
-        .office-result {
-            margin-top: 10px;
-            text-align: center;
-        }
-
-        .office-result[hidden] {
-            display: none;
-        }
-
-        @media (max-width: 900px) {
-            .editor-grid {
-                grid-template-columns: 1fr;
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                transition: none !important;
             }
         }
     </style>
 </head>
 
 <body>
+<div class="app-shell">
+    <header class="topbar">
+        <div class="brand">
+            <h1><span class="brand-mark">◈</span> Opencc-Fmmseg</h1>
+            <p>CJK Conversion Tool · WebAssembly</p>
+        </div>
+        <button type="button" id="themeToggle" class="theme-toggle" aria-label="Switch color theme"
+                aria-pressed="false">☾ Dark
+        </button>
+    </header>
 
-<h1>Opencc-Fmmseg — CJK Conversion Tool</h1>
+    <section class="panel" aria-label="Conversion settings">
+        <div class="config-row">
+            <label for="config"><strong>Configuration</strong></label>
+            <select id="config"></select>
+            <span id="configDescription" class="config-description"></span>
+        </div>
+        <div class="supported-line"><strong>Supported configs:</strong> <span id="supported"></span></div>
+    </section>
 
-<div class="row config-row">
-    <label for="config">Config:</label>
-    <select id="config"></select>
-    <span id="configDescription"></span>
-
-</div>
-
-<div class="row">
-    <strong>Supported configs:</strong>
-    <span id="supported"></span>
-</div>
-
-<div class="editor-grid">
-    <div>
-        <h3>
-            Input <span class="char-count">(<span id="inputCount">0</span> characters)</span>
-        </h3>
-        <button id="pasteBtn">Paste</button>
-        <button id="normalizeBtn">Normalize</button>
-        <button id="gbMojibakeBtn">GB Mojibake</button>
-        <button id="clearInputBtn">Clear</button>
-        <div id="editor-left" class="editor-box"></div>
+    <div class="editor-grid">
+        <section class="panel editor-panel" aria-label="Input editor">
+            <div class="editor-header"><h3>Input</h3><span class="char-count">(<span id="inputCount">0</span> characters)</span>
+            </div>
+            <div class="toolbar">
+                <button id="pasteBtn">Paste</button>
+                <button id="normalizeBtn">Normalize</button>
+                <button id="gbMojibakeBtn">GB Mojibake</button>
+                <button id="clearInputBtn">Clear</button>
+            </div>
+            <div id="editor-left" class="editor-box"></div>
+        </section>
+        <section class="panel editor-panel" aria-label="Output editor">
+            <div class="editor-header"><h3>Output</h3><span class="char-count">(<span id="outputCount">0</span> characters)</span>
+            </div>
+            <div class="toolbar">
+                <button id="copyBtn">Copy</button>
+                <button id="deTofuBtn">DeTofu</button>
+                <button id="clearOutputBtn">Clear</button>
+                <button id="downloadOutputBtn">Download</button>
+                <a id="outputDownloadLink" hidden></a>
+            </div>
+            <div id="editor-right" class="editor-box"></div>
+        </section>
     </div>
 
-    <div>
-        <h3>
-            Output <span class="char-count">(<span id="outputCount">0</span> characters)</span>
-        </h3>
-        <button id="copyBtn">Copy</button>
-        <button id="deTofuBtn">DeTofu</button>
-        <button id="clearOutputBtn">Clear</button>
-        <button id="downloadOutputBtn">Download</button>
-        <a id="outputDownloadLink" hidden></a>
-        <div id="editor-right" class="editor-box"></div>
-    </div>
+    <section class="panel" aria-label="Text conversion and file tools">
+        <div class="controls"><label><input type="checkbox" id="punctuation"> Enable punctuation conversion</label>
+        </div>
+        <div class="controls file-actions">
+            <input id="textFile" type="file" accept=".txt,.md" hidden>
+            <button id="openFileBtn">Open File</button>
+            <button id="btn" class="primary">Convert →</button>
+            <span id="openedFileName" class="file-name"></span>
+        </div>
+        <div class="controls encoding-row">
+            <label><input type="checkbox" id="autoDetectDropEncoding" checked> Auto-detect text encoding in Drop
+                Zone</label>
+        </div>
+        <div class="controls encoding-row">
+            <label for="textEncoding">Text file encoding:</label>
+            <select id="textEncoding">
+                <option value="utf-8" selected>UTF-8</option>
+                <option value="utf-16le">UTF-16 LE</option>
+                <option value="utf-16be">UTF-16 BE</option>
+                <option value="gb18030">GB18030 / GBK</option>
+                <option value="big5">Big5</option>
+                <option value="shift_jis">Shift-JIS</option>
+            </select>
+        </div>
+        <div id="officeDrop" class="office-drop disabled" role="button" tabindex="0" aria-disabled="true">
+            <strong>Click to open or drop a document, EPUB or text file here</strong>
+            <small>DOCX, XLSX, PPTX, EPUB, TXT, MD — converted locally in your browser; nothing is uploaded</small>
+            <small>TXT/MD auto-detects encoding when enabled; otherwise uses the selected encoding. Office documents and
+                EPUB handle encoding internally.</small>
+            <input id="officeFile" type="file" accept=".docx,.xlsx,.pptx,.epub,.txt,.md" hidden>
+        </div>
+        <div id="officeResult" class="office-result" hidden>
+            <span id="officeResultText"></span>
+            <button id="officeDownloadBtn" type="button">Download converted file</button>
+        </div>
+    </section>
+
+    <section class="panel" aria-label="Status">
+        <h3 class="section-heading">Status</h3>
+        <pre id="out" role="status" aria-live="polite">Loading engine...</pre>
+    </section>
 </div>
+<script>
+    // Respect the OS theme unless the user explicitly selects one.
+    (() => {
+        const root = document.documentElement;
+        const button = document.getElementById('themeToggle');
+        const media = window.matchMedia('(prefers-color-scheme: dark)');
+        let preference = null;
+        try {
+            preference = localStorage.getItem('opencc-theme');
+        } catch (_) { /* storage may be blocked */
+        }
+        if (preference !== 'light' && preference !== 'dark') preference = null;
 
-<div class="row">
-    <label>
-        <input type="checkbox" id="punctuation">
-        Enable punctuation conversion
-    </label>
-</div>
+        function applyTheme() {
+            const dark = preference ? preference === 'dark' : media.matches;
+            root.dataset.theme = dark ? 'dark' : 'light';
+            button.textContent = dark ? '☀ Light' : '☾ Dark';
+            button.setAttribute('aria-pressed', String(dark));
+            button.setAttribute('aria-label', dark ? 'Switch to light theme' : 'Switch to dark theme');
+        }
 
-<div class="row">
-    <input id="textFile" type="file" accept=".txt,.md" hidden>
-    <button id="openFileBtn">Open File</button>
-    <button id="btn">Convert</button>
-    <span id="openedFileName"></span>
-</div>
-
-<div class="row">
-    <label for="textEncoding">Text file encoding:</label>
-    <select id="textEncoding">
-        <option value="utf-8" selected>UTF-8</option>
-        <option value="utf-16le">UTF-16 LE</option>
-        <option value="utf-16be">UTF-16 BE</option>
-        <option value="gb18030">GB18030 / GBK</option>
-        <option value="big5">Big5</option>
-        <option value="shift_jis">Shift-JIS</option>
-    </select>
-</div>
-
-<div id="officeDrop" class="office-drop disabled" role="button" tabindex="0" aria-disabled="true">
-    <strong>Click to open or drop a document, EPUB or text file here</strong>
-    <small>DOCX, XLSX, PPTX, EPUB, TXT, MD — converted locally in your browser; nothing is uploaded</small>
-    <small>TXT/MD uses the selected encoding; Office documents and EPUB handle text encoding internally.</small>
-    <input id="officeFile"
-           type="file"
-           accept=".docx,.xlsx,.pptx,.epub,.txt,.md"
-           hidden>
-</div>
-
-<div id="officeResult" class="office-result" hidden>
-    <span id="officeResultText"></span>
-    <button id="officeDownloadBtn" type="button">Download converted file</button>
-</div>
-
-<h3>Status</h3>
-<pre id="out">Loading engine...</pre>
-
+        button.addEventListener('click', () => {
+            preference = root.dataset.theme === 'dark' ? 'light' : 'dark';
+            try {
+                localStorage.setItem('opencc-theme', preference);
+            } catch (_) { /* optional */
+            }
+            applyTheme();
+        });
+        if (media.addEventListener) media.addEventListener('change', () => {
+            if (!preference) applyTheme();
+        });
+        else if (media.addListener) media.addListener(() => {
+            if (!preference) applyTheme();
+        });
+        applyTheme();
+    })();
+</script>
 <script type="module">
+    // For remote distribution:
     // import init, {
     //     OpenccWasm,
     //     DetofuLevelWasm
     // } from "https://cdn.jsdelivr.net/npm/@laisuk/opencc-fmmseg-wasm/opencc_fmmseg_wasm.js";
+
+    // For local debugging:
     import init, {
         OpenccWasm,
         DetofuLevelWasm
@@ -424,6 +734,7 @@
 
     const textFile = document.getElementById("textFile");
     const textEncoding = document.getElementById("textEncoding");
+    const autoDetectDropEncoding = document.getElementById("autoDetectDropEncoding");
 
     function decodeTextBytes(bytes, encoding) {
         return new TextDecoder(encoding, {fatal: false}).decode(bytes);
@@ -612,9 +923,21 @@
                 document.getElementById("punctuation").checked;
 
             let outputBytes;
+            let inputEncoding = null;
+            let encodingSource = null;
 
             if (format === "txt" || format === "md") {
-                const text = decodeTextBytes(inputBytes, textEncoding.value);
+                inputEncoding = textEncoding.value;
+                encodingSource = "manual";
+                if (autoDetectDropEncoding.checked) {
+                    const detected = detectCjkEncoding(inputBytes);
+                    if (!detected.detected) {
+                        throw new Error("Unable to detect text encoding. Uncheck Auto-detect text encoding in Drop Zone and select an encoding manually.");
+                    }
+                    inputEncoding = detected.encoding;
+                    encodingSource = "auto-detected";
+                }
+                const text = decodeTextBytes(inputBytes, inputEncoding);
                 const converted = cc.convert(text, punctuation);
                 outputBytes = new TextEncoder().encode(converted);
             } else {
@@ -642,6 +965,7 @@
                 `Config: ${cc.getConfig()}\n` +
                 `Punctuation: ${punctuation ? "enabled" : "disabled"}\n` +
                 `Input: ${file.name}\n` +
+                (inputEncoding ? `Text encoding: ${inputEncoding} (${encodingSource})\n` : "") +
                 `Output: ${officeDownloadName}\n` +
                 `Conversion time: ${conversionMs.toFixed(2)} ms\n` +
                 `Click Download converted file when ready.`;
