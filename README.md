@@ -32,13 +32,26 @@ Package profile:
 - 24 conversion configs
 - 100% offline
 
-### 🌐 Live Demo
+### *🌐 Live Demo*
 
 Try `opencc-fmmseg-wasm` directly in your browser:
 
 **[Open the live WASM demo: CJK Conversion Tool](https://laisuk.github.io/opencc-fmmseg-wasm/)**
 
-No installation or server backend required.
+The interactive demo includes:
+
+- **Chinese Conversion** — Simplified, Traditional, regional variants, and Small Seal Script.
+- **Custom Dictionaries** — Add multiple dictionary slots with Append/Override modes, apply changes instantly, and reset
+  to defaults.
+- **Document Conversion** — Convert DOCX, XLSX, PPTX, EPUB, TXT, and Markdown files directly in your browser.
+- **Automatic Encoding Detection** — Detect UTF-8, UTF-16, GB18030/GBK, Big5, and Shift-JIS for text files, with manual
+  override.
+- **Additional Tools** — Unicode compatibility normalization, DeTofu, punctuation conversion, and GB mojibake repair.
+- **Modern Interface** — Responsive layout with automatic Light/Dark Theme support.
+
+All conversions run **locally in your browser using WebAssembly**. Your files are never uploaded to a server.
+
+**No installation or server backend required.**
 
 ---
 
@@ -610,7 +623,8 @@ opencc-fmmseg-wasm
 ```
 
 The support crates are direct Cargo dependencies because the ZIP module is compiled as part of this crate. The external
-`zip`, `zopfli`, and `zlib-rs` dependencies have been removed. DEFLATE bytes may differ from earlier builds while retaining
+`zip`, `zopfli`, and `zlib-rs` dependencies have been removed. DEFLATE bytes may differ from earlier builds while
+retaining
 the same decoded content. See [ZIP vendoring notes](src/zip/VENDOR_NOTES.md) for provenance, validation limits, and
 maintenance guidance. Inspect the resolved graph with
 `cargo tree -p opencc-fmmseg-wasm --target wasm32-unknown-unknown`.

@@ -220,6 +220,69 @@
             outline-offset: 2px;
         }
 
+        .dictionary-heading, .dictionary-fields, .dictionary-actions, .dictionary-entries-heading {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .dictionary-heading {
+            margin-bottom: 12px;
+        }
+
+        .dictionary-heading h3 {
+            margin: 0;
+        }
+
+        .dictionary-status {
+            border-radius: 999px;
+            padding: 3px 10px;
+            background: var(--accent-soft);
+            color: var(--accent);
+            font-size: 12px;
+            overflow-wrap: anywhere;
+        }
+
+        .dictionary-help {
+            color: var(--muted);
+        }
+
+        .dictionary-card {
+            min-width: 0;
+            padding: 14px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--surface-soft);
+        }
+
+        .dictionary-fields label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .dictionary-card textarea {
+            display: block;
+            width: 100%;
+            min-height: 130px;
+            margin-top: 10px;
+            padding: 10px;
+            resize: vertical;
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            background: var(--editor-bg);
+            color: var(--text);
+            font: 14px/1.5 ui-monospace, monospace;
+            tab-size: 4;
+        }
+
+        .dictionary-card textarea:focus-visible {
+            outline: 3px solid var(--focus);
+            outline-offset: 2px;
+        }
+
         .editor-box {
             border: 1px solid var(--border);
             border-radius: 10px;
@@ -441,6 +504,25 @@
         </section>
     </div>
 
+    <section class="panel" aria-labelledby="dictionaryHeading">
+        <div class="dictionary-heading">
+            <h3 id="dictionaryHeading" class="section-heading">Custom Dictionaries</h3>
+            <span id="dictionaryStatus" class="dictionary-status" role="status" aria-live="polite">Default</span>
+        </div>
+        <p id="dictionaryHelp" class="dictionary-help">Enter source and target separated by a TAB (paste it or press Tab
+            in the entry box; Escape then Tab leaves it). Blank lines and # comments are ignored. As in the CLI, only
+            the first target word is used. Each slot may appear once. Slots affect only configurations that use
+            them.</p>
+        <div id="dictionaryCards"></div>
+        <div class="dictionary-actions">
+            <button id="addDictionaryBtn" type="button" disabled>Add New Custom Dictionary</button>
+            <button id="applyDictionariesBtn" type="button" class="primary" disabled>Apply Dictionaries</button>
+            <button id="resetDictionariesBtn" type="button" disabled>Reset to Default</button>
+        </div>
+        <p class="dictionary-help">Edits are drafts until applied. Reset restores default dictionaries and retains draft
+            cards for editing.</p>
+    </section>
+
     <section class="panel" aria-label="Text conversion and file tools">
         <div class="controls"><label><input type="checkbox" id="punctuation"> Enable punctuation conversion</label>
         </div>
@@ -522,13 +604,16 @@
     })();
 </script>
 <script type="module">
-    // For remote distribution:
-    // import init, {
-    //     OpenccWasm,
-    //     DetofuLevelWasm
-    // } from "https://cdn.jsdelivr.net/npm/@laisuk/opencc-fmmseg-wasm/opencc_fmmseg_wasm.js";
+    // ------ For remote distribution: ------
+    /*
+        import init, {
+            OpenccWasm,
+            DetofuLevelWasm
+        } from "https://cdn.jsdelivr.net/npm/@laisuk/opencc-fmmseg-wasm/opencc_fmmseg_wasm.js";
+    */
 
-    // For local debugging:
+    // ------ For local debugging: ------
+
     import init, {
         OpenccWasm,
         DetofuLevelWasm
@@ -590,6 +675,143 @@
             configDescriptions[configInput.value] ?? "";
     }
 
+    const dictionaryCards = document.getElementById("dictionaryCards");
+    const dictionaryStatus = document.getElementById("dictionaryStatus");
+    const addDictionaryBtn = document.getElementById("addDictionaryBtn");
+    const applyDictionariesBtn = document.getElementById("applyDictionariesBtn");
+    const resetDictionariesBtn = document.getElementById("resetDictionariesBtn");
+    let availableDictionarySlots = [];
+    let dictionaryCardId = 0;
+    let dictionaryBusy = false;
+
+    function addDictionaryCard() {
+        const id = ++dictionaryCardId;
+        const card = document.createElement("div");
+        card.className = "dictionary-card";
+        card.innerHTML = `
+            <div class="dictionary-fields">
+                <strong>Dictionary ${id}</strong>
+                <label for="dictionarySlot${id}">Slot <select id="dictionarySlot${id}" class="dictionary-slot"></select></label>
+                <label for="dictionaryMode${id}">Mode <select id="dictionaryMode${id}" class="dictionary-mode"><option value="append">append</option><option value="override">override</option></select></label>
+                <button type="button" aria-label="Remove dictionary ${id}">Remove</button>
+            </div>
+            <div class="dictionary-entries-heading">
+                <label for="dictionaryPairs${id}">Entries</label>
+                <button type="button" class="dictionary-insert-tab">Insert Tab at cursor</button>
+            </div>
+            <textarea id="dictionaryPairs${id}" aria-describedby="dictionaryHelp" spellcheck="false" placeholder="source&#9;target"></textarea>`;
+        card.dataset.dictionaryId = String(id);
+        const slotSelect = card.querySelector("select");
+        for (const slot of availableDictionarySlots) {
+            const option = document.createElement("option");
+            option.value = option.textContent = slot;
+            slotSelect.appendChild(option);
+        }
+        const used = new Set(Array.from(dictionaryCards.querySelectorAll(".dictionary-slot"), el => el.value));
+        slotSelect.value = availableDictionarySlots.find(slot => !used.has(slot)) ?? availableDictionarySlots[0];
+        card.querySelector("button").onclick = () => card.remove();
+        const textarea = card.querySelector("textarea");
+        const insertTabButton = card.querySelector(".dictionary-insert-tab");
+        // Keep the textarea selection when a pointer taps the button, including on mobile.
+        insertTabButton.addEventListener("pointerdown", event => event.preventDefault());
+        insertTabButton.addEventListener("click", () => {
+            const start = textarea.selectionStart;
+            const end = textarea.selectionEnd;
+            textarea.focus({preventScroll: true});
+            textarea.setRangeText("\t", start, end, "end");
+        });
+        let escapeTab = false;
+        textarea.addEventListener("keydown", event => {
+            if (event.key === "Tab" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey && !escapeTab) {
+                event.preventDefault();
+                textarea.setRangeText("\t", textarea.selectionStart, textarea.selectionEnd, "end");
+            }
+            escapeTab = event.key === "Escape";
+        });
+        dictionaryCards.appendChild(card);
+        slotSelect.focus();
+    }
+
+    function parseDictionaryCards() {
+        const seen = new Set();
+        const specs = [];
+        for (const card of dictionaryCards.children) {
+            const prefix = `Dictionary ${card.dataset.dictionaryId}`;
+            const slot = card.querySelector(".dictionary-slot").value;
+            const mode = card.querySelector(".dictionary-mode").value;
+            if (!availableDictionarySlots.includes(slot)) throw new Error(`${prefix}: invalid slot: ${slot}`);
+            if (mode !== "append" && mode !== "override") throw new Error(`${prefix}: invalid mode: ${mode}`);
+            if (seen.has(slot)) throw new Error(`${prefix}: duplicate slot ${slot}. Use one card per slot.`);
+            seen.add(slot);
+            const pairs = [];
+            const lines = card.querySelector("textarea").value.split(/\r?\n/);
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i];
+                if (i === 0 && line.charCodeAt(0) === 0xfeff) line = line.slice(1);
+                line = line.trimEnd();
+                if (!line || line.trimStart().startsWith("#")) continue;
+                const tab = line.indexOf("\t");
+                if (tab < 0) throw new Error(`${prefix}, line ${i + 1}: missing TAB separator`);
+                const source = line.substring(0, tab).trim();
+                const target = line.substring(tab + 1).trim().split(/\s+/)[0] || "";
+                if (!source || !target) throw new Error(`${prefix}, line ${i + 1}: empty source or target`);
+                pairs.push([source, target]);
+            }
+            if (!pairs.length) throw new Error(`${prefix}: no usable entries. Enter at least one source-TAB-target pair.`);
+            specs.push({slot, mode, pairs});
+        }
+        if (!specs.length) throw new Error("Add a dictionary before applying, or use Reset to Default.");
+        return specs;
+    }
+
+    async function replaceDictionaries(reset = false) {
+        if (!cc || dictionaryBusy) return;
+        dictionaryBusy = true;
+        applyDictionariesBtn.disabled = resetDictionariesBtn.disabled = addDictionaryBtn.disabled = true;
+        let replacement = null;
+        try {
+            const specs = reset ? [] : parseDictionaryCards();
+            // Yield with the guard held so queued repeated clicks cannot start another swap.
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            const config = cc.getConfig();
+            const preserveIds = cc.getPreserveIds();
+            replacement = reset ? new OpenccWasm(config) : OpenccWasm.newWithCustomDicts(config, specs);
+            replacement.setPreserveIds(preserveIds);
+            if (replacement.getConfig() !== config || replacement.getPreserveIds() !== preserveIds) {
+                throw new Error("Replacement converter settings could not be restored.");
+            }
+            const entries = specs.reduce((sum, spec) => sum + spec.pairs.length, 0);
+            const status = reset ? "Default" : `Custom (${specs.length} ${specs.length === 1 ? "slot" : "slots"} - ${entries} ${entries === 1 ? "entry" : "entries"})`;
+            const previous = cc;
+            cc = replacement;
+            replacement = null;
+            dictionaryStatus.textContent = status;
+            out.textContent = `${reset ? "Default dictionaries restored. Draft cards retained." : "Custom dictionaries applied."}\n${status}\nConfig: ${config}`;
+            // Cleanup failure must not undo a successfully installed converter.
+            try {
+                previous.free();
+            } catch (error) {
+                console.error("Previous converter cleanup failed", error);
+            }
+        } catch (error) {
+            out.textContent = `Dictionaries unchanged: ${error instanceof Error ? error.message : String(error)}`;
+        } finally {
+            if (replacement) {
+                try {
+                    replacement.free();
+                } catch (error) {
+                    console.error("Replacement cleanup failed", error);
+                }
+            }
+            dictionaryBusy = false;
+            applyDictionariesBtn.disabled = resetDictionariesBtn.disabled = addDictionaryBtn.disabled = false;
+        }
+    }
+
+    addDictionaryBtn.onclick = addDictionaryCard;
+    applyDictionariesBtn.onclick = () => replaceDictionaries();
+    resetDictionariesBtn.onclick = () => replaceDictionaries(true);
+
     let cc = null;
     let officeDownloadUrl = null;
     let officeDownloadName = "";
@@ -635,6 +857,9 @@
         await init();
 
         cc = new OpenccWasm();
+
+        availableDictionarySlots = OpenccWasm.getAvailableSlots();
+        addDictionaryBtn.disabled = applyDictionariesBtn.disabled = resetDictionariesBtn.disabled = false;
 
         const configs = OpenccWasm.getSupportedConfigs();
 
