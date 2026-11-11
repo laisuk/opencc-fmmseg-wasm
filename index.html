@@ -517,25 +517,6 @@
         </section>
     </div>
 
-    <section class="panel" aria-labelledby="dictionaryHeading">
-        <div class="dictionary-heading">
-            <h3 id="dictionaryHeading" class="section-heading">Custom Dictionaries</h3>
-            <span id="dictionaryStatus" class="dictionary-status" role="status" aria-live="polite">Default</span>
-        </div>
-        <p id="dictionaryHelp" class="dictionary-help">Enter source and target separated by a TAB (paste it or press Tab
-            in the entry box; Escape then Tab leaves it). Blank lines and # comments are ignored. As in the CLI, only
-            the first target word is used. Each slot may appear once. Slots affect only configurations that use
-            them.</p>
-        <div id="dictionaryCards"></div>
-        <div class="dictionary-actions">
-            <button id="addDictionaryBtn" type="button" disabled>Add New Custom Dictionary</button>
-            <button id="applyDictionariesBtn" type="button" class="primary" disabled>Apply Dictionaries</button>
-            <button id="resetDictionariesBtn" type="button" disabled>Reset to Default</button>
-        </div>
-        <p class="dictionary-help">Edits are drafts until applied. Reset restores default dictionaries and retains draft
-            cards for editing.</p>
-    </section>
-
     <section class="panel" aria-label="Text conversion and file tools">
         <div class="controls"><label><input type="checkbox" id="punctuation"> Enable punctuation conversion</label>
         </div>
@@ -571,6 +552,25 @@
             <span id="officeResultText"></span>
             <button id="officeDownloadBtn" type="button">Download converted file</button>
         </div>
+    </section>
+
+    <section class="panel" aria-labelledby="dictionaryHeading">
+        <div class="dictionary-heading">
+            <h3 id="dictionaryHeading" class="section-heading">Custom Dictionaries</h3>
+            <span id="dictionaryStatus" class="dictionary-status" role="status" aria-live="polite">Default</span>
+        </div>
+        <p id="dictionaryHelp" class="dictionary-help">Enter source and target separated by a TAB (paste it or press Tab
+            in the entry box; Escape then Tab leaves it). Blank lines and # comments are ignored. As in the CLI, only
+            the first target word is used. Each slot may appear once. Slots affect only configurations that use
+            them.</p>
+        <div id="dictionaryCards"></div>
+        <div class="dictionary-actions">
+            <button id="addDictionaryBtn" type="button" disabled>Add New Custom Dictionary</button>
+            <button id="applyDictionariesBtn" type="button" class="primary" disabled>Apply Dictionaries</button>
+            <button id="resetDictionariesBtn" type="button" disabled>Reset to Default</button>
+        </div>
+        <p class="dictionary-help">Edits are drafts until applied. Reset restores default dictionaries and retains draft
+            cards for editing.</p>
     </section>
 
     <section class="panel" aria-label="Status">
