@@ -543,10 +543,12 @@
         </div>
         <div id="officeDrop" class="office-drop disabled" role="button" tabindex="0" aria-disabled="true">
             <strong>Click to open or drop a document, EPUB or text file here</strong>
-            <small>DOCX, XLSX, PPTX, EPUB, TXT, MD — converted locally in your browser; nothing is uploaded</small>
+            <small>DOCX, XLSX, PPTX, ODT, ODS, ODP, EPUB, TXT, MD — converted locally in your browser; nothing is
+                uploaded</small>
             <small>TXT/MD auto-detects encoding when enabled; otherwise uses the selected encoding. Office documents and
                 EPUB handle encoding internally.</small>
-            <input id="officeFile" type="file" accept=".docx,.xlsx,.pptx,.epub,.txt,.md" hidden>
+            <input id="officeFile" type="file"
+                   accept=".docx,.xlsx,.pptx,.odt,.ods,.odp,.epub,.txt,.md" hidden>
         </div>
         <div id="officeResult" class="office-result" hidden>
             <span id="officeResultText"></span>
@@ -1066,6 +1068,9 @@
         docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        odt: "application/vnd.oasis.opendocument.text",
+        ods: "application/vnd.oasis.opendocument.spreadsheet",
+        odp: "application/vnd.oasis.opendocument.presentation",
         epub: "application/epub+zip",
         txt: "text/plain;charset=utf-8",
         md: "text/markdown;charset=utf-8"

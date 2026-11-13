@@ -6,7 +6,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.13.1] - Unreleased
+## \[0.13.1] - Unreleased
 
 ### Changed
 
@@ -20,7 +20,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.13.0] - 2026-10-09
+## \[0.13.0] - 2026-10-09
 
 ### Breaking
 
@@ -81,7 +81,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.12.1] - 2026-09-22
+## \[0.12.1] - 2026-09-22
 
 ### Changed
 
@@ -104,7 +104,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.12.0] - 2026-09-15
+## \[0.12.0] - 2026-09-15
 
 ### Added
 
@@ -180,7 +180,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.11.5] - 2026-07-30
+## \[0.11.5] - 2026-07-30
 
 ### Added
 
@@ -215,7 +215,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.11.4] - 2026-07-13
+## \[0.11.4] - 2026-07-13
 
 ### Added
 
@@ -235,7 +235,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.11.3] -2026-07-08
+## \[0.11.3] -2026-07-08
 
 ### Changed
 
@@ -246,7 +246,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.11.2] - 2026-06-29
+## \[0.11.2] - 2026-06-29
 
 ### Added
 
@@ -260,7 +260,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.11.1] - 2026-06-27
+## \[0.11.1] - 2026-06-27
 
 ### Added
 
@@ -284,7 +284,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.11.0] - 2026-06-17
+## \[0.11.0] - 2026-06-17
 
 ### Added
 
@@ -327,7 +327,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.10.2] - 2026-06-06
+## \[0.10.2] - 2026-06-06
 
 ### Added
 
@@ -348,7 +348,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.10.1] - 2026-06-01
+## \[0.10.1] - 2026-06-01
 
 ### Changed
 
@@ -365,7 +365,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.10.0] - 2026-05-24
+## \[0.10.0] - 2026-05-24
 
 ### Added
 
@@ -412,7 +412,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.9.2] - 2026-04-22
+## \[0.9.2] - 2026-04-22
 
 ### Changed
 
@@ -441,7 +441,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.9.1] - 2026-03-21
+## \[0.9.1] - 2026-03-21
 
 ### Changed
 
@@ -453,7 +453,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.9.0] - 2026-02-09
+## \[0.9.0] - 2026-02-09
 
 ### Breaking changes
 
@@ -479,7 +479,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.8.5] - 2026-01-27
+## \[0.8.5] - 2026-01-27
 
 - C API: added library ABI number and version string functions:
     - `opencc_abi_number()`
@@ -489,7 +489,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.8.4.2] - 2026-01-05
+## \[0.8.4.2] - 2026-01-05
 
 ### Changed
 
@@ -507,7 +507,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.8.4.1] - 2026-01-03
+## \[0.8.4.1] - 2026-01-03
 
 ### Fixed
 
@@ -517,7 +517,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.8.4] - 2025-12-31
+## \[0.8.4] - 2025-12-31
 
 ### Changed
 
@@ -563,7 +563,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.8.3] – 2025-10-20
+## \[0.8.3] – 2025-10-20
 
 ### Added
 
@@ -628,7 +628,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.8.2] - 2025-10-02
+## \[0.8.2] - 2025-10-02
 
 ## Added
 
@@ -680,7 +680,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.8.1] - 2025-08-25
+## \[0.8.1] - 2025-08-25
 
 ### Changed
 
@@ -693,7 +693,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.8.0] - 2025-08-19
+## \[0.8.0] - 2025-08-19
 
 ### Added
 
@@ -747,7 +747,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.7.1] - 2025*07-29
+## \[0.7.1] - 2025*07-29
 
 ### Added
 
@@ -762,7 +762,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## [0.7.0] – 2025-07-10
+## \[0.7.0] – 2025-07-10
 
 ### Added
 

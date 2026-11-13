@@ -43,7 +43,8 @@ The interactive demo includes:
 - **Chinese Conversion** — Simplified, Traditional, regional variants, and Small Seal Script.
 - **Custom Dictionaries** — Add multiple dictionary slots with Append/Override modes, apply changes instantly, and reset
   to defaults.
-- **Document Conversion** — Convert DOCX, XLSX, PPTX, EPUB, TXT, and Markdown files directly in your browser.
+- **Document Conversion** — Convert DOCX, XLSX, PPTX, ODT, ODS, ODP, EPUB, TXT, and Markdown files directly in your
+  browser.
 - **Automatic Encoding Detection** — Detect UTF-8, UTF-16, GB18030/GBK, Big5, and Shift-JIS for text files, with manual
   override.
 - **Additional Tools** — Unicode compatibility normalization, DeTofu, punctuation conversion, and GB mojibake repair.
