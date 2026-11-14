@@ -6,6 +6,12 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## \[0.5.4] - Unreleased
+
+- Updated dictionary data.
+
+---
+
 ## \[0.5.3] - 2026-11-08
 
 ### Performance
