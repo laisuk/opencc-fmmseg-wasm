@@ -499,7 +499,7 @@
                 <button id="pasteBtn">Paste</button>
                 <button id="normalizeBtn">Normalize</button>
                 <button id="gbMojibakeBtn">GB Mojibake</button>
-                <button id="clearInputBtn">Clear</button>
+                <button id="clearInputBtn">&cross; Clear</button>
             </div>
             <div id="editor-left" class="editor-box"></div>
         </section>
@@ -509,8 +509,8 @@
             <div class="toolbar">
                 <button id="copyBtn">Copy</button>
                 <button id="deTofuBtn">DeTofu</button>
-                <button id="clearOutputBtn">Clear</button>
-                <button id="downloadOutputBtn">Download</button>
+                <button id="clearOutputBtn">&cross; Clear</button>
+                <button id="downloadOutputBtn">&DownArrowBar; Download</button>
                 <a id="outputDownloadLink" hidden></a>
             </div>
             <div id="editor-right" class="editor-box"></div>
@@ -522,7 +522,7 @@
         </div>
         <div class="controls file-actions">
             <input id="textFile" type="file" accept=".txt,.md" hidden>
-            <button id="openFileBtn">Open File</button>
+            <button id="openFileBtn">&UpArrowBar; Open File</button>
             <button id="btn" class="primary">Convert →</button>
             <span id="openedFileName" class="file-name"></span>
         </div>
@@ -552,7 +552,7 @@
         </div>
         <div id="officeResult" class="office-result" hidden>
             <span id="officeResultText"></span>
-            <button id="officeDownloadBtn" type="button">Download converted file</button>
+            <button id="officeDownloadBtn" type="button">&DownArrowBar; Download converted file</button>
         </div>
     </section>
 
@@ -567,9 +567,9 @@
             them.</p>
         <div id="dictionaryCards"></div>
         <div class="dictionary-actions">
-            <button id="addDictionaryBtn" type="button" disabled>Add New Custom Dictionary</button>
-            <button id="applyDictionariesBtn" type="button" class="primary" disabled>Apply Dictionaries</button>
-            <button id="resetDictionariesBtn" type="button" disabled>Reset to Default</button>
+            <button id="addDictionaryBtn" type="button" disabled>&plus; Add New Custom Dictionary</button>
+            <button id="applyDictionariesBtn" type="button" class="primary" disabled>&check; Apply Dictionaries</button>
+            <button id="resetDictionariesBtn" type="button" disabled>&#x27F2; Reset to Default</button>
         </div>
         <p class="dictionary-help">Edits are drafts until applied. Reset restores default dictionaries and retains draft
             cards for editing.</p>
