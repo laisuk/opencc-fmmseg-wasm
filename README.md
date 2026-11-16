@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![WebAssembly](https://img.shields.io/badge/WebAssembly-enabled-blue)](https://webassembly.org/)
 
-OpenCC FMM segmentation WebAssembly bindings for browsers and JavaScript runtimes.
+`OpenCC` FMM segmentation WebAssembly bindings for browsers and JavaScript runtimes.
 
 This package provides high-quality Simplified Chinese ↔ Traditional Chinese conversion powered by the Rust [
 `opencc-fmmseg`](https://github.com/laisuk/opencc-fmmseg) engine.
@@ -97,7 +97,7 @@ const cc = new OpenccWasm("s2t");
 
 Parameters:
 
-- `config` (optional): OpenCC config string
+- `config` (optional): `OpenCC` config string
 - default: `"s2t"`
 
 Example:
@@ -260,7 +260,7 @@ console.log(cc.convert(normalized, false));
 ```
 
 This is an optional pre-conversion pass for text that contains CJK Compatibility Ideographs. Unmapped characters are
-preserved unchanged. Normal OpenCC conversion does not automatically run this pass, so call it explicitly when
+preserved unchanged. Normal `OpenCC` conversion does not automatically run this pass, so call it explicitly when
 compatibility normalization is desired.
 
 ### normalizeUnicodeCompat
@@ -340,7 +340,8 @@ The normalization order is:
 1. extended Unicode compatibility normalization;
 2. CJK Compatibility Ideograph normalization.
 
-Normal OpenCC conversion does not automatically perform compatibility normalization. Call this method explicitly before
+Normal `OpenCC` conversion does not automatically perform compatibility normalization. Call this method explicitly
+before
 `convert()` when complete compatibility normalization is desired.
 
 ---
@@ -434,7 +435,7 @@ const cc = OpenccWasm.newWithCustomDicts(config, specs);
 
 Parameters:
 
-- `config`: OpenCC config string, such as `"s2t"`
+- `config`: `OpenCC` config string, such as `"s2t"`
 - `specs`: array of custom dictionary specs
 
 TypeScript-style spec shape:
@@ -632,7 +633,7 @@ maintenance guidance. Inspect the resolved graph with
 
 ### Basic Office Conversion
 
-For normal OpenCC conversion, use:
+For normal `OpenCC` conversion, use:
 
 ```javascript
 cc.convertOfficeBytes(inputBytes, format, punctuation, keepFont)
@@ -702,7 +703,7 @@ DetofuLevelWasm.ExtI
 
 `ExtB` applies all supported DeTofu mappings from Extension B onward.
 
-For example, extended compatibility normalization followed by OpenCC conversion, without DeTofu:
+For example, extended compatibility normalization followed by `OpenCC` conversion, without DeTofu:
 
 ```javascript
 const outputBytes = cc.convertOfficeBytesPipeline(

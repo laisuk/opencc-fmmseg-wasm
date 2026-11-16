@@ -527,8 +527,14 @@
             <span id="openedFileName" class="file-name"></span>
         </div>
         <div class="controls encoding-row">
-            <label><input type="checkbox" id="autoDetectDropEncoding" checked> Auto-detect text encoding in Drop
-                Zone</label>
+            <label>
+                <input type="checkbox" id="autoDetectDropEncoding" checked>
+                Auto-detect text encoding in Drop Zone
+            </label>
+            <label title="Convert the downloaded filename using the selected OpenCC configuration. The file extension is preserved. Invalid Windows filenames are rejected.">
+                <input type="checkbox" id="convertFilename">
+                Convert filename
+            </label>
         </div>
         <div class="controls encoding-row">
             <label for="textEncoding">Text file encoding:</label>
@@ -1081,16 +1087,24 @@
         return dot >= 0 ? fileName.slice(dot + 1).toLowerCase() : "";
     }
 
-    function convertedFileName(fileName) {
+    function convertedFileName(fileName, punctuation = false) {
         const dot = fileName.lastIndexOf(".");
+        const stem = dot > 0 ? fileName.slice(0, dot) : fileName;
+        const extension = dot > 0 ? fileName.slice(dot) : "";
 
-        if (dot <= 0) {
-            return `${fileName}_converted`;
+        // Only convert the stem; preserve the extension and the existing suffix.
+        // Use the active WASM instance so applied custom dictionaries are honored.
+        const convertedStem = document.getElementById("convertFilename").checked
+            ? cc.convert(stem, punctuation)
+            : stem;
+
+        if (!convertedStem || /[<>:"\/\\|?*\x00-\x1f]/u.test(convertedStem) ||
+            /[. ]$/u.test(convertedStem) ||
+            /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$/iu.test(convertedStem)) {
+            throw new Error("Converted filename is invalid for Windows.");
         }
-
-        return `${fileName.slice(0, dot)}_converted${fileName.slice(dot)}`;
+        return `${convertedStem}_converted${extension}`;
     }
-
 
     function clearOutputDownload() {
         if (outputDownloadUrl) {
@@ -1198,7 +1212,7 @@
             });
 
             officeDownloadUrl = URL.createObjectURL(blob);
-            officeDownloadName = convertedFileName(file.name);
+            officeDownloadName = convertedFileName(file.name, punctuation);
 
             officeResultText.textContent = `Ready: ${officeDownloadName} `;
             officeResult.hidden = false;
