@@ -6,7 +6,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## \[0.5.4] - Unreleased
+## \[0.5.4] - 2026-11-17
 
 - Updated dictionary data.
 - Demo: UI buttons refined, added convert filename option.
@@ -124,7 +124,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 - Added a generic text-conversion pipeline to `OfficeConverter`, allowing Office document and EPUB conversion to use
   caller-supplied text transformers while retaining the existing OpenCC-specific APIs for backward compatibility.
-- Added `convertOfficeBytesPipeline()` with configurable compatibility normalization, OpenCC conversion, and optional
+- Added `convertOfficeBytesPipeline()` with configurable compatibility normalization, `OpenCC` conversion, and optional
   DeToFu processing for Office documents and EPUB files.
 - Added `NormalizeModeWasm` for selecting no normalization, CJK compatibility normalization, Unicode compatibility
   normalization, or extended compatibility normalization.
@@ -132,7 +132,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
   subcommand.
 - Added `--keep-ids` support to the CLI `office` subcommand.
 - Added pipeline-aware `-F` / `--convert-filename` processing so generated output filenames use the same normalization,
-  OpenCC, DeToFu, custom-dictionary, and IDS-preservation settings as document content.
+  `OpenCC`, DeToFu, custom-dictionary, and IDS-preservation settings as document content.
 - Added Live Demo Page link in `README.md`.
 
 ### Changed
@@ -333,7 +333,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 * Added `OpenccWasm.newWithCustomDicts(...)` for constructing converters from the embedded CBOR dictionary with
   post-load custom dictionary injection.
 * Added `WasmCustomDictSpec` support for JavaScript and TypeScript custom dictionary configuration.
-* Added support for all OpenCC dictionary slots through `DictSlot`-compatible slot names.
+* Added support for all `OpenCC` dictionary slots through `DictSlot`-compatible slot names.
 * Added tests covering custom dictionary pair injection and slot validation.
 
 ### Changed
@@ -343,7 +343,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 * Refactored WASM custom dictionary parsing to reuse core `DictSlot` parsing logic as the single source of truth.
 * Custom dictionaries are now applied to `DictionaryMaxlength` before `OpenCC` construction, matching the core Rust
   ownership model and immutable conversion pipeline.
-* Sync new config chain for JP slot with opencc-fmmseg upstream.
+* Sync new config chain for JP slot with `opencc-fmmseg` upstream.
 
 ---
 
@@ -440,7 +440,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 * Added local Office / EPUB conversion support for Node.js:
 
     * punctuation conversion
-    * OpenCC config selection
+    * `OpenCC` config selection
     * automatic Office format inference
     * optional output extension handling
     * optional font preservation
@@ -519,7 +519,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
     * `HKVariantsPhrases`
 
 * Forward Taiwanese and Hong Kong regional conversions now apply phrase dictionaries before character dictionaries,
-  matching upstream OpenCC behavior.
+  matching upstream `OpenCC` behavior.
 
 * Refactored internal union cache logic from `*_variants_only` to `*_variants_pair`.
 

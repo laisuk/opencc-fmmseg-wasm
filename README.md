@@ -47,7 +47,7 @@ The interactive demo includes:
   browser.
 - **Automatic Encoding Detection** — Detect UTF-8, UTF-16, GB18030/GBK, Big5, and Shift-JIS for text files, with manual
   override.
-- **Additional Tools** — Unicode compatibility normalization, DeTofu, punctuation conversion, and GB mojibake repair.
+- **Additional Tools** — Unicode compatibility normalization, DeTofu, punctuation conversion, and `GB mojibake` repair.
 - **Modern Interface** — Responsive layout with automatic Light/Dark Theme support.
 
 All conversions run **locally in your browser using WebAssembly**. Your files are never uploaded to a server.
@@ -398,7 +398,7 @@ console.log(cc.detofu(converted, DetofuLevelWasm.ExtB));
 
 ---
 
-### convertDetofu
+### `convertDetofu`
 
 Convert text and apply detofu in one call.
 

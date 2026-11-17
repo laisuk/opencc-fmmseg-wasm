@@ -528,16 +528,6 @@
             <span id="openedFileName" class="file-name"></span>
         </div>
         <div class="controls encoding-row">
-            <label>
-                <input type="checkbox" id="autoDetectDropEncoding" checked>
-                Auto-detect text encoding in Drop Zone
-            </label>
-            <label title="Convert the downloaded filename using the selected OpenCC configuration. The file extension is preserved. Invalid Windows filenames are rejected.">
-                <input type="checkbox" id="convertFilename">
-                Convert filename
-            </label>
-        </div>
-        <div class="controls encoding-row">
             <label for="textEncoding">Text file encoding:</label>
             <select id="textEncoding">
                 <option value="utf-8" selected>UTF-8</option>
@@ -547,6 +537,16 @@
                 <option value="big5">Big5</option>
                 <option value="shift_jis">Shift-JIS</option>
             </select>
+        </div>
+        <div class="controls encoding-row">
+            <label>
+                <input type="checkbox" id="autoDetectDropEncoding" checked>
+                Auto-detect text encoding in Drop Zone
+            </label>
+            <label title="Convert the downloaded filename using the selected OpenCC configuration. The file extension is preserved. Invalid Windows filenames are rejected.">
+                <input type="checkbox" id="convertFilename">
+                Convert filename
+            </label>
         </div>
         <div id="officeDrop" class="office-drop disabled" role="button" tabindex="0" aria-disabled="true">
             <strong>Click to open or drop a document, EPUB or text file here</strong>
