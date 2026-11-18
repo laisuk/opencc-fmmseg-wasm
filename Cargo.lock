@@ -166,7 +166,7 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "dict-generate"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "clap",
  "clap_lex",
@@ -353,7 +353,7 @@ checksum = "384b8ab6d37215f3c5301a95a4accb5d64aa607f1fcb26a11b5303878451b4fe"
 
 [[package]]
 name = "opencc-fmmseg"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "rayon",
  "rayon-core",
@@ -368,7 +368,7 @@ dependencies = [
 
 [[package]]
 name = "opencc-fmmseg-wasm"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "crc32fast",
  "flate2",
@@ -383,7 +383,7 @@ dependencies = [
 
 [[package]]
 name = "opencc-tool-common"
-version = "0.13.1"
+version = "0.13.2"
 dependencies = [
  "opencc-fmmseg",
 ]
