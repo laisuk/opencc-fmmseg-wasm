@@ -31,7 +31,7 @@
 //! - [`DictMaxLen::append_pairs`] — merge pairs with last-wins semantics.
 //! - [`DictMaxLen::replace_pairs`] — replace all pairs and rebuild metadata.
 
-use rustc_hash::FxHashMap;
+use crate::rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
 
 /// Print a developer note to **stderr** in *debug* builds; **no-op** in release.
@@ -574,7 +574,7 @@ impl DictMaxLen {
     ///    from the mask’s max bit (up to 64).
     /// 3. **Fallback:** if [`Self::starter_len_mask`] is empty, scan all keys in [`Self::map`]
     ///    once, setting the appropriate bit in [`Self::first_len_mask64`] (collapsing
-    ///    `len >= 64` to bit 63) and updating [`Self::first_char_max_len`] with the true
+    ///    `len >= 64` to bit 63); and updating [`Self::first_char_max_len`] with the true
     ///    maximum length seen for that starter.
     /// 4. Non-BMP starters (`u > 0xFFFF`) are ignored here (dense tables are BMP-only).
     ///

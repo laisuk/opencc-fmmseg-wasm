@@ -20,14 +20,14 @@ use crate::delimiter_set::is_delimiter;
 use crate::dict_refs::DictRefs;
 use crate::dictionary_lib::UnionKey;
 use crate::dictionary_lib::{DictMaxLen, DictionaryMaxlength, StarterUnion};
+use crate::rustc_hash::FxHashMap;
 use crate::utils::{find_max_utf8_length, for_each_len_dec};
-use crate::{DetofuLevel, DetofuMap, OpenccConfig, compat_ideographs, detofu, ids};
+use crate::{compat_ideographs, detofu, ids, DetofuLevel, DetofuMap, OpenccConfig};
 #[cfg(feature = "parallel")]
 use rayon::iter::ParallelIterator;
 #[cfg(feature = "parallel")]
 use rayon::prelude::ParallelSlice;
 use regex::Regex;
-use rustc_hash::FxHashMap;
 use std::borrow::Cow;
 use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -38,7 +38,7 @@ static LAST_ERROR: OnceLock<Mutex<Option<String>>> = OnceLock::new();
 /// Regular expression used to normalize or strip punctuation from input.
 static STRIP_REGEX: OnceLock<Regex> = OnceLock::new();
 
-/// Returns a thread-safe reference to OpenCC's global last-error storage.
+/// Returns a thread-safe reference to `OpenCC`'s global last-error storage.
 ///
 /// This helper lazily initializes the internal [`Mutex`] holding an optional
 /// error message. The C API maintains a separate thread-local error slot.
@@ -2485,7 +2485,7 @@ impl OpenCC {
             .into_owned()
     }
 
-    // Records an error message as the most recent OpenCC runtime error.
+    // Records an error message as the most recent `OpenCC` runtime error.
     // Passing an empty string clears the current error state. The C API has
     // independent thread-local error storage.
     pub(crate) fn set_last_error(err_msg: &str) {

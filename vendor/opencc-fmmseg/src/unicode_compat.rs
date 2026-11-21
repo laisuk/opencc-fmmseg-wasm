@@ -5,7 +5,7 @@
 //! [`crate::OpenCC::normalize_compat_extended`].
 
 use crate::compat_ideographs::CompatIdeographs;
-use rustc_hash::FxHashMap;
+use crate::rustc_hash::FxHashMap;
 use std::borrow::Cow;
 #[cfg(any(feature = "unicode-bin", test))]
 use std::io;

@@ -20,6 +20,9 @@ include = [
     "/THIRD_PARTY_NOTICES.md",
     # Source
     "src/**/*.rs",
+    "src/rustc_hash/LICENSE-APACHE",
+    "src/rustc_hash/LICENSE-MIT",
+    "src/rustc_hash/VENDOR_NOTES.md",
     # Embedded dictionaries
     "src/dictionary_lib/dicts/*.zstd",
     # Embedded data files
@@ -39,9 +42,8 @@ rustdoc-args = ["--cfg", "docsrs"]
 # Exact direct dependency pins to preserve behavior and Rust 2021/MSRV compatibility.
 rayon = { version = "=1.10", optional = true }
 rayon-core = { version = "=1.12", optional = true }
-rustc-hash = "=2.1.1"
 
-regex = "1.13"
+regex = "1.13.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_cbor = "0.11"
 zstd = { version = "0.14", optional = true }

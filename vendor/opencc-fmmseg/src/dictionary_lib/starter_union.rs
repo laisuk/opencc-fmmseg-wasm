@@ -1,5 +1,5 @@
 use crate::dictionary_lib::DictMaxLen;
-use rustc_hash::FxHashMap;
+use crate::rustc_hash::FxHashMap;
 
 /// Union view of starter–length metadata across multiple [`DictMaxLen`] tables.
 ///
@@ -58,7 +58,7 @@ use rustc_hash::FxHashMap;
 ///
 /// # Typical Usage
 ///
-/// A `StarterUnion` is created once for each logical OpenCC configuration
+/// A `StarterUnion` is created once for each logical `OpenCC` configuration
 /// (e.g., S2T, T2S+punc, TW-variants-only) and cached inside
 /// [`DictionaryMaxlength`](crate::DictionaryMaxlength).
 ///
@@ -137,7 +137,7 @@ impl StarterUnion {
     /// `O(S)` — sparse iteration of real starters only  
     ///
     /// This provides **vastly faster startup times**, especially for sparse or
-    /// lexicon-heavy OpenCC configurations.
+    /// lexicon-heavy `OpenCC` configurations.
     ///
     /// # Requirements
     ///

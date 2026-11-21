@@ -59,7 +59,7 @@
 //! | `hk2s` / `hk2sp` / `hk2t` / `hk2tp` | [`OpenCC::hk2s`] / [`OpenCC::hk2sp`] / [`OpenCC::hk2t`] / [`OpenCC::hk2tp`] | Hong Kong variants to Simplified/Traditional |
 //! | `t2tw` / `t2twp` | [`OpenCC::t2tw`] / [`OpenCC::t2twp`] | Traditional to Taiwan variants |
 //! | `tw2t` / `tw2tp` | [`OpenCC::tw2t`] / [`OpenCC::tw2tp`] | Taiwan variants to Traditional |
-//! | `t2jp` / `jp2t` | [`OpenCC::t2jp`] / [`OpenCC::jp2t`] | Traditional and Japanese kanji variants |
+//! | `t2jp` / `jp2t` | [`OpenCC::t2jp`] / [`OpenCC::jp2t`] | Traditional and Japanese kanji variants; |
 //!
 //! | `s2seal` / `t2seal` | [`OpenCC::s2seal`] / [`OpenCC::t2seal`] | Simplified/Traditional to Small Seal Script |
 //! | `seal2s` / `seal2t` | [`OpenCC::seal2s`] / [`OpenCC::seal2t`] | Small Seal Script to Simplified/Traditional |
@@ -168,6 +168,7 @@ mod ids;
 mod opencc;
 /// Configurations for conversion.
 mod opencc_config;
+mod rustc_hash;
 mod unicode_compat;
 /// Common helpers for opencc-fmmseg.
 mod utils;

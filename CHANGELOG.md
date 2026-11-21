@@ -9,6 +9,7 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ## \[0.5.5] - Unreleased
 
 - Updated dictionary data
+- Synced vendored upstream `opencc-fmmseg`
 
 ---
 
