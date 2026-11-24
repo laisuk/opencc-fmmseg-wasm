@@ -2,12 +2,18 @@ param(
     [ValidateSet("", "scoped", "unscoped")]
     [string]$PackageNameMode = "",
 
-    [switch]$Ruzstd
+    [switch]$Ruzstd,
+
+    [switch]$NoModules
 )
+
+$wasmTarget = if ($NoModules) { "no-modules" } else { "web" }
+$outDir = if ($NoModules) { "pkg-no-modules" } else { "pkg" }
 
 $wasmPackArgs = @(
     "build",
-    "--target", "web",
+    "--target", $wasmTarget,
+    "--out-dir", $outDir,
     "--release"
 )
 
@@ -22,6 +28,11 @@ wasm-pack @wasmPackArgs
 
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
+}
+
+if ($NoModules) {
+    Write-Host "Standalone WASM build completed: $outDir" -ForegroundColor Green
+    return
 }
 
 $src = ".\bin\opencc.js"
