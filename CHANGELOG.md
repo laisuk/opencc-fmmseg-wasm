@@ -6,7 +6,18 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
-## \[0.5.5] - Unreleased
+## \[0.5.6] - Unreleased
+
+### Changed
+
+- build: added prepare-npm.ps1 for -NoModules
+- Synced vendored upstream `opencc-fmmseg` zstd to v0.9.1
+
+---
+
+## \[0.5.5] - 2026-11-22
+
+### Changed
 
 - Updated dictionary data
 - Synced vendored upstream `opencc-fmmseg`
@@ -14,6 +25,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 ---
 
 ## \[0.5.4] - 2026-11-17
+
+### Changed
 
 - Updated dictionary data.
 - Demo: UI buttons refined, added convert filename option.
