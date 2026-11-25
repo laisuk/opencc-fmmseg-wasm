@@ -540,6 +540,7 @@ unsafe fn copy_bytes_overshooting(
             .cast::<CopyType>()
             .write_unaligned(src.0.cast::<CopyType>().read_unaligned())
     } else {
+        #[allow(clippy::manual_is_multiple_of)]
         let copy_multiple = if copy_at_least % COPY_AT_ONCE_SIZE == 0 {
             copy_at_least
         } else {

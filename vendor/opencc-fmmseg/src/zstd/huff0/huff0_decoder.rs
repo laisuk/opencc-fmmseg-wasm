@@ -229,6 +229,7 @@ impl HuffmanTable {
                 let num_weights = header - 127;
                 self.weights.resize(num_weights as usize, 0);
 
+                #[allow(clippy::manual_is_multiple_of)]
                 let bytes_needed = if num_weights % 2 == 0 {
                     num_weights as usize / 2
                 } else {

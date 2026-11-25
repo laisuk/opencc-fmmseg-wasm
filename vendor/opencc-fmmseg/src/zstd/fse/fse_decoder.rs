@@ -287,6 +287,7 @@ impl FSETable {
             });
         }
 
+        #[allow(clippy::manual_is_multiple_of)]
         let bytes_read = if br.bits_read() % 8 == 0 {
             br.bits_read() / 8
         } else {
