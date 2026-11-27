@@ -372,6 +372,40 @@
             margin-top: 14px;
         }
 
+        .pdf-options {
+            min-width: 0;
+            margin: .75rem 0;
+            border: 1px solid var(--border);
+            border-radius: .5rem;
+        }
+
+        .pdf-options .controls {
+            margin: .35rem 0;
+        }
+
+        .pdf-heading {
+            display: grid;
+            gap: .35rem;
+            width: min(100%, 32rem);
+        }
+
+        .pdf-heading input {
+            min-width: 0;
+        }
+
+        .pdf-heading input[aria-invalid="true"] {
+            border-color: currentColor;
+        }
+
+        .pdf-progress {
+            margin: .65rem 0;
+        }
+
+        .pdf-progress progress {
+            width: min(100%, 16rem);
+            accent-color: var(--accent);
+        }
+
         .encoding-row {
             margin-top: 14px;
         }
@@ -485,7 +519,7 @@
 
     <section class="panel" aria-label="Conversion settings">
         <div class="config-row">
-            <label for="config"><strong>Configuration</strong></label>
+            <label for="config"><strong>&#x2699; Configuration</strong></label>
             <select id="config"></select>
             <span id="configDescription" class="config-description"></span>
         </div>
@@ -522,11 +556,32 @@
         <div class="controls"><label><input type="checkbox" id="punctuation"> Enable punctuation conversion</label>
         </div>
         <div class="controls file-actions">
-            <input id="textFile" type="file" accept=".txt,.md,.epub,.docx,.odt" hidden>
+            <input id="textFile" type="file" accept=".txt,.md,.epub,.docx,.odt,.pdf" hidden>
             <button id="openFileBtn">&UpArrowBar; Open File</button>
             <button id="btn" class="primary">Convert →</button>
             <span id="openedFileName" class="file-name"></span>
         </div>
+        <div id="pdfOpenProgress" class="pdf-progress" aria-label="PDF extraction progress" hidden>
+            <div class="controls">
+                <progress aria-label="PDF extraction"></progress>
+                <span role="status"></span>
+                <button type="button">Cancel</button>
+            </div>
+        </div>
+        <fieldset class="pdf-options">
+            <legend>PDF extraction</legend>
+            <div class="controls">
+                <label><input id="pdf-page-headers" type="checkbox"> Add page headers</label>
+                <label><input id="pdf-reflow" type="checkbox" checked> CJK paragraph reflow</label>
+                <label><input id="pdf-compact" type="checkbox"> Compact paragraph spacing</label>
+                <label><input id="pdf-ignore-untrusted" type="checkbox"> Ignore untrusted PDF text</label>
+            </div>
+            <label class="pdf-heading" for="pdf-heading-regex">
+                Custom heading regex (optional)
+                <input id="pdf-heading-regex" type="text" spellcheck="false" aria-describedby="pdf-heading-feedback">
+            </label>
+            <span id="pdf-heading-feedback" role="status" hidden></span>
+        </fieldset>
         <div class="controls encoding-row">
             <label for="textEncoding">Text file encoding:</label>
             <select id="textEncoding">
@@ -549,13 +604,21 @@
             </label>
         </div>
         <div id="officeDrop" class="office-drop disabled" role="button" tabindex="0" aria-disabled="true">
-            <strong>Click to open or drop a document, EPUB or text file here</strong>
+            <strong>Click to open or drop a document, EPUB, PDF or text file here</strong>
             <small>DOCX, XLSX, PPTX, ODT, ODS, ODP, EPUB, TXT, MD — converted locally in your browser; nothing is
                 uploaded</small>
+            <small>PDF is extracted and converted to UTF-8 TXT.</small>
             <small>TXT/MD auto-detects encoding when enabled; otherwise uses the selected encoding. Office documents and
                 EPUB handle encoding internally.</small>
             <input id="officeFile" type="file"
-                   accept=".docx,.xlsx,.pptx,.odt,.ods,.odp,.epub,.txt,.md" hidden>
+                   accept=".docx,.xlsx,.pptx,.odt,.ods,.odp,.epub,.txt,.md,.pdf" hidden>
+        </div>
+        <div id="pdfDropProgress" class="pdf-progress" aria-label="PDF conversion progress" hidden>
+            <div class="controls">
+                <progress aria-label="PDF conversion"></progress>
+                <span role="status"></span>
+                <button type="button">Cancel</button>
+            </div>
         </div>
         <div id="officeResult" class="office-result" hidden>
             <span id="officeResultText"></span>
@@ -646,6 +709,7 @@
     import {defaultKeymap, history, historyKeymap} from "https://esm.sh/@codemirror/commands";
     import {detectCjkEncoding} from "./cjkEncodingDetector.js";
     import {loadDocumentExtractor} from "./docs/pdf-helper/load.js";
+    import {createPdfExtraction} from "./docs/pdf-helper/pdfExtraction.js";
 
     const configInput = document.getElementById("config");
     const configDescription = document.getElementById("configDescription");
@@ -810,12 +874,8 @@
             replacement = null;
             dictionaryStatus.textContent = status;
             out.textContent = `${reset ? "Default dictionaries restored. Draft cards retained." : "Custom dictionaries applied."}\n${status}\nConfig: ${config}`;
-            // Cleanup failure must not undo a successfully installed converter.
-            try {
-                previous.free();
-            } catch (error) {
-                console.error("Previous converter cleanup failed", error);
-            }
+            // A PDF conversion can still be using the previous dictionary set.
+            if (previous !== pdfDropConverter) freeConverter(previous);
         } catch (error) {
             out.textContent = `Dictionaries unchanged: ${error instanceof Error ? error.message : String(error)}`;
         } finally {
@@ -836,6 +896,16 @@
     resetDictionariesBtn.onclick = () => replaceDictionaries(true);
 
     let cc = null;
+    let pdfDropConverter = null;
+
+    function freeConverter(converter) {
+        try {
+            converter.free();
+        } catch (error) {
+            console.error("Converter cleanup failed", error);
+        }
+    }
+
     let officeDownloadUrl = null;
     let officeDownloadName = "";
     let outputDownloadUrl = null;
@@ -843,6 +913,7 @@
     let openedTextFileName = "";
     let openedTextFileBytes = null;
     let preserveOpenedTextFile = false;
+    let inputRevision = 0;
 
     function clearOpenedTextFile() {
         openedTextFileName = "";
@@ -855,6 +926,7 @@
         "汉字转换测试",
         false,
         () => {
+            inputRevision++;
             if (!preserveOpenedTextFile) {
                 clearOpenedTextFile();
             }
@@ -1013,6 +1085,15 @@
     };
 
     let openFileRequest = 0;
+    const pdfExtraction = createPdfExtraction();
+
+    function showOpenedDocument(file, text) {
+        setInputEditorText(text);
+        clearOpenedTextFile();
+        openedFileName.textContent = file.name;
+        editorLeft.focus();
+        out.textContent = `Opened ${file.name} (${inputCount.textContent} characters).`;
+    }
 
     textFile.addEventListener("change", async () => {
         const file = textFile.files?.[0];
@@ -1021,10 +1102,28 @@
         }
 
         textFile.value = "";
+        const extension = getOfficeFormat(file.name);
+        if (extension === "pdf" && pdfExtraction.busy) {
+            out.textContent = "Another PDF operation is already running.";
+            return;
+        }
+
         const request = ++openFileRequest;
-        const extension = file.name.split(".").pop().toLowerCase();
+        const revision = inputRevision;
 
         try {
+            if (extension === "pdf") {
+                await pdfExtraction.process(file, false, text => {
+                    if (request !== openFileRequest) return;
+                    if (revision !== inputRevision) {
+                        out.textContent = "PDF extraction discarded because the input editor changed.";
+                        return;
+                    }
+                    showOpenedDocument(file, text);
+                });
+                return;
+            }
+
             const bytes = new Uint8Array(await file.arrayBuffer());
             if (request !== openFileRequest) return;
 
@@ -1032,17 +1131,12 @@
                 const helper = await loadDocumentExtractor();
                 if (request !== openFileRequest) return;
 
-                const text = helper[`extract_${extension}`](bytes);
-                setInputEditorText(text);
-                clearOpenedTextFile();
-                openedFileName.textContent = file.name;
-                editorLeft.focus();
-                out.textContent = `Opened ${file.name} (${inputCount.textContent} characters).`;
+                showOpenedDocument(file, helper[`extract_${extension}`](bytes));
                 return;
             }
 
             if (extension !== "txt" && extension !== "md") {
-                throw new Error("Select a TXT, MD, EPUB, DOCX, or ODT file.");
+                throw new Error("Select a TXT, MD, EPUB, DOCX, ODT, or PDF file.");
             }
 
             const detected = detectCjkEncoding(bytes);
@@ -1056,9 +1150,10 @@
             refreshOpenedTextFile();
         } catch (err) {
             if (request !== openFileRequest) return;
-            out.textContent =
-                `Failed to open ${file.name}: ${err instanceof Error ? err.message : err}`;
-            console.error(err);
+            out.textContent = err?.name === "AbortError"
+                ? "PDF extraction cancelled."
+                : `Failed to open ${file.name}: ${err instanceof Error ? err.message : err}`;
+            if (err?.name !== "AbortError") console.error(err);
         }
     });
 
@@ -1112,16 +1207,15 @@
         return dot >= 0 ? fileName.slice(dot + 1).toLowerCase() : "";
     }
 
-    function convertedFileName(fileName, punctuation = false) {
+    function convertedFileName(fileName, punctuation = false,
+                               convertName = document.getElementById("convertFilename").checked,
+                               converter = cc, outputExtension) {
         const dot = fileName.lastIndexOf(".");
         const stem = dot > 0 ? fileName.slice(0, dot) : fileName;
-        const extension = dot > 0 ? fileName.slice(dot) : "";
+        const extension = outputExtension ?? (dot > 0 ? fileName.slice(dot) : "");
 
-        // Only convert the stem; preserve the extension and the existing suffix.
-        // Use the active WASM instance so applied custom dictionaries are honored.
-        const convertedStem = document.getElementById("convertFilename").checked
-            ? cc.convert(stem, punctuation)
-            : stem;
+        // Use the supplied converter so the filename and contents use the same dictionaries.
+        const convertedStem = convertName ? converter.convert(stem, punctuation) : stem;
 
         if (!convertedStem || /[<>:"\/\\|?*\x00-\x1f]/u.test(convertedStem) ||
             /[. ]$/u.test(convertedStem) ||
@@ -1259,6 +1353,68 @@
         }
     }
 
+    async function convertPdfFile(file) {
+        if (!cc) {
+            out.textContent = "Engine is not loaded yet.";
+            return;
+        }
+
+        const converter = cc;
+        const config = converter.getConfig();
+        const punctuation = document.getElementById("punctuation").checked;
+        const convertName = document.getElementById("convertFilename").checked;
+        pdfDropConverter = converter;
+
+        try {
+            await pdfExtraction.process(file, true, text => {
+                const currentConfig = converter.getConfig();
+                let converted, name;
+                // The synchronous conversion uses the captured config, then restores current settings.
+                try {
+                    converter.setConfig(config);
+                    converted = converter.convert(text, punctuation);
+                    name = convertedFileName(file.name, punctuation, convertName, converter, ".txt");
+                } finally {
+                    converter.setConfig(currentConfig);
+                }
+
+                clearOfficeResult();
+                const blob = new Blob([converted], {type: "text/plain;charset=utf-8"});
+                officeDownloadUrl = URL.createObjectURL(blob);
+                officeDownloadName = name;
+                officeResultText.textContent = `Ready: ${name} `;
+                officeResult.hidden = false;
+                out.textContent = `PDF conversion completed.\nConfig: ${config}\nOutput: ${name}`;
+            });
+        } catch (error) {
+            out.textContent = error?.name === "AbortError"
+                ? "PDF conversion cancelled."
+                : `PDF conversion failed for ${file.name}: ${error?.message ?? error}`;
+        } finally {
+            pdfDropConverter = null;
+            if (converter !== cc) freeConverter(converter);
+        }
+    }
+
+    let dropBusy = false;
+
+    async function convertDroppedFile(file) {
+        if (dropBusy) {
+            out.textContent = "A Drop Zone conversion is already running.";
+            return;
+        }
+        dropBusy = true;
+        try {
+            if (getOfficeFormat(file.name) === "pdf") {
+                await convertPdfFile(file);
+            } else {
+                await convertOfficeFile(file);
+            }
+        } finally {
+            dropBusy = false;
+        }
+    }
+
     officeDownloadBtn.addEventListener("click", () => {
         if (!officeDownloadUrl || !officeDownloadName) {
             return;
@@ -1294,14 +1450,15 @@
 
         const file = event.dataTransfer?.files?.[0];
         if (file) {
-            void convertOfficeFile(file);
+            void convertDroppedFile(file);
         }
     });
 
     officeFile.addEventListener("change", () => {
         const file = officeFile.files?.[0];
+        officeFile.value = "";
         if (file) {
-            void convertOfficeFile(file);
+            void convertDroppedFile(file);
         }
     });
 

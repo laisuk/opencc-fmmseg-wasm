@@ -10,11 +10,14 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Browser demo: support opening EPUB, DOCX, and ODT files directly into the input editor for text extraction and Chinese
-  conversion.
-- Integrate a shared, pinned `pdfium-helper-wasm` package for both local and published demos.
-- Lazy-load the extraction helper with cached initialization and automatic retry support.
-- Preserve existing editor content and filename on extraction failure, with encoding isolation for extracted documents.
+- Browser demo: support EPUB, DOCX, ODT, and PDF text extraction directly into the input editor.
+- PDF Drop Zone conversion to UTF-8 TXT, with optional filename conversion.
+- PDF extraction options: page headers, CJK paragraph reflow, compact paragraph spacing, custom heading regex, and
+  untrusted PDF text filtering.
+- PDF extraction progress indicators and cooperative cancellation.
+- Shared, pinned Rust helper and PDFium WASM assets for local and published demos, with lazy initialization and failure
+  recovery.
+- Editor state protection and encoding isolation for extracted documents.
 
 ### Changed
 

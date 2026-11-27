@@ -457,7 +457,7 @@ non-exclusive license:
 2.2. Effective Date
 
 The licenses granted in Section 2.1 with respect to any Contribution
-become effective for each Contribution on the date the Contributor first
+become effective for each Contribution to the date the Contributor first
 distributes such Contribution.
 
 2.3. Limitations on Grant Scope
@@ -857,7 +857,7 @@ non-exclusive license:
 2.2. Effective Date
 
 The licenses granted in Section 2.1 with respect to any Contribution
-become effective for each Contribution on the date the Contributor first
+become effective for each Contribution to the date the Contributor first
 distributes such Contribution.
 
 2.3. Limitations on Grant Scope
