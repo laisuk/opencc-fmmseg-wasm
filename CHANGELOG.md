@@ -8,10 +8,19 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 
 ## \[0.5.6] - Unreleased
 
+### Added
+
+- Browser demo: support opening EPUB, DOCX, and ODT files directly into the input editor for text extraction and Chinese
+  conversion.
+- Integrate a shared, pinned `pdfium-helper-wasm` package for both local and published demos.
+- Lazy-load the extraction helper with cached initialization and automatic retry support.
+- Preserve existing editor content and filename on extraction failure, with encoding isolation for extracted documents.
+
 ### Changed
 
-- build: added prepare-npm.ps1 for -NoModules
-- Synced vendored upstream `opencc-fmmseg` zstd to v0.9.1
+- Build: added `prepare-npm.ps1` with `-NoModules` support.
+- Synced vendored upstream `opencc-fmmseg` zstd to v0.9.1.
+- Updated dictionary data.
 
 ---
 

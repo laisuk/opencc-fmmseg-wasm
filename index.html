@@ -522,7 +522,7 @@
         <div class="controls"><label><input type="checkbox" id="punctuation"> Enable punctuation conversion</label>
         </div>
         <div class="controls file-actions">
-            <input id="textFile" type="file" accept=".txt,.md" hidden>
+            <input id="textFile" type="file" accept=".txt,.md,.epub,.docx,.odt" hidden>
             <button id="openFileBtn">&UpArrowBar; Open File</button>
             <button id="btn" class="primary">Convert →</button>
             <span id="openedFileName" class="file-name"></span>
@@ -645,6 +645,7 @@
     import {EditorView, keymap, lineNumbers} from "https://esm.sh/@codemirror/view";
     import {defaultKeymap, history, historyKeymap} from "https://esm.sh/@codemirror/commands";
     import {detectCjkEncoding} from "./cjkEncodingDetector.js";
+    import {loadDocumentExtractor} from "./docs/pdf-helper/load.js";
 
     const configInput = document.getElementById("config");
     const configDescription = document.getElementById("configDescription");
@@ -1011,30 +1012,53 @@
         textFile.click();
     };
 
+    let openFileRequest = 0;
+
     textFile.addEventListener("change", async () => {
         const file = textFile.files?.[0];
         if (!file) {
             return;
         }
 
-        try {
-            openedTextFileName = file.name;
-            openedTextFileBytes = new Uint8Array(await file.arrayBuffer());
+        textFile.value = "";
+        const request = ++openFileRequest;
+        const extension = file.name.split(".").pop().toLowerCase();
 
-            const detected = detectCjkEncoding(openedTextFileBytes);
+        try {
+            const bytes = new Uint8Array(await file.arrayBuffer());
+            if (request !== openFileRequest) return;
+
+            if (extension === "epub" || extension === "docx" || extension === "odt") {
+                const helper = await loadDocumentExtractor();
+                if (request !== openFileRequest) return;
+
+                const text = helper[`extract_${extension}`](bytes);
+                setInputEditorText(text);
+                clearOpenedTextFile();
+                openedFileName.textContent = file.name;
+                editorLeft.focus();
+                out.textContent = `Opened ${file.name} (${inputCount.textContent} characters).`;
+                return;
+            }
+
+            if (extension !== "txt" && extension !== "md") {
+                throw new Error("Select a TXT, MD, EPUB, DOCX, or ODT file.");
+            }
+
+            const detected = detectCjkEncoding(bytes);
             if (detected.detected) {
                 textEncoding.value = detected.encoding;
             }
 
+            openedTextFileName = file.name;
+            openedTextFileBytes = bytes;
             openedFileName.textContent = file.name;
             refreshOpenedTextFile();
         } catch (err) {
-            clearOpenedTextFile();
+            if (request !== openFileRequest) return;
             out.textContent =
-                `Failed to open file: ${err instanceof Error ? err.message : err}`;
+                `Failed to open ${file.name}: ${err instanceof Error ? err.message : err}`;
             console.error(err);
-        } finally {
-            textFile.value = "";
         }
     });
 
