@@ -32,7 +32,7 @@ Package profile:
 - 24 conversion configs
 - 100% offline
 
-### *🌐 Live Demo*
+### 🌐 Live Demo
 
 Try `opencc-fmmseg-wasm` directly in your browser:
 
@@ -40,17 +40,35 @@ Try `opencc-fmmseg-wasm` directly in your browser:
 
 The interactive demo includes:
 
-- **Chinese Conversion** — Simplified, Traditional, regional variants, and Small Seal Script.
+- **Chinese Conversion** — 24 conversion configurations covering Simplified, Traditional, regional variants, and Small
+  Seal Script.
 - **Custom Dictionaries** — Add multiple dictionary slots with Append/Override modes, apply changes instantly, and reset
   to defaults.
 - **Document Conversion** — Convert DOCX, XLSX, PPTX, ODT, ODS, ODP, EPUB, TXT, and Markdown files directly in your
-  browser.
+  browser while preserving supported document structures and formatting.
+- **Document Text Extraction** — Open EPUB, DOCX, ODT, and PDF files directly into the input editor for interactive
+  Chinese conversion.
+- **PDF Processing** — PDFium-powered text extraction with optional page headers, CJK paragraph reflow, compact
+  paragraph spacing, custom heading regex, and untrusted PDF text filtering.
+- **PDF-to-TXT Conversion** — Convert PDF files through the Drop Zone and download the converted text as UTF-8 TXT, with
+  optional filename conversion.
+- **PDF Progress and Cancellation** — Page-by-page extraction progress with cooperative cancellation for both Open File
+  and Drop Zone operations.
 - **Automatic Encoding Detection** — Detect UTF-8, UTF-16, GB18030/GBK, Big5, and Shift-JIS for text files, with manual
   override.
-- **Additional Tools** — Unicode compatibility normalization, DeTofu, punctuation conversion, and `GB mojibake` repair.
-- **Modern Interface** — Responsive layout with automatic Light/Dark Theme support.
+- **Additional Tools** — Unicode compatibility normalization, DeTofu, punctuation conversion, and GB mojibake repair.
+- **Modern Interface** — Responsive layout, CodeMirror editors with line numbers and character counts, and
+  System/Light/Dark theme support.
+- **On-Demand Loading** — Document extraction helpers and the PDFium runtime are loaded only when needed, keeping
+  ordinary Chinese conversion lightweight.
 
-All conversions run **locally in your browser using WebAssembly**. Your files are never uploaded to a server.
+Document text extraction and PDF processing are powered by reusable Rust WASM helpers from [
+`pdfium-helper`](https://github.com/laisuk/pdfium-helper).
+
+All processing runs **locally in your browser using WebAssembly**. Your files are never uploaded to a server.
+
+**Note:** PDF extraction requires an existing text layer. OCR and password-protected PDF extraction are not currently
+supported.
 
 **No installation or server backend required.**
 
