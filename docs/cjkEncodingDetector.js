@@ -5,12 +5,12 @@
  * detect text-file encodings without calling into WebAssembly.
  *
  * Detection order:
- * BOM -> ASCII -> strict UTF-8 -> BOM-less UTF-16 heuristic ->
+ * UTF-32/UTF-8/UTF-16 BOM -> BOM-less UTF-16 heuristic -> ASCII/strict UTF-8 ->
  * Big5/GB18030/Shift-JIS statistical fallback -> unknown.
  *
  * GB2312 and GBK are reported as "gb18030", matching TextDecoder usage.
  *
- * The Big5/GB18030 statistical models are derived from uchardet 0.0.5 /
+ * The Big5/GB18030/Shift-JIS statistical models are derived from uchardet 0.0.5 /
  * Mozilla Universal Charset Detector. Keep the corresponding upstream
  * licensing notices when redistributing this port.
  */
@@ -33,6 +33,14 @@ export function detectCjkEncoding(data) {
         return unknown();
     }
 
+    if (startsWith(data, 0xFF, 0xFE, 0x00, 0x00)) {
+        return result("utf-32le", "UTF-32 LE BOM", 4, 1.0);
+    }
+
+    if (startsWith(data, 0x00, 0x00, 0xFE, 0xFF)) {
+        return result("utf-32be", "UTF-32 BE BOM", 4, 1.0);
+    }
+
     if (startsWith(data, 0xEF, 0xBB, 0xBF)) {
         return result("utf-8", "UTF-8 BOM", 3, 1.0);
     }
@@ -45,11 +53,6 @@ export function detectCjkEncoding(data) {
         return result("utf-16be", "UTF-16 BE BOM", 2, 1.0);
     }
 
-    const utf8Kind = classifyUtf8(data);
-    if (utf8Kind !== null) {
-        return result("utf-8", utf8Kind === "ascii" ? "ASCII" : "UTF-8", 0, 1.0);
-    }
-
     if (looksLikeUtf16(data, 1)) {
         return result("utf-16le", "UTF-16 LE", 0, 0.90);
     }
@@ -58,7 +61,12 @@ export function detectCjkEncoding(data) {
         return result("utf-16be", "UTF-16 BE", 0, 0.90);
     }
 
-    return detectChineseLegacy(data);
+    const utf8Kind = classifyUtf8(data);
+    if (utf8Kind !== null) {
+        return result("utf-8", utf8Kind === "ascii" ? "ASCII" : "UTF-8", 0, 1.0);
+    }
+
+    return detectCjkLegacy(data);
 }
 
 function result(encoding, name, bomSize, confidence) {
@@ -199,7 +207,7 @@ function looksLikeUtf16(data, zeroByteIndex) {
     return pairs !== 0 && Math.trunc(zeroBytes * 100 / pairs) >= 60;
 }
 
-function detectChineseLegacy(data) {
+function detectCjkLegacy(data) {
     const sampleCount = Math.min(data.length, MAX_HEURISTIC_SAMPLE_SIZE);
 
     const big5Confidence = probeBig5(data, sampleCount);
@@ -226,8 +234,8 @@ function probeBig5(data, count) {
     const distribution = new DistributionAnalysis(
         BIG5_FREQUENT_BITS, 5376, 0.75, getBig5Order);
 
-    feedProber(data, count, stateMachine, distribution);
-    return distribution.getConfidence();
+    return feedProber(data, count, stateMachine, distribution)
+        ? distribution.getConfidence() : 0.01;
 }
 
 function probeGb18030(data, count) {
@@ -237,10 +245,35 @@ function probeGb18030(data, count) {
     const distribution = new DistributionAnalysis(
         GB2312_FREQUENT_BITS, 3760, 0.90, getGb2312Order);
 
-    feedProber(data, count, stateMachine, distribution);
-    return distribution.getConfidence();
+    return feedProber(data, count, stateMachine, distribution)
+        ? distribution.getConfidence() : 0.01;
 }
 
+const cp932ExtensionTrails = new Map();
+
+function isAssignedCp932Extension(lead, trail) {
+    if (trail < 0x40 || trail === 0x7F || trail > 0xFC) return false;
+
+    let assigned = cp932ExtensionTrails.get(lead);
+    if (!assigned) {
+        assigned = new Uint8Array(0xFC - 0x40 + 1);
+        const decoder = new TextDecoder("shift_jis", { fatal: true });
+        const pair = new Uint8Array([lead, 0]);
+        for (let candidate = 0x40; candidate <= 0xFC; candidate++) {
+            if (candidate === 0x7F) continue;
+            pair[1] = candidate;
+            try {
+                const decoded = decoder.decode(pair);
+                assigned[candidate - 0x40] = decoded.length === 1 && decoded !== "\uFFFD";
+            } catch (error) {
+                if (!(error instanceof TypeError)) throw error;
+            }
+        }
+        cp932ExtensionTrails.set(lead, assigned);
+    }
+
+    return assigned[trail - 0x40] === 1;
+}
 
 function probeShiftJis(data, count) {
     const stateMachine = new CodingStateMachine(
@@ -248,9 +281,27 @@ function probeShiftJis(data, count) {
     const distribution = new DistributionAnalysis(
         JIS_FREQUENT_BITS, 4368, 3.0, getShiftJisOrder);
     const context = new JapaneseContextAnalysis();
+    const sampleClipped = count < data.length;
 
     for (let i = 0; i < count; i++) {
-        const state = stateMachine.nextState(data[i]);
+        const value = data[i];
+        if (stateMachine.currentState === STATE_START &&
+            (value === 0x87 || value === 0xED || value === 0xEE ||
+                (value >= 0xF0 && value <= 0xFC))) {
+            if (i + 1 === count) {
+                if (!sampleClipped) return 0.01;
+                break;
+            }
+            if (!isAssignedCp932Extension(value, data[i + 1])) return 0.01;
+
+            // Extensions are outside the JIS model and interrupt hiragana context.
+            context.handleNonHiragana();
+            i++;
+            continue;
+        }
+
+        const state = stateMachine.nextState(value);
+        if (state === STATE_ERROR) return 0.01;
         if (state === STATE_ITS_ME) break;
         if (state !== STATE_START) continue;
 
@@ -265,6 +316,9 @@ function probeShiftJis(data, count) {
             context.handleNonHiragana();
         }
     }
+    if (!sampleClipped && stateMachine.currentState !== STATE_START &&
+        stateMachine.currentState !== STATE_ITS_ME) return 0.01;
+
     return Math.max(context.getConfidence(), distribution.getConfidence());
 }
 
@@ -316,6 +370,8 @@ function feedProber(data, count, stateMachine, distribution) {
     for (let i = 0; i < count; i++) {
         const state = stateMachine.nextState(data[i]);
 
+        if (state === STATE_ERROR) return false;
+
         if (state === STATE_ITS_ME) {
             break;
         }
@@ -329,6 +385,8 @@ function feedProber(data, count, stateMachine, distribution) {
             distribution.handleOneChar(data[i - 1], data[i]);
         }
     }
+    return count < data.length || stateMachine.currentState === STATE_START ||
+        stateMachine.currentState === STATE_ITS_ME;
 }
 
 class DistributionAnalysis {

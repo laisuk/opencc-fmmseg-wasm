@@ -25,6 +25,11 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - Synced vendored upstream `opencc-fmmseg` zstd to v0.9.1.
 - Updated dictionary data.
 
+### Fixed
+
+- Browser demo text detection now handles BOM-less UTF-16 and CP932 extensions, rejects malformed legacy samples, and
+  reports UTF-32 BOMs as unsupported for decoding.
+
 ---
 
 ## \[0.5.5] - 2026-11-22

@@ -1119,6 +1119,9 @@
             }
 
             const detected = detectCjkEncoding(bytes);
+            if (detected.encoding === "utf-32le" || detected.encoding === "utf-32be") {
+                throw new Error(`Unsupported text encoding: ${detected.name}.`);
+            }
             if (detected.detected) {
                 textEncoding.value = detected.encoding;
             }
@@ -1286,6 +1289,9 @@
                 encodingSource = "manual";
                 if (autoDetectDropEncoding.checked) {
                     const detected = detectCjkEncoding(inputBytes);
+                    if (detected.encoding === "utf-32le" || detected.encoding === "utf-32be") {
+                        throw new Error(`Unsupported text encoding: ${detected.name}.`);
+                    }
                     if (!detected.detected) {
                         throw new Error("Unable to detect text encoding. Uncheck Auto-detect text encoding in Drop Zone and select an encoding manually.");
                     }
