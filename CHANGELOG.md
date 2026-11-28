@@ -24,6 +24,8 @@ This project adheres to [Semantic Versioning](https://semver.org/).
 - Build: added `prepare-npm.ps1` with `-NoModules` support.
 - Synced vendored upstream `opencc-fmmseg` zstd to v0.9.1.
 - Updated dictionary data.
+- Browser demo editors now maintain Unicode character counts incrementally to reduce work during edits to large
+  documents.
 
 ### Fixed
 

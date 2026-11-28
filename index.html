@@ -704,7 +704,7 @@
         DetofuLevelWasm
     } from "./pkg/opencc_fmmseg_wasm.js";
 
-    import {EditorState} from "https://esm.sh/@codemirror/state";
+    import {Annotation, EditorState, StateField} from "https://esm.sh/@codemirror/state";
     import {EditorView, keymap, lineNumbers} from "https://esm.sh/@codemirror/view";
     import {defaultKeymap, history, historyKeymap} from "https://esm.sh/@codemirror/commands";
     import {detectCjkEncoding} from "./cjkEncodingDetector.js";
@@ -921,6 +921,63 @@
         openedFileName.textContent = "";
     }
 
+    const replacementCharacterCount = Annotation.define();
+    const editorCharacterCount = StateField.define({
+        create(state) {
+            return countDocumentCodePoints(state.doc);
+        },
+        update(count, update) {
+            if (!update.docChanged) return count;
+
+            const oldDoc = update.startState.doc;
+            const newDoc = update.newDoc;
+            update.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+                if (fromA === 0 && toA === oldDoc.length) {
+                    count = update.annotation(replacementCharacterCount) ??
+                        countDocumentCodePoints(inserted);
+                    return;
+                }
+
+                // Range counts omit pairs that cross an edit boundary.
+                count += countDocumentCodePoints(inserted) -
+                    countDocumentCodePoints(oldDoc, fromA, toA) +
+                    countBoundaryPairs(oldDoc, fromA, toA) -
+                    countBoundaryPairs(newDoc, fromB, toB);
+            });
+            return count;
+        }
+    });
+
+    function isSurrogatePair(first, second) {
+        return first >= 0xD800 && first <= 0xDBFF && second >= 0xDC00 && second <= 0xDFFF;
+    }
+
+    function countDocumentCodePoints(doc, from = 0, to = doc.length) {
+        let count = to - from;
+        let previous = -1;
+        const cursor = doc.iterRange(from, to);
+        while (!cursor.next().done) {
+            const chunk = cursor.value;
+            for (let i = 0; i < chunk.length; i++) {
+                const current = chunk.charCodeAt(i);
+                if (isSurrogatePair(previous, current)) count--;
+                previous = current;
+            }
+        }
+        return count;
+    }
+
+    function countBoundaryPairs(doc, from, to) {
+        // An empty range has one boundary. A nonempty range has two.
+        return pairAcross(from) + (from === to ? 0 : pairAcross(to));
+
+        function pairAcross(pos) {
+            if (pos === 0 || pos === doc.length) return 0;
+            const pair = doc.sliceString(pos - 1, pos + 1);
+            return Number(isSurrogatePair(pair.charCodeAt(0), pair.charCodeAt(1)));
+        }
+    }
+
     const editorLeft = createEditor(
         document.getElementById("editor-left"),
         "汉字转换测试",
@@ -998,7 +1055,8 @@
             ]),
             EditorView.lineWrapping,
             EditorView.editable.of(!readOnly),
-            EditorState.readOnly.of(readOnly)
+            EditorState.readOnly.of(readOnly),
+            editorCharacterCount
         ];
 
         if (onDocChanged || countElement) {
@@ -1007,7 +1065,7 @@
                     if (!update.docChanged) return;
 
                     if (countElement) {
-                        const count = Array.from(update.state.doc.toString()).length;
+                        const count = update.state.field(editorCharacterCount);
                         countElement.textContent = count.toLocaleString();
                     }
                     onDocChanged?.();
@@ -1015,25 +1073,21 @@
             );
         }
 
+        const state = EditorState.create({doc: text, extensions});
         if (countElement) {
-            countElement.textContent = Array.from(text).length.toLocaleString();
+            countElement.textContent = state.field(editorCharacterCount).toLocaleString();
         }
 
-        return new EditorView({
-            parent,
-            state: EditorState.create({
-                doc: text,
-                extensions
-            })
-        });
+        return new EditorView({parent, state});
     }
 
     function getEditorText(editor) {
         return editor.state.doc.toString();
     }
 
-    function setEditorText(editor, text) {
+    function setEditorText(editor, text, annotations) {
         editor.dispatch({
+            annotations,
             changes: {
                 from: 0,
                 to: editor.state.doc.length,
@@ -1070,9 +1124,11 @@
             setInputEditorText(text, true);
             editorLeft.focus();
 
+            // CodeMirror collapses CRLF to LF. Keep the file status count for the decoded text.
+            const count = editorLeft.state.field(editorCharacterCount) + (text.length - editorLeft.state.doc.length);
             out.textContent =
                 `Opened ${openedTextFileName} as ${textEncoding.options[textEncoding.selectedIndex].text} ` +
-                `(${Array.from(text).length.toLocaleString()} characters).`;
+                `(${count.toLocaleString()} characters).`;
         } catch (err) {
             out.textContent =
                 `Failed to decode file as ${textEncoding.value}: ${err instanceof Error ? err.message : err}`;
@@ -1614,8 +1670,10 @@
         const converted = cc.convert(text, punctuation);
         const conversionMs = performance.now() - startTime;
 
-        const inputCharCount = Array.from(text).length;
-        const outputCharCount = Array.from(converted).length;
+        const inputCharCount = editorLeft.state.field(editorCharacterCount);
+        const outputDoc = editorRight.state.toText(converted);
+        const outputDocCount = countDocumentCodePoints(outputDoc);
+        const outputCharCount = outputDocCount + (converted.length - outputDoc.length);
 
         const check =
             cc.zhoCheck(converted);
@@ -1640,7 +1698,7 @@
         // Let the browser paint the status first, then update CodeMirror.
         // This keeps the UI responsive when replacing very large documents.
         requestAnimationFrame(() => {
-            setEditorText(editorRight, converted);
+            setEditorText(editorRight, outputDoc, replacementCharacterCount.of(outputDocCount));
             clearOutputDownload();
         });
     };
